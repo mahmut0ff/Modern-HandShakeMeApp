@@ -288,7 +288,6 @@ export default function WelcomePage() {
 
         {/* Action Buttons */}
         <Animated.View 
-          className="space-y-4"
           style={{
             opacity: buttonsAnim,
             transform: [{
@@ -301,7 +300,7 @@ export default function WelcomePage() {
         >
           <Link href="/(auth)/login" asChild>
             <TouchableOpacity 
-              className="w-full bg-white py-5 px-6 rounded-2xl shadow-lg"
+              className="w-full bg-white py-5 px-6 rounded-2xl shadow-lg mb-4"
               activeOpacity={0.9}
               style={{
                 shadowColor: '#000',
@@ -317,7 +316,7 @@ export default function WelcomePage() {
           
           <Link href="/(auth)/register" asChild>
             <TouchableOpacity 
-              className="w-full border-2 border-white py-5 px-6 rounded-2xl"
+              className="w-full border-2 border-white py-5 px-6 rounded-2xl mb-6"
               activeOpacity={0.9}
               style={{
                 backgroundColor: 'transparent',
@@ -328,7 +327,7 @@ export default function WelcomePage() {
             </TouchableOpacity>
           </Link>
           
-          <View className="pt-4">
+          <View>
             <Text className="text-white/60 text-center text-base leading-relaxed px-4">
               Создавайте заказы или предлагайте свои услуги
             </Text>

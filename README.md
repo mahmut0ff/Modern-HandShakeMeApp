@@ -73,14 +73,6 @@ HandShakeMeApp/
 
 ---
 
-## 📞 Contact
-
-**Developer:** Abdulloh  
-**AWS Account:** 473522039044  
-**Region:** us-east-1
-
----
-
 ## 📚 Documentation
 
 - **[docs/README.md](docs/README.md)** - Project overview

@@ -273,15 +273,20 @@ export default function RegisterPage() {
         <View className="absolute bottom-16 right-8 w-28 h-28 bg-white/12 rounded-full" />
       </View>
       
-      <ScrollView className="flex-1 px-4 pt-16" showsVerticalScrollIndicator={false}>
-        <View className="bg-white rounded-3xl p-8 mt-8">
+      <ScrollView 
+        className="flex-1 px-4 pt-12" 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 40 }}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View className="bg-white rounded-3xl p-6 mt-4 mb-8">
           {/* Logo */}
-          <View className="items-center mb-8">
-            <View className="w-20 h-20 bg-blue-500 rounded-3xl items-center justify-center mb-6">
-              <Text className="text-4xl">🤝</Text>
+          <View className="items-center mb-6">
+            <View className="w-16 h-16 bg-blue-500 rounded-3xl items-center justify-center mb-4">
+              <Text className="text-3xl">🤝</Text>
             </View>
-            <Text className="text-3xl font-bold text-gray-900 mb-3 text-center">Регистрация</Text>
-            <Text className="text-gray-600 text-center">Создайте аккаунт для начала работы</Text>
+            <Text className="text-2xl font-bold text-gray-900 mb-2 text-center">Регистрация</Text>
+            <Text className="text-gray-600 text-center text-sm">Создайте аккаунт для начала работы</Text>
           </View>
           
           {generalError && (
@@ -292,14 +297,14 @@ export default function RegisterPage() {
           )}
 
           {/* Role Selection */}
-          <View className="mb-6">
-            <Text className="text-sm font-semibold text-gray-700 mb-3">
+          <View className="mb-4">
+            <Text className="text-sm font-semibold text-gray-700 mb-2">
               Выберите роль
             </Text>
             <View className="flex-row gap-3">
               <TouchableOpacity
                 onPress={() => handleRoleChange('client')}
-                className={`flex-1 p-4 rounded-2xl border-2 items-center ${
+                className={`flex-1 p-3 rounded-2xl border-2 items-center ${
                   formData.role === 'client'
                     ? 'border-blue-500 bg-blue-50'
                     : 'border-gray-200 bg-gray-50'
@@ -307,10 +312,10 @@ export default function RegisterPage() {
               >
                 <Ionicons 
                   name="person" 
-                  size={24} 
+                  size={20} 
                   color={formData.role === 'client' ? '#3B82F6' : '#6B7280'} 
                 />
-                <Text className={`font-semibold text-sm mt-2 ${
+                <Text className={`font-semibold text-xs mt-1 ${
                   formData.role === 'client' ? 'text-blue-500' : 'text-gray-700'
                 }`}>
                   Клиент
@@ -319,7 +324,7 @@ export default function RegisterPage() {
               
               <TouchableOpacity
                 onPress={() => handleRoleChange('master')}
-                className={`flex-1 p-4 rounded-2xl border-2 items-center ${
+                className={`flex-1 p-3 rounded-2xl border-2 items-center ${
                   formData.role === 'master'
                     ? 'border-blue-500 bg-blue-50'
                     : 'border-gray-200 bg-gray-50'
@@ -327,10 +332,10 @@ export default function RegisterPage() {
               >
                 <Ionicons 
                   name="construct" 
-                  size={24} 
+                  size={20} 
                   color={formData.role === 'master' ? '#3B82F6' : '#6B7280'} 
                 />
-                <Text className={`font-semibold text-sm mt-2 ${
+                <Text className={`font-semibold text-xs mt-1 ${
                   formData.role === 'master' ? 'text-blue-500' : 'text-gray-700'
                 }`}>
                   Мастер
@@ -340,8 +345,8 @@ export default function RegisterPage() {
           </View>
 
           {/* Phone Number */}
-          <View className="mb-6">
-            <Text className="text-sm font-semibold text-gray-700 mb-3">
+          <View className="mb-4">
+            <Text className="text-sm font-semibold text-gray-700 mb-2">
               Номер телефона КР
             </Text>
             <View className="relative">
@@ -352,7 +357,7 @@ export default function RegisterPage() {
                 value={formData.phone}
                 onChangeText={(value) => handleChange('phone', value)}
                 keyboardType="phone-pad"
-                className={`w-full rounded-2xl border-2 bg-gray-50 pl-12 pr-4 py-4 text-gray-900 ${
+                className={`w-full rounded-2xl border-2 bg-gray-50 pl-12 pr-4 py-3 text-gray-900 ${
                   errors.phone ? 'border-red-300' : 'border-gray-200'
                 }`}
                 placeholder="+996XXXXXXXXX"
@@ -360,16 +365,16 @@ export default function RegisterPage() {
               />
             </View>
             {errors.phone && (
-              <View className="mt-2 flex-row items-center gap-1">
-                <Ionicons name="alert-circle" size={16} color="#DC2626" />
-                <Text className="text-sm text-red-600">{errors.phone}</Text>
+              <View className="mt-1 flex-row items-center gap-1">
+                <Ionicons name="alert-circle" size={14} color="#DC2626" />
+                <Text className="text-xs text-red-600">{errors.phone}</Text>
               </View>
             )}
           </View>
 
           {/* First Name */}
-          <View className="mb-6">
-            <Text className="text-sm font-semibold text-gray-700 mb-3">
+          <View className="mb-4">
+            <Text className="text-sm font-semibold text-gray-700 mb-2">
               Имя
             </Text>
             <View className="relative">
@@ -379,7 +384,7 @@ export default function RegisterPage() {
               <TextInput
                 value={formData.first_name}
                 onChangeText={(value) => handleChange('first_name', value)}
-                className={`w-full rounded-2xl border-2 bg-gray-50 pl-12 pr-4 py-4 text-gray-900 ${
+                className={`w-full rounded-2xl border-2 bg-gray-50 pl-12 pr-4 py-3 text-gray-900 ${
                   errors.first_name ? 'border-red-300' : 'border-gray-200'
                 }`}
                 placeholder="Введите ваше имя"
@@ -387,16 +392,16 @@ export default function RegisterPage() {
               />
             </View>
             {errors.first_name && (
-              <View className="mt-2 flex-row items-center gap-1">
-                <Ionicons name="alert-circle" size={16} color="#DC2626" />
-                <Text className="text-sm text-red-600">{errors.first_name}</Text>
+              <View className="mt-1 flex-row items-center gap-1">
+                <Ionicons name="alert-circle" size={14} color="#DC2626" />
+                <Text className="text-xs text-red-600">{errors.first_name}</Text>
               </View>
             )}
           </View>
 
           {/* Last Name */}
-          <View className="mb-6">
-            <Text className="text-sm font-semibold text-gray-700 mb-3">
+          <View className="mb-4">
+            <Text className="text-sm font-semibold text-gray-700 mb-2">
               Фамилия
             </Text>
             <View className="relative">
@@ -406,7 +411,7 @@ export default function RegisterPage() {
               <TextInput
                 value={formData.last_name}
                 onChangeText={(value) => handleChange('last_name', value)}
-                className={`w-full rounded-2xl border-2 bg-gray-50 pl-12 pr-4 py-4 text-gray-900 ${
+                className={`w-full rounded-2xl border-2 bg-gray-50 pl-12 pr-4 py-3 text-gray-900 ${
                   errors.last_name ? 'border-red-300' : 'border-gray-200'
                 }`}
                 placeholder="Введите вашу фамилию"
@@ -414,24 +419,24 @@ export default function RegisterPage() {
               />
             </View>
             {errors.last_name && (
-              <View className="mt-2 flex-row items-center gap-1">
-                <Ionicons name="alert-circle" size={16} color="#DC2626" />
-                <Text className="text-sm text-red-600">{errors.last_name}</Text>
+              <View className="mt-1 flex-row items-center gap-1">
+                <Ionicons name="alert-circle" size={14} color="#DC2626" />
+                <Text className="text-xs text-red-600">{errors.last_name}</Text>
               </View>
             )}
           </View>
 
           {/* Terms Agreement */}
-          <View className="flex-row items-start gap-3 mb-6">
+          <View className="flex-row items-start gap-3 mb-5">
             <TouchableOpacity
               onPress={() => setAgreeTerms(!agreeTerms)}
-              className={`w-5 h-5 rounded border-2 items-center justify-center mt-1 ${
+              className={`w-5 h-5 rounded border-2 items-center justify-center mt-0.5 ${
                 agreeTerms ? 'bg-blue-500 border-blue-500' : 'border-gray-300'
               }`}
             >
-              {agreeTerms && <Ionicons name="checkmark" size={16} color="white" />}
+              {agreeTerms && <Ionicons name="checkmark" size={14} color="white" />}
             </TouchableOpacity>
-            <Text className="text-sm text-gray-600 flex-1">
+            <Text className="text-xs text-gray-600 flex-1">
               Я согласен с{' '}
               <Text className="text-blue-500 font-semibold">условиями использования</Text>
               {' '}и{' '}
@@ -442,19 +447,19 @@ export default function RegisterPage() {
           <TouchableOpacity
             onPress={handleSubmit}
             disabled={isLoading || isRegisterLoading || !agreeTerms}
-            className={`w-full py-4 px-6 rounded-2xl mb-6 ${
+            className={`w-full py-3.5 px-6 rounded-2xl mb-4 ${
               isLoading || isRegisterLoading || !agreeTerms ? 'bg-gray-400' : 'bg-blue-500'
             }`}
           >
             <View className="flex-row items-center justify-center gap-2">
-              <Text className="text-white font-bold text-lg">
+              <Text className="text-white font-bold text-base">
                 {isLoading || isRegisterLoading ? 'Отправка SMS...' : 'Получить SMS код'}
               </Text>
-              {!isLoading && !isRegisterLoading && <Ionicons name="arrow-forward" size={20} color="white" />}
+              {!isLoading && !isRegisterLoading && <Ionicons name="arrow-forward" size={18} color="white" />}
             </View>
           </TouchableOpacity>
 
-          <Text className="text-center text-sm text-gray-600">
+          <Text className="text-center text-xs text-gray-600">
             Уже есть аккаунт?{' '}
             <Link href="/(auth)/login" asChild>
               <Text className="text-blue-500 font-semibold">Войти</Text>
