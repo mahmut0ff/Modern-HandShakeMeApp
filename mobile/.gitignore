@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+
+# Native
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# Debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+*.pem
+
+# Local env files
+.env.local
+.env*.local
+
+# TypeScript
+*.tsbuildinfo
+
+# Keystore files (Keep in repo for deployment)
+# *.keystore - COMMENTED OUT - We keep keystore for production builds
+# keystore.properties - COMMENTED OUT - We keep properties for production builds
+
+# Android build outputs
+android/app/build/
+android/build/
+android/.gradle/
+android/app/release/
+android/app/debug/
+
+# iOS (if added later)
+ios/Pods/
+ios/build/
