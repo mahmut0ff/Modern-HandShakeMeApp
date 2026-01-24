@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, FlatList, Image } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, FlatList, Image, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { SearchBar, Pagination, FilterChip, SkeletonList, OptimizedImage } from '../../components/common';
+import { useFilters } from '../../hooks/useFilters';
 
 interface Master {
   id: number;
@@ -41,10 +43,9 @@ interface SearchFilters {
 }
 
 export default function MasterSearchPage() {
-  const [filters, setFilters] = useState<SearchFilters>({});
-  const [page, setPage] = useState(1);
   const [showFilters, setShowFilters] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Mock data - replace with actual API calls
   const masters: Master[] = [
@@ -86,14 +87,26 @@ export default function MasterSearchPage() {
     }
   ];
 
-  const handleFilterChange = (key: keyof SearchFilters, value: unknown) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
-    setPage(1);
-  };
+  const {
+    paginatedData,
+    totalPages,
+    currentPage,
+    searchQuery,
+    filters,
+    updateFilter,
+    updateSearch,
+    clearFilters,
+    setCurrentPage,
+  } = useFilters<Master>(masters, {
+    pageSize: 10,
+    searchFields: ['full_name', 'first_name', 'last_name', 'company_name', 'city'],
+  });
 
-  const clearFilters = () => {
-    setFilters({});
-    setPage(1);
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    // Simulate API call
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    setRefreshing(false);
   };
 
   const activeFiltersCount = Object.values(filters).filter(v => v !== undefined && v !== '').length;
@@ -107,7 +120,7 @@ export default function MasterSearchPage() {
         <View className="relative">
           <View className="w-16 h-16 bg-[#0165FB] rounded-full items-center justify-center overflow-hidden">
             {item.avatar ? (
-              <Image source={{ uri: item.avatar }} className="w-full h-full" />
+              <OptimizedImage uri={item.avatar} width={64} height={64} style={{ borderRadius: 32 }} />
             ) : (
               <Ionicons name="person" size={32} color="white" />
             )}
@@ -219,7 +232,13 @@ export default function MasterSearchPage() {
 
   return (
     <SafeAreaView className="flex-1 bg-[#F8F7FC]">
-      <ScrollView className="flex-1 px-4" contentContainerStyle={{ paddingBottom: 20, paddingTop: 8 }}>
+      <ScrollView 
+        className="flex-1 px-4" 
+        contentContainerStyle={{ paddingBottom: 20, paddingTop: 8 }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        }
+      >
         {/* Header */}
         <View className="flex-row items-center justify-between mb-4 pt-4 px-0">
           <Text className="text-2xl font-bold text-gray-900">Мастера</Text>
@@ -243,18 +262,11 @@ export default function MasterSearchPage() {
         </View>
 
         {/* Search */}
-        <View className="relative mb-4 px-0">
-          <Ionicons 
-            name="search" 
-            size={20} 
-            color="#9CA3AF" 
-            style={{ position: 'absolute', left: 16, top: 14, zIndex: 1 }}
-          />
-          <TextInput
-            value={filters.search || ''}
-            onChangeText={(text) => handleFilterChange('search', text)}
+        <View className="mb-4">
+          <SearchBar
+            value={searchQuery}
+            onChangeText={updateSearch}
             placeholder="Поиск по имени или специализации..."
-            className="w-full pl-12 pr-4 py-3.5 bg-white rounded-2xl border border-gray-100 text-gray-900"
           />
         </View>
 
@@ -265,8 +277,8 @@ export default function MasterSearchPage() {
               <View className="flex-1">
                 <Text className="text-sm font-medium text-gray-700 mb-2">Город</Text>
                 <TextInput
-                  value={filters.city || ''}
-                  onChangeText={(text) => handleFilterChange('city', text)}
+                  value={(filters.city as string) || ''}
+                  onChangeText={(text) => updateFilter('city', text)}
                   placeholder="Москва"
                   className="w-full px-4 py-3 bg-gray-100 rounded-2xl text-gray-900"
                 />
@@ -274,8 +286,8 @@ export default function MasterSearchPage() {
               <View className="flex-1">
                 <Text className="text-sm font-medium text-gray-700 mb-2">Мин. опыт</Text>
                 <TextInput
-                  value={filters.min_experience?.toString() || ''}
-                  onChangeText={(text) => handleFilterChange('min_experience', text ? Number(text) : undefined)}
+                  value={(filters.min_experience as number)?.toString() || ''}
+                  onChangeText={(text) => updateFilter('min_experience', text ? Number(text) : undefined)}
                   placeholder="лет"
                   keyboardType="numeric"
                   className="w-full px-4 py-3 bg-gray-100 rounded-2xl text-gray-900"
@@ -288,26 +300,12 @@ export default function MasterSearchPage() {
                 { key: 'has_transport', label: 'С транспортом', icon: 'car' },
                 { key: 'has_tools', label: 'С инструментами', icon: 'build' },
               ].map(item => (
-                <TouchableOpacity
+                <FilterChip
                   key={item.key}
-                  onPress={() => handleFilterChange(item.key as keyof SearchFilters, !filters[item.key as keyof SearchFilters] || undefined)}
-                  className={`flex-row items-center gap-2 px-4 py-2 rounded-2xl ${
-                    filters[item.key as keyof SearchFilters]
-                      ? 'bg-[#0165FB]/10 border-2 border-[#0165FB]'
-                      : 'bg-gray-100 border-2 border-transparent'
-                  }`}
-                >
-                  <Ionicons 
-                    name={item.icon as any} 
-                    size={16} 
-                    color={filters[item.key as keyof SearchFilters] ? '#0165FB' : '#6B7280'} 
-                  />
-                  <Text className={`text-sm font-medium ${
-                    filters[item.key as keyof SearchFilters] ? 'text-[#0165FB]' : 'text-gray-600'
-                  }`}>
-                    {item.label}
-                  </Text>
-                </TouchableOpacity>
+                  label={item.label}
+                  selected={!!filters[item.key as keyof SearchFilters]}
+                  onPress={() => updateFilter(item.key as keyof Master, !filters[item.key as keyof SearchFilters] || undefined)}
+                />
               ))}
             </View>
 
@@ -319,25 +317,13 @@ export default function MasterSearchPage() {
 
         {/* Results count */}
         <Text className="text-sm text-gray-500 mb-4 mt-4">
-          Найдено: {masters.length} мастеров
+          Найдено: {paginatedData.length} мастеров
         </Text>
 
         {/* Results */}
         {loading ? (
-          <View className="space-y-3">
-            {[1, 2, 3].map(i => (
-              <View key={i} className="bg-white rounded-3xl p-5 animate-pulse">
-                <View className="flex-row gap-4">
-                  <View className="w-16 h-16 bg-gray-200 rounded-full" />
-                  <View className="flex-1">
-                    <View className="h-5 bg-gray-200 rounded-full w-1/2 mb-2" />
-                    <View className="h-4 bg-gray-200 rounded-full w-1/3" />
-                  </View>
-                </View>
-              </View>
-            ))}
-          </View>
-        ) : masters.length === 0 ? (
+          <SkeletonList count={3} />
+        ) : paginatedData.length === 0 ? (
           <View className="bg-white rounded-3xl p-8 items-center shadow-sm border border-gray-100">
             <View className="w-20 h-20 bg-[#0165FB]/10 rounded-full items-center justify-center mb-4">
               <Ionicons name="search" size={40} color="#0165FB" />
@@ -346,13 +332,21 @@ export default function MasterSearchPage() {
             <Text className="text-gray-500">Попробуйте изменить параметры поиска</Text>
           </View>
         ) : (
-          <FlatList
-            data={masters}
-            renderItem={renderMaster}
-            keyExtractor={(item) => item.id.toString()}
-            scrollEnabled={false}
-            showsVerticalScrollIndicator={false}
-          />
+          <>
+            <FlatList
+              data={paginatedData}
+              renderItem={renderMaster}
+              keyExtractor={(item) => item.id.toString()}
+              scrollEnabled={false}
+              showsVerticalScrollIndicator={false}
+            />
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+              loading={loading}
+            />
+          </>
         )}
       </ScrollView>
     </SafeAreaView>

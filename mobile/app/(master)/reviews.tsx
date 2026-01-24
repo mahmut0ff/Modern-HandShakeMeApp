@@ -1,13 +1,20 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import {
   useGetMyReviewsQuery,
+  useMarkReviewHelpfulMutation,
+  useRemoveReviewHelpfulMutation,
+  useDeleteReviewResponseMutation,
+  useReportReviewMutation,
   type Review as APIReview,
 } from '../../services/reviewApi';
 import { usePagination } from '../../hooks/usePagination';
+import { ReviewList, Review, RatingDistribution, ReviewStats } from '../../features/reviews';
+import { useSelector } from 'react-redux';
+import { RootState } from '../../store';
 
 interface Review {
   id: number;
@@ -31,6 +38,7 @@ interface Review {
 
 export default function MasterReviewsPage() {
   const [filter, setFilter] = useState<'all' | 'recent' | 'high' | 'low'>('all');
+  const currentUser = useSelector((state: RootState) => state.auth.user);
   
   // Pagination
   const pagination = usePagination({ pageSize: 10 });
@@ -50,7 +58,12 @@ export default function MasterReviewsPage() {
               filter === 'low' ? 'rating' : undefined,
   });
 
-  const reviews = reviewsData?.results || [];
+  const [markHelpful] = useMarkReviewHelpfulMutation();
+  const [removeHelpful] = useRemoveReviewHelpfulMutation();
+  const [deleteResponse] = useDeleteReviewResponseMutation();
+  const [reportReview] = useReportReviewMutation();
+
+  const apiReviews = reviewsData?.results || [];
   const totalCount = reviewsData?.count || 0;
 
   // Update pagination when data changes
@@ -59,99 +72,116 @@ export default function MasterReviewsPage() {
   }, [totalCount]);
 
   // Convert API reviews to display format
-  const displayReviews: Review[] = reviews.map((review: APIReview) => ({
+  const reviews: Review[] = apiReviews.map((review: APIReview) => ({
     id: review.id,
-    project: {
-      id: review.project?.id || 0,
-      order_title: review.project_title || review.order_title || 'Проект'
-    },
-    client: {
-      id: review.client?.id || 0,
-      name: review.client?.name || review.client_name || 'Клиент',
-      avatar: review.client?.avatar || review.client_avatar || undefined
-    },
-    quality_rating: review.rating,
-    communication_rating: review.rating,
-    punctuality_rating: review.rating,
-    professionalism_rating: review.rating,
-    overall_rating: review.rating,
+    rating: review.rating,
     comment: review.comment || '',
-    created_at: review.created_at
+    createdAt: review.created_at,
+    updatedAt: review.updated_at,
+    isEdited: !!review.updated_at && review.updated_at !== review.created_at,
+    reviewer: {
+      id: review.client?.id || 0,
+      name: review.is_anonymous ? 'Anonymous' : (review.client?.name || review.client_name || 'Client'),
+      avatar: review.is_anonymous ? undefined : (review.client?.avatar || review.client_avatar),
+    },
+    master: {
+      id: review.master?.id || 0,
+      name: review.master?.name || review.master_name || 'You',
+      avatar: review.master?.avatar || review.master_avatar,
+    },
+    project: review.project,
+    response: review.response ? {
+      id: review.id,
+      text: review.response,
+      createdAt: review.responded_at || review.created_at,
+    } : undefined,
+    helpfulCount: review.helpful_count || 0,
+    isHelpfulByMe: review.is_helpful || false,
   }));
 
-  const averageRating = displayReviews.length > 0 
-    ? displayReviews.reduce((sum, review) => sum + review.overall_rating, 0) / displayReviews.length 
-    : 0;
-
-  const ratingDistribution = {
-    5: displayReviews.filter(r => Math.round(r.overall_rating) === 5).length,
-    4: displayReviews.filter(r => Math.round(r.overall_rating) === 4).length,
-    3: displayReviews.filter(r => Math.round(r.overall_rating) === 3).length,
-    2: displayReviews.filter(r => Math.round(r.overall_rating) === 2).length,
-    1: displayReviews.filter(r => Math.round(r.overall_rating) === 1).length,
+  // Calculate stats
+  const reviewStats: ReviewStats = {
+    averageRating: reviews.length > 0 
+      ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length 
+      : 0,
+    totalReviews: totalCount,
+    distribution: {
+      5: reviews.filter(r => r.rating === 5).length,
+      4: reviews.filter(r => r.rating === 4).length,
+      3: reviews.filter(r => r.rating === 3).length,
+      2: reviews.filter(r => r.rating === 2).length,
+      1: reviews.filter(r => r.rating === 1).length,
+    },
   };
 
-  const renderStars = (rating: number) => {
-    return (
-      <View className="flex-row">
-        {[1, 2, 3, 4, 5].map(star => (
-          <Ionicons
-            key={star}
-            name={star <= rating ? 'star' : 'star-outline'}
-            size={16}
-            color={star <= rating ? '#F59E0B' : '#D1D5DB'}
-          />
-        ))}
-      </View>
+  const handleRespond = (reviewId: number) => {
+    router.push(`/(master)/reviews/respond/${reviewId}`);
+  };
+
+  const handleEditResponse = (reviewId: number) => {
+    router.push(`/(master)/reviews/respond/${reviewId}?isEdit=true`);
+  };
+
+  const handleDeleteResponse = (reviewId: number) => {
+    Alert.alert(
+      'Delete Response',
+      'Are you sure you want to delete your response?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteResponse(reviewId).unwrap();
+              Alert.alert('Success', 'Response deleted successfully');
+            } catch (error) {
+              Alert.alert('Error', 'Failed to delete response');
+            }
+          },
+        },
+      ]
     );
   };
 
-  const renderReview = ({ item }: { item: Review }) => (
-    <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-4">
-      <View className="flex-row items-start justify-between mb-3">
-        <View className="flex-1">
-          <Text className="font-semibold text-gray-900">{item.client.name}</Text>
-          <Text className="text-sm text-gray-500 mt-1">{item.project.order_title}</Text>
-        </View>
-        <View className="items-end">
-          <View className="flex-row items-center gap-1">
-            <Text className="font-bold text-lg text-gray-900">
-              {item.overall_rating.toFixed(1)}
-            </Text>
-            <Ionicons name="star" size={20} color="#F59E0B" />
-          </View>
-          <Text className="text-xs text-gray-400">
-            {new Date(item.created_at).toLocaleDateString('ru-RU')}
-          </Text>
-        </View>
-      </View>
+  const handleReport = (reviewId: number) => {
+    Alert.prompt(
+      'Report Review',
+      'Please provide a reason for reporting this review:',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Report',
+          onPress: async (reason) => {
+            if (!reason || reason.trim().length === 0) {
+              Alert.alert('Error', 'Please provide a reason');
+              return;
+            }
+            try {
+              await reportReview({ id: reviewId, reason: reason.trim() }).unwrap();
+              Alert.alert('Success', 'Review reported successfully');
+            } catch (error) {
+              Alert.alert('Error', 'Failed to report review');
+            }
+          },
+        },
+      ],
+      'plain-text'
+    );
+  };
 
-      <View className="space-y-2 mb-4">
-        <View className="flex-row items-center justify-between">
-          <Text className="text-sm text-gray-600">Качество работы</Text>
-          {renderStars(item.quality_rating)}
-        </View>
-        <View className="flex-row items-center justify-between">
-          <Text className="text-sm text-gray-600">Общение</Text>
-          {renderStars(item.communication_rating)}
-        </View>
-        <View className="flex-row items-center justify-between">
-          <Text className="text-sm text-gray-600">Пунктуальность</Text>
-          {renderStars(item.punctuality_rating)}
-        </View>
-        <View className="flex-row items-center justify-between">
-          <Text className="text-sm text-gray-600">Профессионализм</Text>
-          {renderStars(item.professionalism_rating)}
-        </View>
-      </View>
-
-      {item.comment && (
-        <View className="p-3 bg-gray-50 rounded-2xl">
-          <Text className="text-gray-700">{item.comment}</Text>
-        </View>
-      )}
-    </View>
-  );
+  const handleMarkHelpful = async (reviewId: number) => {
+    const review = reviews.find(r => r.id === reviewId);
+    try {
+      if (review?.isHelpfulByMe) {
+        await removeHelpful(reviewId).unwrap();
+      } else {
+        await markHelpful(reviewId).unwrap();
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update helpful status');
+    }
+  };
 
   return (
     <SafeAreaView className="flex-1 bg-[#F8F7FC]">
@@ -224,55 +254,16 @@ export default function MasterReviewsPage() {
         )}
 
         {/* Rating Summary */}
-        {!reviewsLoading && !reviewsError && displayReviews.length > 0 && (
-          <View className="bg-[#0165FB] rounded-3xl p-5 mb-6">
-            <View className="flex-row items-center justify-between">
-              <View className="items-center">
-                <Text className="text-4xl font-bold text-white mb-1">
-                  {averageRating.toFixed(1)}
-                </Text>
-                <View className="flex-row mb-2">
-                  {[1, 2, 3, 4, 5].map(star => (
-                    <Ionicons
-                      key={star}
-                      name={star <= Math.round(averageRating) ? 'star' : 'star-outline'}
-                      size={20}
-                      color="white"
-                    />
-                  ))}
-                </View>
-                <Text className="text-white/70 text-sm">{totalCount} отзывов</Text>
-              </View>
-              
-              <View className="flex-1 ml-6">
-                {[5, 4, 3, 2, 1].map(rating => (
-                  <View key={rating} className="flex-row items-center gap-2 mb-1">
-                    <Text className="text-white text-sm w-2">{rating}</Text>
-                    <Ionicons name="star" size={12} color="white" />
-                    <View className="flex-1 bg-white/20 rounded-full h-2">
-                      <View 
-                        className="bg-white h-2 rounded-full" 
-                        style={{ 
-                          width: displayReviews.length > 0 
-                            ? `${(ratingDistribution[rating as keyof typeof ratingDistribution] / displayReviews.length) * 100}%` 
-                            : '0%' 
-                        }}
-                      />
-                    </View>
-                    <Text className="text-white text-sm w-6">
-                      {ratingDistribution[rating as keyof typeof ratingDistribution]}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            </View>
+        {!reviewsLoading && !reviewsError && reviews.length > 0 && (
+          <View className="mb-6">
+            <RatingDistribution stats={reviewStats} />
           </View>
         )}
 
         {/* Reviews List */}
         {!reviewsLoading && !reviewsError && (
           <>
-            {displayReviews.length === 0 ? (
+            {reviews.length === 0 ? (
               <View className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100 items-center">
                 <View className="w-20 h-20 bg-[#0165FB]/10 rounded-full items-center justify-center mb-4">
                   <Ionicons name="star-outline" size={40} color="#0165FB" />
@@ -291,12 +282,12 @@ export default function MasterReviewsPage() {
               </View>
             ) : (
               <>
-                <FlatList
-                  data={displayReviews}
-                  renderItem={renderReview}
-                  keyExtractor={(item) => item.id.toString()}
-                  scrollEnabled={false}
-                  showsVerticalScrollIndicator={false}
+                <ReviewList
+                  reviews={reviews}
+                  currentUserId={currentUser?.id}
+                  onRespond={handleRespond}
+                  onReport={handleReport}
+                  onMarkHelpful={handleMarkHelpful}
                 />
 
                 {/* Pagination */}

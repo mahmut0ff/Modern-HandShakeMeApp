@@ -1,71 +1,123 @@
 /**
- * Utility functions for formatting data
+ * Format number or string to currency
+ * @param value - Number or string to format
+ * @returns Formatted currency string
  */
-
-export function formatCurrency(amount: string | number, currency: string = 'сом'): string {
-  const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount
-  if (isNaN(numAmount)) return '0 ' + currency
+export function formatCurrency(value: number | string): string {
+  const num = typeof value === 'string' ? parseFloat(value) : value;
   
-  return new Intl.NumberFormat('ru-RU').format(numAmount) + ' ' + currency
-}
-
-export function formatDate(dateString: string): string {
-  try {
-    const date = new Date(dateString)
-    return date.toLocaleDateString('ru-RU', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    })
-  } catch {
-    return dateString
+  if (isNaN(num)) {
+    return '0 сом';
   }
+
+  return `${num.toLocaleString('ru-RU', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  })} сом`;
 }
 
-export function formatDateTime(dateString: string): string {
-  try {
-    const date = new Date(dateString)
-    return date.toLocaleString('ru-RU', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    })
-  } catch {
-    return dateString
+/**
+ * Format date to localized string
+ * @param date - Date string or Date object
+ * @param includeTime - Whether to include time
+ * @returns Formatted date string
+ */
+export function formatDate(date: string | Date, includeTime: boolean = false): string {
+  const dateObj = typeof date === 'string' ? new Date(date) : date;
+  
+  if (isNaN(dateObj.getTime())) {
+    return '';
   }
-}
 
-export function formatRelativeTime(dateString: string): string {
-  try {
-    const date = new Date(dateString)
-    const now = new Date()
-    const diffMs = now.getTime() - date.getTime()
-    const diffMins = Math.floor(diffMs / (1000 * 60))
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+  const day = String(dateObj.getDate()).padStart(2, '0');
+  const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const year = dateObj.getFullYear();
 
-    if (diffMins < 1) return 'только что'
-    if (diffMins < 60) return `${diffMins} мин назад`
-    if (diffHours < 24) return `${diffHours} ч назад`
-    if (diffDays < 7) return `${diffDays} дн назад`
-    
-    return formatDate(dateString)
-  } catch {
-    return dateString
+  if (includeTime) {
+    const hours = String(dateObj.getHours()).padStart(2, '0');
+    const minutes = String(dateObj.getMinutes()).padStart(2, '0');
+    return `${day}.${month}.${year} ${hours}:${minutes}`;
   }
+
+  return `${day}.${month}.${year}`;
 }
 
+/**
+ * Format phone number to readable format
+ * @param phone - Phone number string
+ * @returns Formatted phone number
+ */
 export function formatPhoneNumber(phone: string): string {
-  // Format +996XXXXXXXXX to +996 XXX XXX XXX
-  if (phone.startsWith('+996') && phone.length === 13) {
-    return `+996 ${phone.slice(4, 7)} ${phone.slice(7, 10)} ${phone.slice(10)}`
+  if (!phone) return '';
+
+  // Remove all non-digit characters
+  const cleaned = phone.replace(/\D/g, '');
+
+  // Format Kyrgyz phone number (+996 XXX XX XX XX)
+  if (cleaned.startsWith('996') && cleaned.length === 12) {
+    return `+996 ${cleaned.slice(3, 6)} ${cleaned.slice(6, 8)} ${cleaned.slice(8, 10)} ${cleaned.slice(10)}`;
   }
-  return phone
+
+  // Format local number (0XXX XX XX XX)
+  if (cleaned.startsWith('0') && cleaned.length === 10) {
+    return `${cleaned.slice(0, 4)} ${cleaned.slice(4, 6)} ${cleaned.slice(6, 8)} ${cleaned.slice(8)}`;
+  }
+
+  // Return as is if doesn't match patterns
+  return phone;
 }
 
+/**
+ * Format relative time (e.g., "2 hours ago")
+ * @param date - Date string or Date object
+ * @returns Relative time string
+ */
+export function formatRelativeTime(date: string | Date): string {
+  const dateObj = typeof date === 'string' ? new Date(date) : date;
+  const now = new Date();
+  const diffMs = now.getTime() - dateObj.getTime();
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHour = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHour / 24);
+
+  if (diffSec < 60) {
+    return 'только что';
+  } else if (diffMin < 60) {
+    return `${diffMin} мин назад`;
+  } else if (diffHour < 24) {
+    return `${diffHour} ч назад`;
+  } else if (diffDay < 7) {
+    return `${diffDay} дн назад`;
+  } else {
+    return formatDate(dateObj);
+  }
+}
+
+/**
+ * Truncate text to specified length
+ * @param text - Text to truncate
+ * @param maxLength - Maximum length
+ * @returns Truncated text
+ */
 export function truncateText(text: string, maxLength: number): string {
-  if (text.length <= maxLength) return text
-  return text.slice(0, maxLength) + '...'
+  if (text.length <= maxLength) {
+    return text;
+  }
+  return text.slice(0, maxLength) + '...';
+}
+
+/**
+ * Format file size to human readable format
+ * @param bytes - File size in bytes
+ * @returns Formatted file size
+ */
+export function formatFileSize(bytes: number): string {
+  if (bytes === 0) return '0 Bytes';
+
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+  return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
 }

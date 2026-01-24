@@ -1,139 +1,99 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, FlatList } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-
-interface Review {
-  id: number;
-  project: {
-    id: number;
-    order_title: string;
-  };
-  master: {
-    id: number;
-    name: string;
-    avatar?: string;
-  };
-  quality_rating: number;
-  communication_rating: number;
-  punctuality_rating: number;
-  professionalism_rating: number;
-  overall_rating: number;
-  comment: string;
-  created_at: string;
-}
+import { 
+  useGetMyReviewsQuery, 
+  useDeleteReviewMutation,
+  useMarkReviewHelpfulMutation,
+  useRemoveReviewHelpfulMutation,
+  type Review as APIReview 
+} from '../../services/reviewApi';
+import { ReviewList, Review } from '../../features/reviews';
+import { useSelector } from 'react-redux';
+import { RootState } from '../../store';
 
 export default function ClientReviewsPage() {
-  const [loading, setLoading] = useState(false);
+  const [filter, setFilter] = useState<'all' | 'recent' | 'high' | 'low'>('all');
+  const currentUser = useSelector((state: RootState) => state.auth.user);
 
-  // Mock data - replace with actual API calls
-  const reviews: Review[] = [
-    {
-      id: 1,
-      project: {
-        id: 1,
-        order_title: 'Ремонт ванной комнаты'
-      },
-      master: {
-        id: 1,
-        name: 'Иван Петров',
-        avatar: undefined
-      },
-      quality_rating: 5,
-      communication_rating: 4,
-      punctuality_rating: 5,
-      professionalism_rating: 5,
-      overall_rating: 4.8,
-      comment: 'Отличная работа! Мастер выполнил всё качественно и в срок. Рекомендую!',
-      created_at: '2024-01-10T15:30:00Z'
+  const { data, isLoading, error, refetch } = useGetMyReviewsQuery({
+    role: 'client',
+    ordering: filter === 'recent' ? '-created_at' : 
+              filter === 'high' ? '-rating' :
+              filter === 'low' ? 'rating' : undefined,
+  });
+
+  const [deleteReview] = useDeleteReviewMutation();
+  const [markHelpful] = useMarkReviewHelpfulMutation();
+  const [removeHelpful] = useRemoveReviewHelpfulMutation();
+
+  const reviews: Review[] = (data?.results || []).map((review: APIReview) => ({
+    id: review.id,
+    rating: review.rating,
+    comment: review.comment || '',
+    createdAt: review.created_at,
+    updatedAt: review.updated_at,
+    isEdited: !!review.updated_at && review.updated_at !== review.created_at,
+    reviewer: {
+      id: review.client?.id || 0,
+      name: review.client?.name || review.client_name || 'You',
+      avatar: review.client?.avatar || review.client_avatar,
     },
-    {
-      id: 2,
-      project: {
-        id: 2,
-        order_title: 'Установка кондиционера'
-      },
-      master: {
-        id: 2,
-        name: 'Алексей Сидоров',
-        avatar: undefined
-      },
-      quality_rating: 4,
-      communication_rating: 5,
-      punctuality_rating: 4,
-      professionalism_rating: 4,
-      overall_rating: 4.3,
-      comment: 'Хорошая работа, но были небольшие задержки по времени.',
-      created_at: '2024-01-05T12:15:00Z'
-    }
-  ];
+    master: {
+      id: review.master?.id || 0,
+      name: review.master?.name || review.master_name || 'Master',
+      avatar: review.master?.avatar || review.master_avatar,
+    },
+    project: review.project,
+    response: review.response ? {
+      id: review.id,
+      text: review.response,
+      createdAt: review.responded_at || review.created_at,
+    } : undefined,
+    helpfulCount: review.helpful_count || 0,
+    isHelpfulByMe: review.is_helpful || false,
+  }));
 
-  const renderStars = (rating: number) => {
-    return (
-      <View className="flex-row">
-        {[1, 2, 3, 4, 5].map(star => (
-          <Ionicons
-            key={star}
-            name={star <= rating ? 'star' : 'star-outline'}
-            size={16}
-            color={star <= rating ? '#F59E0B' : '#D1D5DB'}
-          />
-        ))}
-      </View>
+  const handleEdit = (reviewId: number) => {
+    router.push(`/(client)/reviews/edit/${reviewId}`);
+  };
+
+  const handleDelete = (reviewId: number) => {
+    Alert.alert(
+      'Delete Review',
+      'Are you sure you want to delete this review?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteReview(reviewId).unwrap();
+              Alert.alert('Success', 'Review deleted successfully');
+            } catch (error) {
+              Alert.alert('Error', 'Failed to delete review');
+            }
+          },
+        },
+      ]
     );
   };
 
-  const renderReview = ({ item }: { item: Review }) => (
-    <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-4">
-      <View className="flex-row items-start justify-between mb-3">
-        <View className="flex-1">
-          <Text className="font-semibold text-gray-900" numberOfLines={1}>
-            {item.project.order_title}
-          </Text>
-          <Text className="text-sm text-gray-500 mt-1">
-            Мастер: {item.master.name}
-          </Text>
-        </View>
-        <View className="items-end">
-          <View className="flex-row items-center gap-1">
-            <Text className="font-bold text-lg text-gray-900">
-              {item.overall_rating.toFixed(1)}
-            </Text>
-            <Ionicons name="star" size={20} color="#F59E0B" />
-          </View>
-          <Text className="text-xs text-gray-400">
-            {new Date(item.created_at).toLocaleDateString('ru-RU')}
-          </Text>
-        </View>
-      </View>
-
-      <View className="space-y-2 mb-4">
-        <View className="flex-row items-center justify-between">
-          <Text className="text-sm text-gray-600">Качество работы</Text>
-          {renderStars(item.quality_rating)}
-        </View>
-        <View className="flex-row items-center justify-between">
-          <Text className="text-sm text-gray-600">Общение</Text>
-          {renderStars(item.communication_rating)}
-        </View>
-        <View className="flex-row items-center justify-between">
-          <Text className="text-sm text-gray-600">Пунктуальность</Text>
-          {renderStars(item.punctuality_rating)}
-        </View>
-        <View className="flex-row items-center justify-between">
-          <Text className="text-sm text-gray-600">Профессионализм</Text>
-          {renderStars(item.professionalism_rating)}
-        </View>
-      </View>
-
-      {item.comment && (
-        <View className="p-3 bg-gray-50 rounded-2xl">
-          <Text className="text-gray-700">{item.comment}</Text>
-        </View>
-      )}
-    </View>
-  );
+  const handleMarkHelpful = async (reviewId: number) => {
+    const review = reviews.find(r => r.id === reviewId);
+    try {
+      if (review?.isHelpfulByMe) {
+        await removeHelpful(reviewId).unwrap();
+      } else {
+        await markHelpful(reviewId).unwrap();
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update helpful status');
+    }
+  };
 
   return (
     <SafeAreaView className="flex-1 bg-[#F8F7FC]">
@@ -149,8 +109,58 @@ export default function ClientReviewsPage() {
           <Text className="text-2xl font-bold text-gray-900">Мои отзывы</Text>
         </View>
 
+        {/* Error State */}
+        {error && (
+          <View className="bg-white rounded-3xl p-8 items-center shadow-sm border border-gray-100 mb-6">
+            <View className="w-16 h-16 bg-red-100 rounded-full items-center justify-center mb-4">
+              <Ionicons name="alert-circle" size={32} color="#EF4444" />
+            </View>
+            <Text className="text-gray-900 font-semibold mb-2">Ошибка загрузки</Text>
+            <Text className="text-gray-500 text-center mb-4">
+              Не удалось загрузить отзывы
+            </Text>
+            <TouchableOpacity 
+              onPress={() => refetch()}
+              className="bg-[#0165FB] px-6 py-2 rounded-xl"
+            >
+              <Text className="text-white font-medium">Повторить</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Filter Tabs */}
+        {!isLoading && !error && (
+          <View className="flex-row bg-gray-100 p-0.5 rounded-xl mb-4">
+            {[
+              { key: 'all', label: 'Все' },
+              { key: 'recent', label: 'Новые' },
+              { key: 'high', label: 'Высокие' },
+              { key: 'low', label: 'Низкие' },
+            ].map((tab) => (
+              <TouchableOpacity
+                key={tab.key}
+                onPress={() => setFilter(tab.key as any)}
+                className={`flex-1 py-2 px-3 rounded-lg ${
+                  filter === tab.key ? 'bg-white shadow-sm' : ''
+                }`}
+              >
+                <Text className={`text-xs font-medium text-center ${
+                  filter === tab.key ? 'text-gray-900' : 'text-gray-500'
+                }`}>
+                  {tab.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
         {/* Reviews List */}
-        {reviews.length === 0 ? (
+        {isLoading ? (
+          <View className="bg-white rounded-3xl p-8 items-center shadow-sm border border-gray-100">
+            <ActivityIndicator size="large" color="#0165FB" />
+            <Text className="text-gray-500 mt-2">Загрузка отзывов...</Text>
+          </View>
+        ) : reviews.length === 0 ? (
           <View className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100 items-center">
             <View className="w-20 h-20 bg-[#0165FB]/10 rounded-full items-center justify-center mb-4">
               <Ionicons name="star-outline" size={40} color="#0165FB" />
@@ -168,12 +178,12 @@ export default function ClientReviewsPage() {
             </TouchableOpacity>
           </View>
         ) : (
-          <FlatList
-            data={reviews}
-            renderItem={renderReview}
-            keyExtractor={(item) => item.id.toString()}
-            scrollEnabled={false}
-            showsVerticalScrollIndicator={false}
+          <ReviewList
+            reviews={reviews}
+            currentUserId={currentUser?.id}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+            onMarkHelpful={handleMarkHelpful}
           />
         )}
       </ScrollView>

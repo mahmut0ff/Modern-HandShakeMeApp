@@ -9,3 +9,5 @@ export * from './chatApi';
 export * from './notificationApi';
 export * from './walletApi';
 export * from './reviewApi';
+export * from './verificationApi';
+export * from './disputeApi';

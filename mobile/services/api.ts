@@ -125,7 +125,8 @@ export const api = createApi({
     'Transaction',
     'Service',
     'ServiceCategory',
-    'Verification'
+    'Verification',
+    'Dispute'
   ],
   endpoints: () => ({}),
 });
