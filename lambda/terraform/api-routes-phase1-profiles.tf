@@ -117,3 +117,53 @@ resource "aws_lambda_permission" "clients_me_update" {
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_apigatewayv2_api.main.execution_arn}/*/*"
 }
+
+# Dashboard Stats Routes
+
+# GET /clients/me/dashboard-stats
+resource "aws_apigatewayv2_integration" "clients_dashboard_stats" {
+  api_id             = aws_apigatewayv2_api.main.id
+  integration_type   = "AWS_PROXY"
+  integration_uri    = aws_lambda_function.clients_dashboard_stats.invoke_arn
+  payload_format_version = "2.0"
+}
+
+resource "aws_apigatewayv2_route" "clients_dashboard_stats" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /clients/me/dashboard-stats"
+  target    = "integrations/${aws_apigatewayv2_integration.clients_dashboard_stats.id}"
+  authorization_type = "JWT"
+  # authorizer_id = aws_apigatewayv2_authorizer.jwt.id
+}
+
+resource "aws_lambda_permission" "clients_dashboard_stats" {
+  statement_id  = "AllowAPIGatewayInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.clients_dashboard_stats.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.main.execution_arn}/*/*"
+}
+
+# GET /masters/me/dashboard-stats
+resource "aws_apigatewayv2_integration" "masters_dashboard_stats" {
+  api_id             = aws_apigatewayv2_api.main.id
+  integration_type   = "AWS_PROXY"
+  integration_uri    = aws_lambda_function.masters_dashboard_stats.invoke_arn
+  payload_format_version = "2.0"
+}
+
+resource "aws_apigatewayv2_route" "masters_dashboard_stats" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /masters/me/dashboard-stats"
+  target    = "integrations/${aws_apigatewayv2_integration.masters_dashboard_stats.id}"
+  authorization_type = "JWT"
+  # authorizer_id = aws_apigatewayv2_authorizer.jwt.id
+}
+
+resource "aws_lambda_permission" "masters_dashboard_stats" {
+  statement_id  = "AllowAPIGatewayInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.masters_dashboard_stats.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.main.execution_arn}/*/*"
+}

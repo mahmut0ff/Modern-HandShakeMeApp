@@ -66,6 +66,22 @@ MOBILE APP IMPROVEMENTS - COMPLETED
       - Количество ожидающих откликов
       - Количество непрочитанных сообщений
 
+7. TERRAFORM КОНФИГУРАЦИЯ
+   ✅ lambda/terraform/lambda-phase1-profiles.tf
+      - Добавлены Lambda функции для dashboard stats
+      - Настроены environment variables
+      - Timeout: 15s, Memory: 512MB
+
+   ✅ lambda/terraform/api-routes-phase1-profiles.tf
+      - Добавлены API routes для dashboard stats
+      - JWT авторизация
+      - Lambda permissions
+
+8. СКРИПТЫ ДЕПЛОЯ
+   ✅ lambda/scripts/package-dashboard-stats.sh (Linux/Mac)
+   ✅ lambda/scripts/package-dashboard-stats.ps1 (Windows)
+   ✅ lambda/DEPLOYMENT_INSTRUCTIONS.md
+
 📊 РЕЗУЛЬТАТЫ:
 
 Использование API: 100% (было 95%)
@@ -81,5 +97,20 @@ MOBILE APP IMPROVEMENTS - COMPLETED
 4. Унифицированная структура данных
 5. Нормализаторы для консистентности
 6. Backend endpoints для статистики
+7. Terraform конфигурация готова к деплою
+8. Скрипты для упаковки Lambda функций
 
 ⚡ ГОТОВО К PRODUCTION
+
+📝 СЛЕДУЮЩИЕ ШАГИ ДЛЯ ДЕПЛОЯ:
+
+1. Сборка TypeScript:
+   cd lambda && npm run build
+
+2. Упаковка Lambda:
+   ./scripts/package-dashboard-stats.sh
+
+3. Terraform Apply:
+   cd terraform && terraform apply
+
+4. Проверка endpoints в мобильном приложении
