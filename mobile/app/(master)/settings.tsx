@@ -223,12 +223,12 @@ export default function MasterSettingsPage() {
         {/* Settings Groups */}
         {settingsGroups.map((group, groupIndex) => (
           <View key={group.title} className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-4">
-            <Text className="text-lg font-bold text-gray-900 mb-4 flex-row items-center gap-2">
+            <View className="flex-row items-center gap-2 mb-4">
               <Ionicons name={group.icon as any} size={20} color="#0165FB" />
-              {group.title}
-            </Text>
+              <Text className="text-lg font-bold text-gray-900">{group.title}</Text>
+            </View>
             
-            <View className="space-y-1">
+            <View className="flex flex-col gap-1">
               {group.items.map((item, itemIndex) => (
                 <View key={item.key}>
                   {item.type === 'switch' ? (
@@ -290,12 +290,12 @@ export default function MasterSettingsPage() {
 
         {/* Support Section */}
         <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-4">
-          <Text className="text-lg font-bold text-gray-900 mb-4 flex-row items-center gap-2">
+          <View className="flex-row items-center gap-2 mb-4">
             <Ionicons name="help-circle" size={20} color="#0165FB" />
-            Поддержка
-          </Text>
+            <Text className="text-lg font-bold text-gray-900">Поддержка</Text>
+          </View>
           
-          <View className="space-y-1">
+          <View className="flex flex-col gap-1">
             <TouchableOpacity 
               onPress={() => router.push('/(master)/settings/support')}
               className="flex-row items-center justify-between py-3"
@@ -350,10 +350,10 @@ export default function MasterSettingsPage() {
 
         {/* Danger Zone */}
         <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-6">
-          <Text className="text-lg font-bold text-red-600 mb-4 flex-row items-center gap-2">
+          <View className="flex-row items-center gap-2 mb-4">
             <Ionicons name="warning" size={20} color="#DC2626" />
-            Опасная зона
-          </Text>
+            <Text className="text-lg font-bold text-red-600">Опасная зона</Text>
+          </View>
           
           <TouchableOpacity 
             onPress={handleDeleteAccount}

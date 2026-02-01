@@ -3,7 +3,7 @@ import { View, Text, FlatList, TextInput, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useGetChatRoomsQuery } from '../../../services/chatApi';
+import { useGetChatRoomsQuery, ChatRoom, ChatParticipant } from '../../../services/chatApi';
 import { LoadingSpinner } from '../../../components/LoadingSpinner';
 import { ErrorMessage } from '../../../components/ErrorMessage';
 import { ChatListItem } from '../../../features/chat/components/ChatListItem';
@@ -12,9 +12,9 @@ import { EmptyChatList } from '../../../features/chat/components/EmptyChatList';
 export default function ChatListPage() {
   const [searchQuery, setSearchQuery] = useState('');
 
-  const { 
-    data: chatRooms = [], 
-    isLoading, 
+  const {
+    data: chatRoomsData,
+    isLoading,
     error,
     refetch,
     isFetching
@@ -22,15 +22,18 @@ export default function ChatListPage() {
     pollingInterval: 30000, // Poll every 30 seconds
   });
 
-  const filteredRooms = chatRooms.filter(room => {
-    const masterName = room.participants?.find(p => p.user?.role === 'master')?.user?.full_name || '';
+  // Handle the chat rooms list
+  const chatRooms: ChatRoom[] = Array.isArray(chatRoomsData) ? chatRoomsData : [];
+
+  const filteredRooms = chatRooms.filter((room: ChatRoom) => {
+    const masterName = room.participants?.find((p: ChatParticipant) => p.user?.role === 'master')?.user?.full_name || '';
     const orderTitle = room.order_title || room.order?.title || '';
     const projectTitle = room.project_title || room.project?.title || '';
-    
+
     const query = searchQuery.toLowerCase();
     return masterName.toLowerCase().includes(query) ||
-           orderTitle.toLowerCase().includes(query) ||
-           projectTitle.toLowerCase().includes(query);
+      orderTitle.toLowerCase().includes(query) ||
+      projectTitle.toLowerCase().includes(query);
   });
 
   if (isLoading) {
@@ -49,10 +52,10 @@ export default function ChatListPage() {
 
         {/* Search */}
         <View className="relative">
-          <Ionicons 
-            name="search" 
-            size={20} 
-            color="#9CA3AF" 
+          <Ionicons
+            name="search"
+            size={20}
+            color="#9CA3AF"
             style={{ position: 'absolute', left: 16, top: 14, zIndex: 1 }}
           />
           <TextInput

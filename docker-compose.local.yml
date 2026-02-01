@@ -1,0 +1,128 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: handshakeme-postgres
+    environment:
+      POSTGRES_DB: handshakeme_dev
+      POSTGRES_USER: handshakeme
+      POSTGRES_PASSWORD: handshakeme123
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d
+    networks:
+      - handshakeme-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U handshakeme -d handshakeme_dev"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: handshakeme-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
+    networks:
+      - handshakeme-network
+    restart: unless-stopped
+    command: redis-server /usr/local/etc/redis/redis.conf
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MinIO (S3 Compatible Storage)
+  minio:
+    image: minio/minio:latest
+    container_name: handshakeme-minio
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_DOMAIN: 10.228.141.81
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - handshakeme-network
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # MinIO Client (для создания buckets)
+  minio-client:
+    image: minio/mc:latest
+    container_name: handshakeme-minio-client
+    depends_on:
+      - minio
+    networks:
+      - handshakeme-network
+    entrypoint: >
+      /bin/sh -c "
+      sleep 10;
+      /usr/bin/mc alias set myminio http://minio:9000 minioadmin minioadmin;
+      /usr/bin/mc mb myminio/handshakeme-avatars --ignore-existing;
+      /usr/bin/mc mb myminio/handshakeme-portfolio --ignore-existing;
+      /usr/bin/mc mb myminio/handshakeme-orders --ignore-existing;
+      /usr/bin/mc mb myminio/handshakeme-projects --ignore-existing;
+      /usr/bin/mc mb myminio/handshakeme-chat --ignore-existing;
+      /usr/bin/mc mb myminio/handshakeme-disputes --ignore-existing;
+      /usr/bin/mc anonymous set public myminio/handshakeme-avatars;
+      /usr/bin/mc anonymous set public myminio/handshakeme-portfolio;
+      echo 'MinIO buckets created successfully';
+      "
+
+  # Telegram Bot (Local)
+  telegram-bot:
+    build:
+      context: ./telegram-bot
+      dockerfile: Dockerfile.local
+    container_name: handshakeme-telegram-bot
+    environment:
+      - NODE_ENV=development
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - API_URL=http://10.228.141.81:3000
+      - WEBHOOK_URL=http://10.228.141.81:3002/webhook
+    ports:
+      - "3002:3002"
+    volumes:
+      - ./telegram-bot:/app
+      - /app/node_modules
+    networks:
+      - handshakeme-network
+    restart: unless-stopped
+    depends_on:
+      - postgres
+      - redis
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  minio_data:
+    driver: local
+
+networks:
+  handshakeme-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

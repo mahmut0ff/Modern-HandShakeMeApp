@@ -1,120 +1,109 @@
+// Get disputes list for user
+
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import jwt from 'jsonwebtoken';
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, QueryCommand } from '@aws-sdk/lib-dynamodb';
+import { DisputesRepository } from '../shared/repositories/disputes.repository';
+import { withAuth } from '../shared/middleware/auth';
+import { withErrorHandler } from '../shared/middleware/errorHandler';
+import { success } from '../shared/utils/response';
+import { logger } from '../shared/utils/logger';
+import { DisputeFilters } from '../shared/types/disputes';
 
-const dynamoClient = new DynamoDBClient({});
-const docClient = DynamoDBDocumentClient.from(dynamoClient);
-const TABLE_NAME = process.env.DYNAMODB_TABLE || 'handshake-table';
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const disputesRepository = new DisputesRepository();
 
-interface JWTPayload {
-  userId: string;
-  role: string;
-}
+async function getDisputesHandler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
+  const userId = (event.requestContext as any).authorizer?.userId;
+  
+  if (!userId) {
+    return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
+  }
 
-export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   try {
-    // Verify JWT token
-    const token = event.headers.Authorization?.replace('Bearer ', '') || '';
-    const decoded = jwt.verify(token, JWT_SECRET) as JWTPayload;
+    // Parse query parameters
+    const queryParams = event.queryStringParameters || {};
+    const limit = parseInt(queryParams.limit || '20');
+    const nextToken = queryParams.nextToken;
+    
+    // Build filters
+    const filters: DisputeFilters = {};
+    if (queryParams.status) filters.status = queryParams.status as any;
+    if (queryParams.priority) filters.priority = queryParams.priority as any;
+    if (queryParams.reason) filters.reason = queryParams.reason as any;
+    if (queryParams.dateFrom) filters.dateFrom = queryParams.dateFrom;
+    if (queryParams.dateTo) filters.dateTo = queryParams.dateTo;
 
-    // Get query parameters
-    const status = event.queryStringParameters?.status;
-    const limit = parseInt(event.queryStringParameters?.limit || '20');
-    const lastKey = event.queryStringParameters?.lastKey;
+    // Get disputes for user
+    const result = await disputesRepository.findDisputesByUser(
+      userId,
+      filters,
+      limit,
+      nextToken
+    );
 
-    // Query disputes for user
-    const params: any = {
-      TableName: TABLE_NAME,
-      IndexName: 'GSI1',
-      KeyConditionExpression: 'GSI1PK = :pk',
-      ExpressionAttributeValues: {
-        ':pk': `USER#${decoded.userId}#DISPUTES`,
+    // Format response for API compatibility
+    const formattedDisputes = result.disputes.map(dispute => ({
+      id: dispute.id,
+      orderId: dispute.orderId,
+      projectId: dispute.projectId,
+      order: {
+        id: dispute.orderId,
+        title: dispute.order.title,
       },
-      Limit: limit,
-      ScanIndexForward: false, // Most recent first
-    };
-
-    // Add status filter if provided
-    if (status) {
-      params.FilterExpression = '#status = :status';
-      params.ExpressionAttributeNames = { '#status': 'status' };
-      params.ExpressionAttributeValues[':status'] = status;
-    }
-
-    // Add pagination
-    if (lastKey) {
-      params.ExclusiveStartKey = JSON.parse(Buffer.from(lastKey, 'base64').toString());
-    }
-
-    const result = await docClient.send(new QueryCommand(params));
-
-    // Format response
-    const disputes = (result.Items || []).map(item => ({
-      id: item.SK.replace('DISPUTE#', ''),
-      project_id: item.projectId,
-      project_title: item.projectTitle,
-      order_title: item.orderTitle,
-      initiator: {
-        id: item.initiatorId,
-        name: item.initiatorName,
-        avatar: item.initiatorAvatar,
-        role: item.initiatorRole,
+      project: dispute.projectId ? {
+        id: dispute.projectId,
+        title: 'Project Title', // TODO: Get from project service
+      } : undefined,
+      client: {
+        id: dispute.client.id,
+        firstName: dispute.client.firstName,
+        lastName: dispute.client.lastName,
+        avatar: dispute.client.avatar,
+        role: 'CLIENT',
       },
-      respondent: {
-        id: item.respondentId,
-        name: item.respondentName,
-        avatar: item.respondentAvatar,
-        role: item.respondentRole,
+      master: {
+        id: dispute.master.id,
+        firstName: dispute.master.firstName,
+        lastName: dispute.master.lastName,
+        avatar: dispute.master.avatar,
+        role: 'MASTER',
       },
-      reason: item.reason,
-      description: item.description,
-      status: item.status,
-      priority: item.priority || 'medium',
-      resolution: item.resolution,
-      resolution_type: item.resolutionType,
-      amount_disputed: item.amountDisputed,
-      amount_resolved: item.amountResolved,
-      messages_count: item.messagesCount || 0,
-      created_at: item.createdAt,
-      updated_at: item.updatedAt,
-      resolved_at: item.resolvedAt,
-      closed_at: item.closedAt,
+      reason: dispute.reason,
+      description: dispute.description,
+      status: dispute.status,
+      priority: dispute.priority,
+      resolution: dispute.resolution,
+      resolutionType: dispute.resolutionType,
+      amountDisputed: dispute.amountDisputed,
+      amountResolved: dispute.amountResolved,
+      evidenceCount: dispute.evidenceCount,
+      messageCount: dispute.messageCount,
+      createdAt: dispute.createdAt,
+      updatedAt: dispute.updatedAt,
+      resolvedAt: dispute.resolvedAt,
+      closedAt: dispute.closedAt,
     }));
 
-    // Prepare pagination token
-    const nextKey = result.LastEvaluatedKey
-      ? Buffer.from(JSON.stringify(result.LastEvaluatedKey)).toString('base64')
-      : null;
-
-    return {
-      statusCode: 200,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-      },
-      body: JSON.stringify({
-        results: disputes,
-        count: disputes.length,
-        next: nextKey,
-      }),
+    const response = {
+      results: formattedDisputes,
+      count: formattedDisputes.length,
+      pagination: result.pagination,
+      next: result.nextToken,
     };
+
+    logger.info('Disputes retrieved successfully', { 
+      userId, 
+      count: formattedDisputes.length,
+      filters 
+    });
+
+    return success(response);
+
   } catch (error: any) {
-    console.error('Error fetching disputes:', error);
-
-    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
-      return {
-        statusCode: 401,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Unauthorized' }),
-      };
-    }
-
+    logger.error('Error fetching disputes', error);
     return {
       statusCode: 500,
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ error: 'Failed to fetch disputes' }),
     };
   }
-};
+}
+
+export const handler = withErrorHandler(withAuth(getDisputesHandler));

@@ -80,7 +80,7 @@ export default function WalletAnalyticsPage() {
         <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-4">
           <Text className="font-semibold text-gray-900 mb-4">Основные показатели</Text>
           
-          <View className="space-y-4">
+          <View className="flex flex-col gap-4">
             <View className="flex-row items-center justify-between p-3 bg-green-50 rounded-2xl">
               <View className="flex-row items-center gap-3">
                 <View className="w-10 h-10 bg-green-500 rounded-xl items-center justify-center">
@@ -129,7 +129,7 @@ export default function WalletAnalyticsPage() {
         <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-4">
           <Text className="font-semibold text-gray-900 mb-4">Детальная статистика</Text>
           
-          <View className="space-y-3">
+          <View className="flex flex-col gap-3">
             <View className="flex-row justify-between items-center">
               <Text className="text-gray-600">Выводы</Text>
               <Text className="font-semibold text-red-600">
@@ -164,9 +164,9 @@ export default function WalletAnalyticsPage() {
         <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-4">
           <Text className="font-semibold text-gray-900 mb-4">Доходы по категориям</Text>
           
-          <View className="space-y-3">
+          <View className="flex flex-col gap-3">
             {analytics.categoryBreakdown.map((item, index) => (
-              <View key={index} className="space-y-2">
+              <View key={index} className="flex flex-col gap-2">
                 <View className="flex-row justify-between items-center">
                   <Text className="text-gray-700 font-medium">{item.category}</Text>
                   <Text className="font-semibold text-gray-900">

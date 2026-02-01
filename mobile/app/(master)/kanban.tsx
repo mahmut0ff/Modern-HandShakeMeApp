@@ -175,7 +175,9 @@ export default function KanbanPage() {
         </View>
         
         <View className="relative">
-          <Ionicons name="search" size={16} color="#9CA3AF" className="absolute left-3 top-1/2 -translate-y-1/2" />
+          <View style={{ position: 'absolute', left: 12, top: '50%', transform: [{ translateY: -8 }], zIndex: 1 }}>
+            <Ionicons name="search" size={16} color="#9CA3AF" />
+          </View>
           <TextInput 
             placeholder="Поиск проектов..." 
             value={searchQuery} 

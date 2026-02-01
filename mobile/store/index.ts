@@ -18,6 +18,8 @@ const rootReducer = combineReducers({
 
 const persistedReducer = persistReducer(persistConfig, rootReducer)
 
+import { errorHandler } from '../services/errorHandler'
+
 export const store = configureStore({
   reducer: persistedReducer,
   middleware: (getDefaultMiddleware) =>
@@ -27,6 +29,9 @@ export const store = configureStore({
       },
     }).concat(api.middleware),
 })
+
+// Inject dispatch into error handler to avoid circular dependency
+errorHandler.setDispatch(store.dispatch)
 
 // Enable listener behavior for the store
 setupListeners(store.dispatch)

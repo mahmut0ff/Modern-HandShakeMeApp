@@ -77,7 +77,7 @@ export default function SupportPage() {
         <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-4">
           <Text className="text-lg font-bold text-gray-900 mb-4">Быстрая связь</Text>
           
-          <View className="space-y-3">
+          <View className="flex flex-col gap-3">
             <TouchableOpacity
               onPress={handleWhatsApp}
               className="flex-row items-center gap-4 p-4 bg-green-50 rounded-2xl border border-green-200"
@@ -112,7 +112,7 @@ export default function SupportPage() {
         <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-4">
           <Text className="text-lg font-bold text-gray-900 mb-4">Часто задаваемые вопросы</Text>
           
-          <View className="space-y-4">
+          <View className="flex flex-col gap-4">
             {[
               {
                 question: 'Как найти мастера?',
@@ -139,10 +139,10 @@ export default function SupportPage() {
         <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-6">
           <Text className="text-lg font-bold text-gray-900 mb-4">Написать в поддержку</Text>
           
-          <View className="space-y-4">
+          <View className="flex flex-col gap-4">
             <View>
               <Text className="text-gray-700 font-medium mb-2">Категория проблемы</Text>
-              <View className="space-y-2">
+              <View className="flex flex-col gap-2">
                 {supportCategories.map((category) => (
                   <TouchableOpacity
                     key={category.id}

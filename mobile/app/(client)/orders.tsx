@@ -13,12 +13,15 @@ export default function OrdersPage() {
   const [activeTab, setActiveTab] = useState<'active' | 'completed' | 'draft'>('active')
   const [searchQuery, setSearchQuery] = useState('')
 
-  const { 
-    data: orders = [], 
-    isLoading, 
-    error, 
-    refetch 
+  const {
+    data: ordersData,
+    isLoading,
+    error,
+    refetch
   } = useGetMyOrdersQuery({ status: activeTab })
+
+  // Handle both array and paginated responses
+  const orders = (ordersData || []) as any[];
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -62,9 +65,9 @@ export default function OrdersPage() {
   const getOrderCounts = () => {
     // This would ideally come from separate API calls or be cached
     return {
-      active: orders.filter(o => o.status === 'active').length,
-      completed: orders.filter(o => o.status === 'completed').length,
-      draft: orders.filter(o => o.status === 'draft').length,
+      active: (orders || []).filter((o: any) => o.status === 'active').length,
+      completed: (orders || []).filter((o: any) => o.status === 'completed').length,
+      draft: (orders || []).filter((o: any) => o.status === 'draft').length,
     }
   }
 
@@ -87,19 +90,19 @@ export default function OrdersPage() {
   return (
     <View className="flex-1 bg-gray-50">
       <StatusBar style="dark" />
-      
+
       {/* Header */}
       <View className="bg-white px-4 pt-12 pb-4 border-b border-gray-100">
         <View className="flex-row items-center justify-between mb-4">
           <Text className="text-2xl font-bold text-gray-900">Мои заказы</Text>
-          <TouchableOpacity 
+          <TouchableOpacity
             onPress={() => router.push('/(client)/create-order')}
             className="w-10 h-10 bg-blue-500 rounded-full items-center justify-center"
           >
             <Ionicons name="add" size={24} color="white" />
           </TouchableOpacity>
         </View>
-        
+
         {/* Search */}
         <View className="relative mb-4">
           <View className="absolute left-3 top-1/2 -translate-y-1/2 z-10">
@@ -113,44 +116,38 @@ export default function OrdersPage() {
             placeholderTextColor="#9CA3AF"
           />
         </View>
-        
+
         {/* Tabs */}
         <View className="flex-row bg-gray-100 rounded-2xl p-1">
           <TouchableOpacity
             onPress={() => setActiveTab('active')}
-            className={`flex-1 py-2 px-4 rounded-xl ${
-              activeTab === 'active' ? 'bg-white shadow-sm' : ''
-            }`}
+            className={`flex-1 py-2 px-4 rounded-xl ${activeTab === 'active' ? 'bg-white shadow-sm' : ''
+              }`}
           >
-            <Text className={`text-center font-medium ${
-              activeTab === 'active' ? 'text-gray-900' : 'text-gray-600'
-            }`}>
+            <Text className={`text-center font-medium ${activeTab === 'active' ? 'text-gray-900' : 'text-gray-600'
+              }`}>
               Активные ({orderCounts.active})
             </Text>
           </TouchableOpacity>
-          
+
           <TouchableOpacity
             onPress={() => setActiveTab('completed')}
-            className={`flex-1 py-2 px-4 rounded-xl ${
-              activeTab === 'completed' ? 'bg-white shadow-sm' : ''
-            }`}
+            className={`flex-1 py-2 px-4 rounded-xl ${activeTab === 'completed' ? 'bg-white shadow-sm' : ''
+              }`}
           >
-            <Text className={`text-center font-medium ${
-              activeTab === 'completed' ? 'text-gray-900' : 'text-gray-600'
-            }`}>
+            <Text className={`text-center font-medium ${activeTab === 'completed' ? 'text-gray-900' : 'text-gray-600'
+              }`}>
               Завершённые ({orderCounts.completed})
             </Text>
           </TouchableOpacity>
-          
+
           <TouchableOpacity
             onPress={() => setActiveTab('draft')}
-            className={`flex-1 py-2 px-4 rounded-xl ${
-              activeTab === 'draft' ? 'bg-white shadow-sm' : ''
-            }`}
+            className={`flex-1 py-2 px-4 rounded-xl ${activeTab === 'draft' ? 'bg-white shadow-sm' : ''
+              }`}
           >
-            <Text className={`text-center font-medium ${
-              activeTab === 'draft' ? 'text-gray-900' : 'text-gray-600'
-            }`}>
+            <Text className={`text-center font-medium ${activeTab === 'draft' ? 'text-gray-900' : 'text-gray-600'
+              }`}>
               Черновики ({orderCounts.draft})
             </Text>
           </TouchableOpacity>
@@ -158,8 +155,8 @@ export default function OrdersPage() {
       </View>
 
       {/* Orders List */}
-      <ScrollView 
-        className="flex-1 px-4 py-4" 
+      <ScrollView
+        className="flex-1 px-4 py-4"
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={isLoading} onRefresh={refetch} />
@@ -171,9 +168,9 @@ export default function OrdersPage() {
             icon="briefcase-outline"
             title={searchQuery ? 'Заказы не найдены' : 'Нет заказов'}
             description={
-              searchQuery 
+              searchQuery
                 ? 'Попробуйте изменить поисковый запрос'
-                : activeTab === 'active' 
+                : activeTab === 'active'
                   ? 'Создайте свой первый заказ'
                   : activeTab === 'completed'
                     ? 'У вас пока нет завершённых заказов'
@@ -183,8 +180,8 @@ export default function OrdersPage() {
             onAction={!searchQuery && activeTab === 'active' ? () => router.push('/(client)/create-order') : undefined}
           />
         ) : (
-          <View className="space-y-3">
-            {filteredOrders.map(order => (
+          <View className="flex flex-col gap-3">
+            {(filteredOrders || []).map((order: any) => (
               <TouchableOpacity
                 key={order.id}
                 onPress={() => router.push(`/(client)/orders/${order.id}`)}
@@ -203,7 +200,7 @@ export default function OrdersPage() {
                     </Text>
                   </View>
                 </View>
-                
+
                 <View className="flex-row items-center justify-between mb-3">
                   <View className="flex-row items-center gap-1">
                     <Ionicons name="wallet" size={16} color="#6B7280" />
@@ -215,7 +212,7 @@ export default function OrdersPage() {
                     {formatDate(order.created_at)}
                   </Text>
                 </View>
-                
+
                 {order.status !== 'draft' && (
                   <View className="flex-row items-center gap-4">
                     <View className="flex-row items-center gap-1">
@@ -232,7 +229,7 @@ export default function OrdersPage() {
                     </View>
                   </View>
                 )}
-                
+
                 {order.status === 'completed' && order.updated_at && (
                   <View className="mt-2 pt-2 border-t border-gray-100">
                     <Text className="text-xs text-gray-500">
@@ -245,9 +242,9 @@ export default function OrdersPage() {
           </View>
         )}
       </ScrollView>
-      
+
       {/* Floating Action Button */}
-      <TouchableOpacity 
+      <TouchableOpacity
         onPress={() => router.push('/(client)/create-order')}
         className="absolute bottom-6 right-6 w-14 h-14 bg-blue-500 rounded-full items-center justify-center shadow-lg"
         style={{

@@ -1,47 +1,48 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, PutCommand } from '@aws-sdk/lib-dynamodb';
+import { APIGatewayProxyResult } from 'aws-lambda';
+import { z } from 'zod';
+import { putItem } from '../shared/db/dynamodb-client';
+import { Keys } from '../shared/db/dynamodb-keys';
+import { success, badRequest } from '../shared/utils/response';
+import { withAuth, AuthenticatedEvent } from '../shared/middleware/auth';
+import { withErrorHandler, ValidationError } from '../shared/middleware/errorHandler';
+import { logger } from '../shared/utils/logger';
 
-const client = new DynamoDBClient({});
-const docClient = DynamoDBDocumentClient.from(client);
-const TABLE_NAME = process.env.DYNAMODB_TABLE || 'handshake-table';
+const logoutSchema = z.object({
+  refreshToken: z.string().min(1, 'Refresh token is required'),
+});
 
-export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+async function logoutHandler(event: AuthenticatedEvent): Promise<APIGatewayProxyResult> {
+  const userId = event.auth.userId;
+  
+  logger.info('Logout request', { userId });
+  
+  const body = JSON.parse(event.body || '{}');
+  
+  // Validate input
+  let validatedData;
   try {
-    const body = JSON.parse(event.body || '{}');
-    const { refresh } = body;
-
-    if (!refresh) {
-      return {
-        statusCode: 400,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Refresh token is required' })
-      };
-    }
-
-    // Add token to blacklist
-    await docClient.send(new PutCommand({
-      TableName: TABLE_NAME,
-      Item: {
-        PK: `TOKEN#${refresh}`,
-        SK: 'BLACKLIST',
-        token: refresh,
-        blacklistedAt: new Date().toISOString(),
-        expiresAt: Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60) // 30 days
-      }
-    }));
-
-    return {
-      statusCode: 200,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: 'Logged out successfully' })
-    };
+    validatedData = logoutSchema.parse(body);
   } catch (error) {
-    console.error('Error logging out:', error);
-    return {
-      statusCode: 500,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: 'Internal server error' })
-    };
+    if (error instanceof z.ZodError) {
+      throw new ValidationError('Validation failed', error.errors);
+    }
+    throw error;
   }
-};
+  
+  // Add refresh token to blacklist
+  await putItem({
+    ...Keys.tokenBlacklist(validatedData.refreshToken),
+    token: validatedData.refreshToken,
+    userId: userId,
+    blacklistedAt: new Date().toISOString(),
+    expiresAt: Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60), // 30 days TTL
+  });
+  
+  logger.info('User logged out successfully', { userId });
+  
+  return success({
+    message: 'Logged out successfully'
+  });
+}
+
+export const handler = withErrorHandler(withAuth(logoutHandler));

@@ -143,7 +143,7 @@ export default function ClientDetailPage() {
         <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-6">
           <Text className="text-lg font-bold text-gray-900 mb-4">Контактная информация</Text>
           
-          <View className="space-y-3">
+          <View className="flex flex-col gap-3">
             <View className="flex-row items-center gap-3">
               <View className="w-10 h-10 bg-blue-100 rounded-2xl items-center justify-center">
                 <Ionicons name="call" size={20} color="#0165FB" />
@@ -178,7 +178,7 @@ export default function ClientDetailPage() {
         <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-6">
           <Text className="text-lg font-bold text-gray-900 mb-4">Последние заказы</Text>
           
-          <View className="space-y-3">
+          <View className="flex flex-col gap-3">
             {/* Mock recent orders */}
             <View className="p-3 bg-gray-50 rounded-2xl">
               <Text className="font-semibold text-gray-900">Ремонт ванной комнаты</Text>

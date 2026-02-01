@@ -1,5 +1,5 @@
 import * as ImageManipulator from 'expo-image-manipulator';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 
 export interface ImageOptimizationOptions {
   maxWidth?: number;
@@ -74,7 +74,7 @@ export const cacheImage = async (uri: string): Promise<string> => {
   try {
     const filename = uri.split('/').pop() || 'image.jpg';
     const cacheDir = `${FileSystem.cacheDirectory}images/`;
-    
+
     const dirInfo = await FileSystem.getInfoAsync(cacheDir);
     if (!dirInfo.exists) {
       await FileSystem.makeDirectoryAsync(cacheDir, { intermediates: true });
@@ -99,7 +99,7 @@ export const clearImageCache = async (): Promise<void> => {
   try {
     const cacheDir = `${FileSystem.cacheDirectory}images/`;
     const dirInfo = await FileSystem.getInfoAsync(cacheDir);
-    
+
     if (dirInfo.exists) {
       await FileSystem.deleteAsync(cacheDir, { idempotent: true });
     }

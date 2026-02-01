@@ -64,7 +64,7 @@ export default function MasterSecuritySettingsPage() {
         <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-4">
           <Text className="text-lg font-bold text-gray-900 mb-4">Аутентификация</Text>
           
-          <View className="space-y-4">
+          <View className="flex flex-col gap-4">
             <View className="flex-row items-center justify-between">
               <View className="flex-row items-center gap-3 flex-1">
                 <Ionicons name="finger-print" size={20} color="#6B7280" />
@@ -115,7 +115,7 @@ export default function MasterSecuritySettingsPage() {
         <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-4">
           <Text className="text-lg font-bold text-gray-900 mb-4">Уведомления безопасности</Text>
           
-          <View className="space-y-4">
+          <View className="flex flex-col gap-4">
             <View className="flex-row items-center justify-between">
               <View className="flex-row items-center gap-3 flex-1">
                 <Ionicons name="log-in" size={20} color="#6B7280" />

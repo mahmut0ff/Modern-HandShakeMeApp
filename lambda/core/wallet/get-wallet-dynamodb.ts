@@ -1,43 +1,69 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+// Get wallet balance Lambda function
+
+import type { APIGatewayProxyResult } from 'aws-lambda';
 import { TransactionRepository } from '../shared/repositories/transaction.repository';
-import { verifyToken } from '../shared/services/token';
+import { success } from '../shared/utils/response';
+import { withAuth, AuthenticatedEvent } from '../shared/middleware/auth';
+import { withErrorHandler } from '../shared/middleware/errorHandler';
+import { withRequestTransform } from '../shared/middleware/requestTransform';
+import { logger } from '../shared/utils/logger';
 
-export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
-  try {
-    const token = event.headers.Authorization?.replace('Bearer ', '');
-    if (!token) {
-      return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
-    }
-
-    const decoded = verifyToken(token);
-    const transactionRepo = new TransactionRepository();
-    const transactions = await transactionRepo.findByUser(decoded.userId);
-
-    // Calculate balance
-    let balance = 0;
-    for (const txn of transactions) {
-      if (txn.status === 'COMPLETED') {
-        if (txn.type === 'DEPOSIT' || txn.type === 'REFUND') {
-          balance += txn.amount;
-        } else if (txn.type === 'WITHDRAWAL' || txn.type === 'PAYMENT' || txn.type === 'COMMISSION') {
-          balance -= txn.amount;
-        }
+async function getWalletHandler(
+  event: AuthenticatedEvent
+): Promise<APIGatewayProxyResult> {
+  const userId = event.auth.userId;
+  
+  logger.info('Get wallet request', { userId });
+  
+  const transactionRepo = new TransactionRepository();
+  const transactions = await transactionRepo.findByUser(userId);
+  
+  // Calculate balance
+  let balance = 0;
+  let totalEarned = 0;
+  let totalSpent = 0;
+  let reserved = 0;
+  
+  for (const txn of transactions) {
+    const amount = txn.amount;
+    
+    if (txn.status === 'COMPLETED') {
+      if (txn.type === 'DEPOSIT' || txn.type === 'REFUND' || txn.type === 'PAYMENT_RECEIVED') {
+        balance += amount;
+        totalEarned += amount;
+      } else if (txn.type === 'WITHDRAWAL' || txn.type === 'PAYMENT' || txn.type === 'COMMISSION' || txn.type === 'PAYMENT_SENT') {
+        balance -= amount;
+        totalSpent += amount;
       }
+    } else if (txn.status === 'RESERVED') {
+      reserved += amount;
     }
-
-    return {
-      statusCode: 200,
-      body: JSON.stringify({
-        balance,
-        currency: 'KZT',
-        userId: decoded.userId,
-      }),
-    };
-  } catch (error: any) {
-    console.error('Get wallet error:', error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: error.message }),
-    };
   }
+  
+  const available = Math.max(0, balance - reserved);
+  
+  logger.info('Wallet balance calculated', { 
+    userId, 
+    balance, 
+    reserved, 
+    available 
+  });
+  
+  return success({
+    balance: Math.round(balance * 100) / 100,
+    reserved: Math.round(reserved * 100) / 100,
+    available: Math.round(available * 100) / 100,
+    currency: 'KGS',
+    userId,
+    statistics: {
+      totalEarned: Math.round(totalEarned * 100) / 100,
+      totalSpent: Math.round(totalSpent * 100) / 100,
+    },
+  });
 }
+
+export const handler = withErrorHandler(
+  withRequestTransform(
+    withAuth(getWalletHandler)
+  )
+);

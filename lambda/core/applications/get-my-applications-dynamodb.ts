@@ -1,27 +1,28 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import { APIGatewayProxyResult } from 'aws-lambda';
 import { ApplicationRepository } from '../shared/repositories/application.repository';
-import { verifyToken } from '../shared/services/token';
+import { success } from '../shared/utils/response';
+import { withAuth, AuthenticatedEvent } from '../shared/middleware/auth';
+import { withErrorHandler } from '../shared/middleware/errorHandler';
+import { logger } from '../shared/utils/logger';
 
-export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
-  try {
-    const token = event.headers.Authorization?.replace('Bearer ', '');
-    if (!token) {
-      return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
-    }
-
-    const decoded = verifyToken(token);
-    const appRepo = new ApplicationRepository();
-    const applications = await appRepo.findByMaster(decoded.userId);
-
-    return {
-      statusCode: 200,
-      body: JSON.stringify(applications),
-    };
-  } catch (error: any) {
-    console.error('Get my applications error:', error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: error.message }),
-    };
+async function getMyApplicationsHandler(event: AuthenticatedEvent): Promise<APIGatewayProxyResult> {
+  const userId = event.auth.userId;
+  
+  if (event.auth.role !== 'MASTER') {
+    return success([]); // Masters only, return empty for others
   }
+  
+  logger.info('Get my applications request', { userId });
+  
+  const applicationRepo = new ApplicationRepository();
+  const applications = await applicationRepo.findByMaster(userId);
+  
+  logger.info('Applications retrieved successfully', {
+    userId,
+    count: applications.length,
+  });
+  
+  return success(applications);
 }
+
+export const handler = withErrorHandler(withAuth(getMyApplicationsHandler, { roles: ['MASTER'] }));

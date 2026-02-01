@@ -1,12 +1,12 @@
-// Mark room as read Lambda function
+// Mark room as read
 
 import type { APIGatewayProxyResult } from 'aws-lambda';
-import { getPrismaClient } from '@/shared/db/client';
-import { success, badRequest, notFound, forbidden } from '@/shared/utils/response';
-import { withAuth, AuthenticatedEvent } from '@/shared/middleware/auth';
-import { withErrorHandler } from '@/shared/middleware/errorHandler';
-import { withRequestTransform } from '@/shared/middleware/requestTransform';
-import { logger } from '@/shared/utils/logger';
+import { ChatRepository } from '../shared/repositories/chat.repository';
+import { success, badRequest, notFound, forbidden } from '../shared/utils/response';
+import { withAuth, AuthenticatedEvent } from '../shared/middleware/auth';
+import { withErrorHandler } from '../shared/middleware/errorHandler';
+import { withRequestTransform } from '../shared/middleware/requestTransform';
+import { logger } from '../shared/utils/logger';
 
 async function markRoomReadHandler(
   event: AuthenticatedEvent
@@ -20,52 +20,22 @@ async function markRoomReadHandler(
   
   logger.info('Mark room read', { userId, roomId });
   
-  const prisma = getPrismaClient();
+  const chatRepository = new ChatRepository();
   
-  // Verify user is participant
-  const room = await prisma.chatRoom.findUnique({
-    where: { id: parseInt(roomId) },
-    include: {
-      participants: {
-        where: { userId }
-      }
-    }
-  });
-  
+  // Verify room exists and user is participant
+  const room = await chatRepository.findRoomById(roomId);
   if (!room) {
     return notFound('Chat room not found');
   }
   
-  if (room.participants.length === 0) {
+  if (!room.participants.includes(userId)) {
     return forbidden('You are not a participant in this room');
   }
   
-  // Mark all unread messages in room as read
-  await prisma.message.updateMany({
-    where: {
-      roomId: parseInt(roomId),
-      senderId: { not: userId },
-      isRead: false
-    },
-    data: {
-      isRead: true,
-      readAt: new Date()
-    }
-  });
+  // Mark room as read for this user
+  await chatRepository.markRoomRead(roomId, userId);
   
-  // Reset unread count for this user
-  await prisma.chatParticipant.updateMany({
-    where: {
-      roomId: parseInt(roomId),
-      userId
-    },
-    data: {
-      unreadCount: 0
-    }
-  });
-  
-  logger.info('Room marked as read', { roomId });
-  
+  logger.info('Room marked as read', { roomId, userId });
   return success({ message: 'Room marked as read' });
 }
 

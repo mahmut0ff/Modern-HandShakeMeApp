@@ -3,7 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, TextInput, RefreshControl } f
 import { router } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { Ionicons } from '@expo/vector-icons'
-import { useGetOrdersQuery, useGetCategoriesQuery } from '../../services/orderApi'
+import { useGetOrdersQuery, useGetCategoriesQuery, type Category } from '../../services/orderApi'
 import { LoadingSpinner } from '../../components/LoadingSpinner'
 import { ErrorMessage } from '../../components/ErrorMessage'
 import { EmptyState } from '../../components/EmptyState'
@@ -20,11 +20,11 @@ export default function MasterOrdersPage() {
   })
 
   // API queries
-  const { 
-    data: ordersData, 
-    isLoading: ordersLoading, 
+  const {
+    data: ordersData,
+    isLoading: ordersLoading,
     error: ordersError,
-    refetch: refetchOrders 
+    refetch: refetchOrders
   } = useGetOrdersQuery({
     category: selectedCategory || undefined,
     search: searchQuery || undefined,
@@ -35,18 +35,18 @@ export default function MasterOrdersPage() {
     status: 'active'
   })
 
-  const { 
-    data: categoriesData, 
-    isLoading: categoriesLoading 
+  const {
+    data: categoriesData,
+    isLoading: categoriesLoading
   } = useGetCategoriesQuery()
 
   const orders = ordersData?.results || []
-  const categories = categoriesData || []
+  const categories: Category[] = Array.isArray(categoriesData) ? categoriesData : [];
 
   // Build categories list with "All" option
   const categoryOptions = [
     { id: null, name: 'Все', icon: 'apps' },
-    ...categories.map(cat => ({
+    ...categories.map((cat: Category) => ({
       id: cat.id,
       name: cat.name,
       icon: cat.icon || 'briefcase'
@@ -78,11 +78,11 @@ export default function MasterOrdersPage() {
   return (
     <View className="flex-1 bg-gray-50">
       <StatusBar style="dark" />
-      
+
       {/* Header */}
       <View className="bg-white px-4 pt-12 pb-4 border-b border-gray-100">
         <Text className="text-2xl font-bold text-gray-900 mb-4">Найти заказы</Text>
-        
+
         {/* Search */}
         <View className="relative mb-4">
           <View className="absolute left-3 top-1/2 -translate-y-1/2 z-10">
@@ -96,7 +96,7 @@ export default function MasterOrdersPage() {
             placeholderTextColor="#9CA3AF"
           />
         </View>
-        
+
         {/* Categories */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-2">
           <View className="flex-row gap-2 px-1">
@@ -104,20 +104,18 @@ export default function MasterOrdersPage() {
               <TouchableOpacity
                 key={category.id || 'all'}
                 onPress={() => handleCategorySelect(category.id)}
-                className={`flex-row items-center gap-2 px-4 py-2 rounded-full border ${
-                  (selectedCategory === category.id)
-                    ? 'bg-blue-500 border-blue-500'
-                    : 'bg-white border-gray-200'
-                }`}
+                className={`flex-row items-center gap-2 px-4 py-2 rounded-full border ${(selectedCategory === category.id)
+                  ? 'bg-blue-500 border-blue-500'
+                  : 'bg-white border-gray-200'
+                  }`}
               >
-                <Ionicons 
-                  name={category.icon as any} 
-                  size={16} 
-                  color={selectedCategory === category.id ? 'white' : '#6B7280'} 
+                <Ionicons
+                  name={category.icon as any}
+                  size={16}
+                  color={selectedCategory === category.id ? 'white' : '#6B7280'}
                 />
-                <Text className={`font-medium ${
-                  selectedCategory === category.id ? 'text-white' : 'text-gray-700'
-                }`}>
+                <Text className={`font-medium ${selectedCategory === category.id ? 'text-white' : 'text-gray-700'
+                  }`}>
                   {category.name}
                 </Text>
               </TouchableOpacity>
@@ -127,9 +125,9 @@ export default function MasterOrdersPage() {
       </View>
 
       {/* Orders List */}
-      <ScrollView 
-        className="flex-1 px-4 py-4" 
-        showsVerticalScrollIndicator={false} 
+      <ScrollView
+        className="flex-1 px-4 py-4"
+        showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 20, paddingTop: 8 }}
         refreshControl={
           <RefreshControl refreshing={ordersLoading} onRefresh={onRefresh} />
@@ -146,7 +144,7 @@ export default function MasterOrdersPage() {
             }
           />
         ) : (
-          <View className="space-y-4">
+          <View className="flex flex-col gap-4">
             {orders.map(order => (
               <TouchableOpacity
                 key={order.id}
@@ -174,12 +172,12 @@ export default function MasterOrdersPage() {
                     </Text>
                   </View>
                 </View>
-                
+
                 {/* Description */}
                 <Text className="text-sm text-gray-600 mb-4" numberOfLines={2}>
                   {order.description}
                 </Text>
-                
+
                 {/* Client Info */}
                 <View className="flex-row items-center gap-2 mb-3">
                   <Ionicons name="person" size={16} color="#6B7280" />
@@ -189,7 +187,7 @@ export default function MasterOrdersPage() {
                   <Ionicons name="location" size={16} color="#6B7280" />
                   <Text className="text-sm text-gray-600">{order.city}</Text>
                 </View>
-                
+
                 {/* Stats */}
                 <View className="flex-row items-center justify-between mb-4">
                   <View className="flex-row items-center gap-4">
@@ -206,9 +204,9 @@ export default function MasterOrdersPage() {
                     {formatRelativeTime(order.created_at)}
                   </Text>
                 </View>
-                
+
                 {/* Action Button */}
-                <TouchableOpacity 
+                <TouchableOpacity
                   onPress={() => router.push(`/(master)/orders/${order.id}/apply`)}
                   className="bg-blue-500 py-3 rounded-2xl"
                 >

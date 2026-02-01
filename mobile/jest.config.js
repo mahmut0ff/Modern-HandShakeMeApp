@@ -1,47 +1,43 @@
 module.exports = {
   preset: 'jest-expo',
-  transformIgnorePatterns: [
-    'node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg)',
+  setupFilesAfterEnv: [
+    '@testing-library/jest-native/extend-expect',
+    '<rootDir>/jest.setup.js'
   ],
-  setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
   testMatch: [
-    '**/__tests__/**/*.(test|spec).(ts|tsx|js)',
-    '**/*.(test|spec).(ts|tsx|js)',
+    '**/__tests__/**/*.(ts|tsx|js)',
+    '**/*.(test|spec).(ts|tsx|js)'
   ],
   collectCoverageFrom: [
     'app/**/*.{ts,tsx}',
-    'features/**/*.{ts,tsx}',
     'components/**/*.{ts,tsx}',
+    'hooks/**/*.{ts,tsx}',
     'services/**/*.{ts,tsx}',
     'utils/**/*.{ts,tsx}',
-    'hooks/**/*.{ts,tsx}',
-    'store/**/*.{ts,tsx}',
+    'features/**/*.{ts,tsx}',
     '!**/*.d.ts',
     '!**/node_modules/**',
     '!**/__tests__/**',
-    '!**/coverage/**',
-    '!**/*.config.{js,ts}',
-    '!**/index.ts',
+    '!**/coverage/**'
   ],
   coverageThreshold: {
     global: {
-      branches: 70,
-      functions: 70,
-      lines: 70,
-      statements: 70,
-    },
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    }
   },
-  coverageReporters: ['text', 'lcov', 'html'],
-  moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',
+    '^@components/(.*)$': '<rootDir>/components/$1',
+    '^@services/(.*)$': '<rootDir>/services/$1',
+    '^@utils/(.*)$': '<rootDir>/utils/$1',
+    '^@hooks/(.*)$': '<rootDir>/hooks/$1',
+    '^@features/(.*)$': '<rootDir>/features/$1'
   },
-  testEnvironment: 'node',
-  globals: {
-    'ts-jest': {
-      tsconfig: {
-        jsx: 'react',
-      },
-    },
-  },
+  transformIgnorePatterns: [
+    'node_modules/(?!(jest-)?@?react-native|@react-native-community|@react-navigation|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-native-picker|@react-native-async-storage|@reduxjs/toolkit)'
+  ],
+  testEnvironment: 'jsdom'
 };

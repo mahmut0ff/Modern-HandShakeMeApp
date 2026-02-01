@@ -1,7 +1,7 @@
-// Delete notification Lambda function
+// Delete notification with DynamoDB
 
 import type { APIGatewayProxyResult } from 'aws-lambda';
-import { getPrismaClient } from '@/shared/db/client';
+import { NotificationRepository } from '@/shared/repositories/notification.repository';
 import { success, forbidden, notFound, badRequest } from '@/shared/utils/response';
 import { withAuth, AuthenticatedEvent } from '@/shared/middleware/auth';
 import { withErrorHandler } from '@/shared/middleware/errorHandler';
@@ -20,26 +20,18 @@ async function deleteNotificationHandler(
   
   logger.info('Delete notification', { userId, notificationId });
   
-  const prisma = getPrismaClient();
+  const notificationRepo = new NotificationRepository();
   
-  // Get notification
-  const notification = await prisma.notification.findUnique({
-    where: { id: parseInt(notificationId) }
-  });
+  // Get user's notifications to verify ownership
+  const notifications = await notificationRepo.findByUser(userId, 1000);
+  const notification = notifications.find(n => n.id === notificationId);
   
   if (!notification) {
     return notFound('Notification not found');
   }
   
-  // Verify ownership
-  if (notification.userId !== userId) {
-    return forbidden('You can only delete your own notifications');
-  }
-  
   // Delete notification
-  await prisma.notification.delete({
-    where: { id: parseInt(notificationId) }
-  });
+  await notificationRepo.delete(userId, notificationId);
   
   logger.info('Notification deleted', { notificationId });
   

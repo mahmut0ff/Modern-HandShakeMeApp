@@ -349,7 +349,7 @@ export default function MasterProfileVisibilityPage() {
           <View key={sectionIndex} className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-4">
             <Text className="text-lg font-bold text-gray-900 mb-4">{section.section}</Text>
             
-            <View className="space-y-4">
+            <View className="flex flex-col gap-4">
               {section.items.map((item, itemIndex) => (
                 <View key={item.key} className="flex-row items-start gap-4">
                   <View className={`w-10 h-10 rounded-2xl items-center justify-center ${
@@ -392,11 +392,11 @@ export default function MasterProfileVisibilityPage() {
 
         {/* Privacy Tips */}
         <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-6">
-          <Text className="font-semibold text-gray-900 mb-3 flex-row items-center gap-2">
+          <View className="flex-row items-center gap-2 mb-3">
             <Ionicons name="shield-checkmark" size={20} color="#059669" />
-            Советы по приватности
-          </Text>
-          <View className="space-y-2">
+            <Text className="font-semibold text-gray-900">Советы по приватности</Text>
+          </View>
+          <View className="flex flex-col gap-2">
             <Text className="text-sm text-gray-600">• Не показывайте личные контакты незнакомцам</Text>
             <Text className="text-sm text-gray-600">• Включите показ рейтинга для повышения доверия</Text>
             <Text className="text-sm text-gray-600">• Портфолио помогает получить больше заказов</Text>

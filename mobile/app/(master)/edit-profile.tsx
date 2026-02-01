@@ -172,7 +172,7 @@ export default function EditMasterProfilePage() {
         <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-4">
           <Text className="font-semibold text-gray-900 mb-4">Личная информация</Text>
           
-          <View className="space-y-4">
+          <View className="flex flex-col gap-4">
             <View>
               <Text className="text-sm font-medium text-gray-700 mb-2">Имя *</Text>
               <TextInput
@@ -211,7 +211,7 @@ export default function EditMasterProfilePage() {
         <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-4">
           <Text className="font-semibold text-gray-900 mb-4">Профессиональная информация</Text>
           
-          <View className="space-y-4">
+          <View className="flex flex-col gap-4">
             <View>
               <Text className="text-sm font-medium text-gray-700 mb-2">Название компании</Text>
               <TextInput
@@ -252,7 +252,7 @@ export default function EditMasterProfilePage() {
         <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-4">
           <Text className="font-semibold text-gray-900 mb-4">Местоположение</Text>
           
-          <View className="space-y-4">
+          <View className="flex flex-col gap-4">
             <View>
               <Text className="text-sm font-medium text-gray-700 mb-2">Город</Text>
               <TextInput
@@ -290,7 +290,7 @@ export default function EditMasterProfilePage() {
         <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-4">
           <Text className="font-semibold text-gray-900 mb-4">Условия работы</Text>
           
-          <View className="space-y-4">
+          <View className="flex flex-col gap-4">
             <View className="flex-row items-center justify-between">
               <View className="flex-1">
                 <Text className="text-gray-900 font-medium">Есть транспорт</Text>
@@ -336,7 +336,7 @@ export default function EditMasterProfilePage() {
         <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-4">
           <Text className="font-semibold text-gray-900 mb-4">Стоимость услуг</Text>
           
-          <View className="space-y-4">
+          <View className="flex flex-col gap-4">
             <View>
               <Text className="text-sm font-medium text-gray-700 mb-2">Почасовая ставка (сом)</Text>
               <TextInput
@@ -376,7 +376,7 @@ export default function EditMasterProfilePage() {
         <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-4">
           <Text className="font-semibold text-gray-900 mb-4">Рабочие часы</Text>
           
-          <View className="space-y-3">
+          <View className="flex flex-col gap-3">
             {weekDays.map((day) => (
               <View key={day.key} className="flex-row items-center justify-between">
                 <Text className="text-gray-900 font-medium w-24">{day.label}</Text>

@@ -1,32 +1,31 @@
-// Get unread notifications count Lambda function
+// Get unread count with DynamoDB
 
-import type { APIGatewayProxyResult } from 'aws-lambda';
-import { getPrismaClient } from '@/shared/db/client';
+import { APIGatewayProxyResult } from 'aws-lambda';
+import { NotificationRepository } from '@/shared/repositories/notification.repository';
 import { success } from '@/shared/utils/response';
 import { withAuth, AuthenticatedEvent } from '@/shared/middleware/auth';
 import { withErrorHandler } from '@/shared/middleware/errorHandler';
-import { withRequestTransform } from '@/shared/middleware/requestTransform';
 import { logger } from '@/shared/utils/logger';
 
-async function getUnreadCountHandler(
-  event: AuthenticatedEvent
-): Promise<APIGatewayProxyResult> {
+async function getUnreadCountHandler(event: AuthenticatedEvent): Promise<APIGatewayProxyResult> {
   const userId = event.auth.userId;
   
-  logger.info('Get unread count', { userId });
+  logger.info('Get unread count request', { userId });
   
-  const prisma = getPrismaClient();
+  const notificationRepo = new NotificationRepository();
   
-  const count = await prisma.notification.count({
-    where: {
-      userId,
-      isRead: false
-    }
+  // Get user notifications and count unread
+  const notifications = await notificationRepo.findByUser(userId, 1000);
+  const unreadCount = notifications.filter(n => !n.isRead).length;
+  
+  logger.info('Unread count retrieved successfully', {
+    userId,
+    unreadCount,
   });
   
-  logger.info('Unread count retrieved', { userId, count });
-  
-  return success({ count });
+  return success({
+    unreadCount,
+  });
 }
 
-export const handler = withErrorHandler(withRequestTransform(withAuth(getUnreadCountHandler)));
+export const handler = withErrorHandler(withAuth(getUnreadCountHandler));

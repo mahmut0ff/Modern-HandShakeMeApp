@@ -18,44 +18,84 @@ const updateOrderSchema = z.object({
   isUrgent: z.boolean().optional(),
 });
 
-export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
+const orderRepository = new OrderRepository();
+
+export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   try {
-    const token = event.headers.Authorization?.replace('Bearer ', '');
-    if (!token) {
-      return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
+    const authHeader = event.headers.Authorization || event.headers.authorization;
+    if (!authHeader) {
+      return {
+        statusCode: 401,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Authorization required' })
+      };
     }
 
-    const decoded = verifyToken(token);
     const orderId = event.pathParameters?.id;
     if (!orderId) {
-      return { statusCode: 400, body: JSON.stringify({ error: 'Order ID required' }) };
+      return {
+        statusCode: 400,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Order ID required' })
+      };
     }
 
-    const orderRepo = new OrderRepository();
-    const order = await orderRepo.findById(orderId);
+    const token = authHeader.replace('Bearer ', '');
+    const decoded = verifyToken(token);
 
+    const order = await orderRepository.findById(orderId);
     if (!order) {
-      return { statusCode: 404, body: JSON.stringify({ error: 'Order not found' }) };
+      return {
+        statusCode: 404,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Order not found' })
+      };
     }
 
     if (order.clientId !== decoded.userId) {
-      return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden' }) };
+      return {
+        statusCode: 403,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'You can only update your own orders' })
+      };
     }
 
     const body = JSON.parse(event.body || '{}');
     const data = updateOrderSchema.parse(body);
 
-    const updated = await orderRepo.update(orderId, data);
+    const updated = await orderRepository.update(orderId, data);
 
     return {
       statusCode: 200,
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updated),
     };
   } catch (error: any) {
     console.error('Update order error:', error);
+    
+    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+      return {
+        statusCode: 401,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Invalid or expired token' })
+      };
+    }
+    
+    if (error.name === 'ZodError') {
+      return {
+        statusCode: 400,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          error: 'Validation error',
+          details: error.errors 
+        })
+      };
+    }
+
     return {
-      statusCode: error.name === 'ZodError' ? 400 : 500,
-      body: JSON.stringify({ error: error.message }),
+      statusCode: 500,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ error: 'Internal server error' })
     };
   }
-}
+};

@@ -1,81 +1,91 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { success, notFound, badRequest } from '../shared/utils/response';
-import { withAuth } from '../shared/middleware/auth';
-import { withRequestTransform } from '../shared/middleware/requestTransform';
-import { getPrismaClient } from '../shared/utils/prisma';
+import { PaymentRepository } from '../shared/repositories/payment.repository';
 import { CacheService } from '../shared/services/cache';
+import { verifyToken } from '../shared/services/token';
 
+const paymentRepository = new PaymentRepository();
 const cache = new CacheService();
 
-async function setDefaultCardHandler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
-  const prisma = getPrismaClient();
-  
+export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   try {
-    const user = (event as any).user;
+    const authHeader = event.headers.Authorization || event.headers.authorization;
+    if (!authHeader) {
+      return {
+        statusCode: 401,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Authorization required' })
+      };
+    }
 
     const cardId = event.pathParameters?.id;
     if (!cardId) {
-      return badRequest('Card ID is required');
+      return {
+        statusCode: 400,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Card ID is required' })
+      };
     }
 
-    // Check if card exists and belongs to the user
-    const paymentCard = await prisma.paymentCard.findFirst({
-      where: {
-        id: cardId,
-        userId: user.userId,
-        isActive: true
-      }
-    });
+    const token = authHeader.replace('Bearer ', '');
+    const decoded = verifyToken(token);
+    const userId = decoded.userId;
 
-    if (!paymentCard) {
-      return notFound('Payment card not found or access denied');
+    // Check if card exists and belongs to the user
+    const paymentCard = await paymentRepository.findCardById(cardId, userId);
+    if (!paymentCard || !paymentCard.isActive) {
+      return {
+        statusCode: 404,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Payment card not found or access denied' })
+      };
     }
 
     // Check if card is already default
     if (paymentCard.isDefault) {
-      return success({
-        message: 'Card is already the default payment method',
-        cardId: cardId
-      });
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: 'Card is already the default payment method',
+          cardId: cardId
+        })
+      };
     }
 
-    // Use transaction to ensure atomicity
-    await prisma.$transaction(async (tx) => {
-      // Unset current default card
-      await tx.paymentCard.updateMany({
-        where: {
-          userId: user.userId,
-          isDefault: true
-        },
-        data: {
-          isDefault: false
-        }
-      });
-
-      // Set new default card
-      await tx.paymentCard.update({
-        where: { id: cardId },
-        data: { isDefault: true }
-      });
-    });
+    // Set new default card (this will unset other defaults automatically)
+    await paymentRepository.setDefaultCard(cardId, userId);
 
     // Invalidate cache
-    await cache.invalidatePattern(`payment-cards:${user.userId}*`);
+    await cache.invalidatePattern(`payment-cards:${userId}*`);
 
-    console.log(`Default payment card set: ${cardId} for user ${user.userId}`);
+    console.log(`Default payment card set: ${cardId} for user ${userId}`);
 
-    return success({
-      message: 'Default payment card updated successfully',
-      cardId: cardId,
-      last4: paymentCard.last4,
-      brand: paymentCard.brand
-    });
+    return {
+      statusCode: 200,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: 'Default payment card updated successfully',
+        cardId: cardId,
+        last4: paymentCard.last4,
+        brand: paymentCard.brand
+      })
+    };
 
   } catch (error) {
     console.error('Error setting default payment card:', error);
 
-    return badRequest('Failed to set default payment card');
-  }
-}
+    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+      return {
+        statusCode: 401,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Invalid or expired token' })
+      };
+    }
 
-export const handler = withRequestTransform(withAuth(setDefaultCardHandler));
+    return {
+      statusCode: 500,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ error: 'Failed to set default payment card' })
+    };
+  }
+};

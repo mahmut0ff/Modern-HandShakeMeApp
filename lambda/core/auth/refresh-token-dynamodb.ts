@@ -1,72 +1,82 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import jwt from 'jsonwebtoken';
+import { z } from 'zod';
 import { UserRepository } from '../shared/repositories/user.repository';
+import { verifyToken, issueAccessToken, issueRefreshToken } from '../shared/services/token';
+import { getItem } from '../shared/db/dynamodb-client';
+import { Keys } from '../shared/db/dynamodb-keys';
+import { success, badRequest, unauthorized, notFound } from '../shared/utils/response';
+import { withErrorHandler, ValidationError } from '../shared/middleware/errorHandler';
+import { logger } from '../shared/utils/logger';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
-const userRepository = new UserRepository();
+const refreshTokenSchema = z.object({
+  refreshToken: z.string().min(1, 'Refresh token is required'),
+});
 
-export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+async function refreshTokenHandler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
+  logger.info('Refresh token request');
+  
+  const body = JSON.parse(event.body || '{}');
+  
+  // Validate input
+  let validatedData;
   try {
-    const body = JSON.parse(event.body || '{}');
-    const { refresh } = body;
-
-    if (!refresh) {
-      return {
-        statusCode: 400,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Refresh token is required' })
-      };
-    }
-
-    // Verify refresh token
-    let decoded: any;
-    try {
-      decoded = jwt.verify(refresh, JWT_SECRET);
-    } catch (error) {
-      return {
-        statusCode: 401,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Invalid or expired refresh token' })
-      };
-    }
-
-    // Get user
-    const user = await userRepository.findById(decoded.userId);
-    if (!user) {
-      return {
-        statusCode: 404,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'User not found' })
-      };
-    }
-
-    // Generate new tokens
-    const accessToken = jwt.sign(
-      { userId: user.userId, role: user.role },
-      JWT_SECRET,
-      { expiresIn: '1h' }
-    );
-
-    const refreshToken = jwt.sign(
-      { userId: user.userId, role: user.role },
-      JWT_SECRET,
-      { expiresIn: '30d' }
-    );
-
-    return {
-      statusCode: 200,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        access: accessToken,
-        refresh: refreshToken
-      })
-    };
+    validatedData = refreshTokenSchema.parse(body);
   } catch (error) {
-    console.error('Error refreshing token:', error);
-    return {
-      statusCode: 500,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: 'Internal server error' })
-    };
+    if (error instanceof z.ZodError) {
+      throw new ValidationError('Validation failed', error.errors);
+    }
+    throw error;
   }
-};
+  
+  // Check if token is blacklisted
+  const blacklistedToken = await getItem(Keys.tokenBlacklist(validatedData.refreshToken));
+  if (blacklistedToken) {
+    logger.warn('Attempted to use blacklisted refresh token');
+    return unauthorized('Token has been revoked');
+  }
+  
+  // Verify refresh token
+  let decoded;
+  try {
+    decoded = verifyToken(validatedData.refreshToken);
+  } catch (error) {
+    logger.warn('Invalid refresh token', { error: error.message });
+    return unauthorized('Invalid or expired refresh token');
+  }
+  
+  // Get user
+  const userRepo = new UserRepository();
+  const user = await userRepo.findById(decoded.userId);
+  if (!user) {
+    logger.warn('User not found for refresh token', { userId: decoded.userId });
+    return notFound('User not found');
+  }
+  
+  // Generate new tokens
+  const tokenPayload = {
+    userId: user.id,
+    email: user.email || user.phone,
+    role: user.role,
+  };
+  
+  const accessToken = await issueAccessToken(tokenPayload);
+  const newRefreshToken = await issueRefreshToken(tokenPayload);
+  
+  logger.info('Tokens refreshed successfully', { userId: user.id });
+  
+  return success({
+    access: accessToken,
+    refresh: newRefreshToken,
+    user: {
+      id: user.id,
+      phone: user.phone,
+      email: user.email,
+      role: user.role,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      fullName: user.name,
+    },
+  });
+}
+
+export const handler = withErrorHandler(refreshTokenHandler);

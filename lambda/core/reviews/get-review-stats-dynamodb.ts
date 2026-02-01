@@ -1,72 +1,75 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import { success, error, badRequest } from '../shared/utils/response';
 import { ReviewRepository } from '../shared/repositories/review.repository';
+import { UserRepository } from '../shared/repositories/user.repository';
+import { CacheService } from '../shared/cache/client';
 
-const reviewRepository = new ReviewRepository();
+const cache = new CacheService();
 
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   try {
-    const masterId = event.pathParameters?.id;
+    const masterId = event.pathParameters?.id || event.pathParameters?.masterId;
+    
     if (!masterId) {
-      return {
-        statusCode: 400,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Master ID required' })
-      };
+      return badRequest('Master ID is required');
     }
 
-    // Get all reviews for master
-    const reviews = await reviewRepository.findByMaster(masterId);
+    // Generate cache key
+    const cacheKey = `reviews:stats:${masterId}`;
+    
+    // Try cache first
+    const cached = await cache.get(cacheKey);
+    if (cached) {
+      return success(cached);
+    }
 
-    // Calculate statistics
-    const totalReviews = reviews.length;
-    const ratingDistribution = {
-      1: 0,
-      2: 0,
-      3: 0,
-      4: 0,
-      5: 0
-    };
+    const reviewRepo = new ReviewRepository();
+    const userRepo = new UserRepository();
 
-    let totalRating = 0;
-
-    reviews.forEach(review => {
-      const rating = review.rating;
-      totalRating += rating;
-      ratingDistribution[rating as keyof typeof ratingDistribution]++;
-    });
-
-    const averageRating = totalReviews > 0 
-      ? (totalRating / totalReviews).toFixed(1) 
-      : '0';
+    // Get statistics using repository method
+    const stats = await reviewRepo.getReviewStats(masterId);
 
     // Get recent reviews (last 5)
-    const recentReviews = reviews
+    const allReviewsResult = await reviewRepo.findByMaster(masterId, { limit: 100 });
+    const recentReviews = allReviewsResult.items
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      .slice(0, 5)
-      .map(review => ({
-        id: review.reviewId,
-        rating: review.rating,
-        comment: review.comment,
-        client_name: review.clientName,
-        created_at: review.createdAt
-      }));
+      .slice(0, 5);
 
-    return {
-      statusCode: 200,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        total_reviews: totalReviews,
-        average_rating: averageRating,
-        rating_distribution: ratingDistribution,
-        recent_reviews: recentReviews
+    // Enrich recent reviews with client data
+    const enrichedRecentReviews = await Promise.all(
+      recentReviews.map(async (review) => {
+        const client = await userRepo.findById(review.clientId);
+        
+        return {
+          id: review.id,
+          rating: review.rating,
+          comment: review.comment,
+          clientName: review.isAnonymous ? 'Anonymous' : client ? 
+            `${client.firstName || ''} ${client.lastName || ''}`.trim() : 'Unknown',
+          clientAvatar: review.isAnonymous ? null : client?.avatar,
+          isAnonymous: review.isAnonymous,
+          isVerified: review.isVerified,
+          createdAt: review.createdAt
+        };
       })
+    );
+
+    const response = {
+      totalReviews: stats.totalReviews,
+      averageRating: stats.averageRating,
+      ratingDistribution: stats.ratingDistribution,
+      verifiedReviews: stats.verifiedReviews,
+      needsResponse: stats.needsResponse,
+      recentReviews: enrichedRecentReviews
     };
-  } catch (error) {
-    console.error('Error:', error);
-    return {
-      statusCode: 500,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: 'Internal server error' })
-    };
+
+    // Cache for 5 minutes
+    await cache.set(cacheKey, response, 300);
+
+    return success(response);
+    
+  } catch (err) {
+    console.error('Get review stats error:', err);
+    return error('Failed to get review statistics', 500);
   }
 };

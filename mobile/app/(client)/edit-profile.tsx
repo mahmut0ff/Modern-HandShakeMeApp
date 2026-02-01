@@ -94,7 +94,7 @@ export default function EditClientProfilePage() {
         <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-6">
           <Text className="font-semibold text-gray-900 mb-4">Личная информация</Text>
           
-          <View className="space-y-4">
+          <View className="flex flex-col gap-4">
             <View>
               <Text className="text-sm font-medium text-gray-700 mb-2">Имя *</Text>
               <TextInput
@@ -133,7 +133,7 @@ export default function EditClientProfilePage() {
         <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-6">
           <Text className="font-semibold text-gray-900 mb-4">Местоположение</Text>
           
-          <View className="space-y-4">
+          <View className="flex flex-col gap-4">
             <View>
               <Text className="text-sm font-medium text-gray-700 mb-2">Город</Text>
               <TextInput

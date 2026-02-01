@@ -1,68 +1,68 @@
-// Mark review as helpful
+import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import jwt from 'jsonwebtoken';
+import { success, error, notFound, badRequest, unauthorized } from '../shared/utils/response';
+import { ReviewRepository } from '../shared/repositories/review.repository';
 
-import type { APIGatewayProxyResult } from 'aws-lambda';
-import { getPrismaClient } from '@/shared/db/client';
-import { success, notFound } from '@/shared/utils/response';
-import { withAuth, AuthenticatedEvent } from '@/shared/middleware/auth';
-import { withErrorHandler } from '@/shared/middleware/errorHandler';
-import { withRequestTransform } from '@/shared/middleware/requestTransform';
-import { logger } from '@/shared/utils/logger';
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
-async function markHelpfulHandler(
-  event: AuthenticatedEvent
-): Promise<APIGatewayProxyResult> {
-  const userId = event.auth.userId;
-  const reviewId = event.pathParameters?.id;
-  
-  if (!reviewId) {
-    return notFound('Review ID is required');
-  }
-  
-  logger.info('Mark review helpful request', { userId, reviewId });
-  
-  const prisma = getPrismaClient();
-  
-  const review = await prisma.review.findUnique({
-    where: { id: reviewId },
-  });
-  
-  if (!review) {
-    return notFound('Review not found');
-  }
-  
-  // Check if already marked helpful
-  const existing = await prisma.reviewHelpful.findUnique({
-    where: {
-      reviewId_userId: {
-        reviewId,
-        userId,
-      },
-    },
-  });
-  
-  if (existing) {
-    // Remove helpful mark
-    await prisma.reviewHelpful.delete({
-      where: {
-        reviewId_userId: {
-          reviewId,
-          userId,
-        },
-      },
-    });
+export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
+  try {
+    // Get token from header
+    const authHeader = event.headers.Authorization || event.headers.authorization;
+    if (!authHeader) {
+      return unauthorized('Authorization header required');
+    }
+
+    const token = authHeader.replace('Bearer ', '');
     
-    return success({ message: 'Helpful mark removed', isHelpful: false });
-  } else {
-    // Add helpful mark
-    await prisma.reviewHelpful.create({
-      data: {
-        reviewId,
-        userId,
-      },
-    });
+    // Verify token
+    let decoded: any;
+    try {
+      decoded = jwt.verify(token, JWT_SECRET);
+    } catch (error) {
+      return unauthorized('Invalid or expired token');
+    }
+
+    const reviewId = event.pathParameters?.id;
     
-    return success({ message: 'Review marked as helpful', isHelpful: true });
+    if (!reviewId) {
+      return badRequest('Review ID is required');
+    }
+    
+    const reviewRepo = new ReviewRepository();
+    
+    // Get masterId from path parameters
+    const masterId = event.pathParameters?.masterId;
+    
+    if (!masterId) {
+      return badRequest('Master ID is required');
+    }
+    
+    const review = await reviewRepo.findById(masterId, reviewId);
+    
+    if (!review) {
+      return notFound('Review not found');
+    }
+    
+    // Check if already marked helpful
+    const isAlreadyHelpful = await reviewRepo.isMarkedHelpful(reviewId, decoded.userId);
+    
+    if (isAlreadyHelpful) {
+      // Remove helpful mark
+      await reviewRepo.unmarkHelpful(reviewId, decoded.userId);
+      await reviewRepo.decrementHelpfulCount(masterId, reviewId);
+      
+      return success({ message: 'Helpful mark removed', isHelpful: false });
+    } else {
+      // Add helpful mark
+      await reviewRepo.markHelpful(reviewId, decoded.userId);
+      await reviewRepo.incrementHelpfulCount(masterId, reviewId);
+      
+      return success({ message: 'Review marked as helpful', isHelpful: true });
+    }
+    
+  } catch (err) {
+    console.error('Mark helpful error:', err);
+    return error('Failed to mark review as helpful', 500);
   }
 }
-
-export const handler = withErrorHandler(withRequestTransform(withAuth(markHelpfulHandler)));

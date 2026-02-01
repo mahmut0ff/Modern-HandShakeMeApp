@@ -11,3 +11,4 @@ export * from './walletApi';
 export * from './reviewApi';
 export * from './verificationApi';
 export * from './disputeApi';
+export * from './localizationApi';

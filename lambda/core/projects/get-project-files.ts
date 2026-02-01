@@ -1,76 +1,96 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { PrismaClient } from '@/shared/db/mock-prisma';
-import { createResponse, createErrorResponse } from '@/shared/utils/response';
-import { requireAuth } from '@/shared/middleware/auth';
-import { CacheService } from '@/shared/services/cache';
+import jwt from 'jsonwebtoken';
+import { ProjectRepository } from '../shared/repositories/project.repository';
+import { ProjectFileRepository } from '../shared/repositories/project-file.repository';
 
-const prisma = new PrismaClient();
-const cache = new CacheService();
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const projectRepository = new ProjectRepository();
+const projectFileRepository = new ProjectFileRepository();
 
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   try {
-    const user = await requireAuth()(event);
+    // Get token from header
+    const authHeader = event.headers.Authorization || event.headers.authorization;
+    if (!authHeader) {
+      return {
+        statusCode: 401,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Authorization header required' })
+      };
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+    
+    // Verify token
+    let decoded: any;
+    try {
+      decoded = jwt.verify(token, JWT_SECRET);
+    } catch (error) {
+      return {
+        statusCode: 401,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Invalid or expired token' })
+      };
+    }
+
     const projectId = event.pathParameters?.id;
-    
     if (!projectId) {
-      return createErrorResponse(400, 'VALIDATION_ERROR', 'Project ID is required');
+      return {
+        statusCode: 400,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Project ID is required' })
+      };
     }
-
-    // Check cache first
-    const cacheKey = `project:${projectId}:files`;
-    const cachedFiles = await cache.get(cacheKey);
     
-    if (cachedFiles) {
-      return createResponse(200, cachedFiles);
+    // Get project to verify ownership
+    const project = await projectRepository.findById(projectId);
+    if (!project) {
+      return {
+        statusCode: 404,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Project not found' })
+      };
+    }
+    
+    // Only client or master can view project files
+    if (project.clientId !== decoded.userId && project.masterId !== decoded.userId) {
+      return {
+        statusCode: 403,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'You do not have permission to view files for this project' })
+      };
     }
 
-    // Mock project files
-    const mockFiles = [
-      {
-        id: 1,
-        file: 'progress-photo-1.jpg',
-        file_url: `https://mock-cdn.example.com/projects/${projectId}/progress-photo-1.jpg`,
-        file_type: 'photo',
-        thumbnail: `https://mock-cdn.example.com/projects/${projectId}/progress-photo-1-thumb.jpg`,
-        description: 'Initial demolition complete',
-        uploaded_by: 'master',
-        created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
-      },
-      {
-        id: 2,
-        file: 'materials-receipt.pdf',
-        file_url: `https://mock-cdn.example.com/projects/${projectId}/materials-receipt.pdf`,
-        file_type: 'document',
-        description: 'Materials purchase receipt',
-        uploaded_by: 'master',
-        created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
-      },
-      {
-        id: 3,
-        file: 'client-requirements.jpg',
-        file_url: `https://mock-cdn.example.com/projects/${projectId}/client-requirements.jpg`,
-        file_type: 'photo',
-        thumbnail: `https://mock-cdn.example.com/projects/${projectId}/client-requirements-thumb.jpg`,
-        description: 'Client specific requirements photo',
-        uploaded_by: 'client',
-        created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString()
-      }
-    ];
+    // Get project files
+    const files = await projectFileRepository.findByProject(projectId);
+    
+    // Format files for response
+    const formattedFiles = files.map(file => ({
+      id: file.id,
+      file: file.fileName,
+      file_url: file.fileUrl,
+      file_type: file.fileType,
+      file_size: file.fileSize,
+      mime_type: file.mimeType,
+      thumbnail: file.thumbnailUrl,
+      description: file.description,
+      uploaded_by: file.uploadedBy,
+      uploaded_by_user_id: file.uploadedByUserId,
+      is_public: file.isPublic,
+      created_at: file.createdAt
+    }));
 
-    // Cache for 10 minutes
-    await cache.set(cacheKey, mockFiles, 600);
-
-    return createResponse(200, mockFiles);
-
+    return {
+      statusCode: 200,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(formattedFiles)
+    };
   } catch (error) {
     console.error('Error getting project files:', error);
-    
-    if (error.name === 'UnauthorizedError') {
-      return createErrorResponse(401, 'UNAUTHORIZED', error.message);
-    }
-
-    return createErrorResponse(500, 'INTERNAL_ERROR', 'Failed to get project files');
-  } finally {
-    await prisma.$disconnect();
+    return {
+      statusCode: 500,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ error: 'Internal server error' })
+    };
   }
 };

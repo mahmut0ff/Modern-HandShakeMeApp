@@ -7,6 +7,7 @@ export function useWebSocket() {
   const { isAuthenticated } = useAppSelector(state => state.auth);
 
   useEffect(() => {
+
     if (isAuthenticated) {
       websocketService.connect();
     } else {

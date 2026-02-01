@@ -1,43 +1,84 @@
 // Reorder services Lambda function
 
-import type { APIGatewayProxyResult } from 'aws-lambda';
-import { getPrismaClient } from '@/shared/db/client';
-import { success, badRequest, forbidden } from '@/shared/utils/response';
-import { withAuth, AuthenticatedEvent } from '@/shared/middleware/auth';
-import { withErrorHandler } from '@/shared/middleware/errorHandler';
-import { logger } from '@/shared/utils/logger';
+import type { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import { ServiceRepository } from '../shared/repositories/service.repository';
+import { successResponse, badRequestResponse, forbiddenResponse, unauthorizedResponse } from '../shared/utils/unified-response';
+import { verifyToken } from '../shared/services/token';
+import { logger } from '../shared/utils/logger';
 import { z } from 'zod';
 
 const reorderSchema = z.object({
-  service_ids: z.array(z.number().int().positive()),
+  service_ids: z.array(z.string().uuid()),
 });
 
-async function reorderServicesHandler(
-  event: AuthenticatedEvent
+export async function handler(
+  event: APIGatewayProxyEvent
 ): Promise<APIGatewayProxyResult> {
-  const userId = event.auth.userId;
-  
-  if (event.auth.role !== 'MASTER') {
-    return forbidden('Only masters can reorder services');
-  }
-  
-  logger.info('Reorder services request', { userId });
-  
-  const body = JSON.parse(event.body || '{}');
-  
   try {
-    const data = reorderSchema.parse(body);
+    const token = event.headers.Authorization?.replace('Bearer ', '');
+    if (!token) {
+      return unauthorizedResponse('Missing authorization token');
+    }
     
-    const prisma = getPrismaClient();
+    const decoded = verifyToken(token);
     
-    // Verify all services belong to the master
-    const services = await prisma.masterService.findMany({
-      where: {
-        id: { in: data.service_ids },
-        masterId: userId,
-      },
+    if (decoded.role !== 'MASTER') {
+      return forbiddenResponse('Only masters can reorder services');
+    }
+    
+    logger.info('Reorder services request', { userId: decoded.userId });
+    
+    const body = JSON.parse(event.body || '{}');
+    
+    const validationResult = reorderSchema.safeParse(body);
+    if (!validationResult.success) {
+      return badRequestResponse('Validation failed', validationResult.error.errors);
+    }
+    
+    const data = validationResult.data;
+    
+    const serviceRepository = new ServiceRepository();
+    
+    // Verify all services belong to the master and reorder them
+    const reorderedServices = await serviceRepository.reorderServices(decoded.userId, data.service_ids);
+    
+    logger.info('Services reordered successfully', { 
+      userId: decoded.userId, 
+      serviceCount: reorderedServices.length 
     });
     
+    return successResponse({
+      services: reorderedServices,
+      message: 'Services reordered successfully'
+    });
+  } catch (error: any) {
+    logger.error('Reorder services error:', error);
+    
+    if (error.message === 'Invalid token') {
+      return unauthorizedResponse('Invalid or expired token');
+    }
+    
+    if (error.message.includes('not found or doesn\'t belong to master')) {
+      return forbiddenResponse(error.message);
+    }
+    
+    return {
+      statusCode: 500,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      },
+      body: JSON.stringify({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Internal server error',
+        },
+        timestamp: new Date().toISOString(),
+      }),
+    };
+  }
+}
     if (services.length !== data.service_ids.length) {
       return badRequest('Some services not found or do not belong to you');
     }

@@ -252,7 +252,7 @@ export default function MasterAvailabilityPage() {
               </View>
 
               {day.isAvailable && (
-                <View className="space-y-3">
+                <View className="flex flex-col gap-3">
                   {day.timeSlots.map((slot, slotIndex) => (
                     <View key={slotIndex} className="flex-row items-center gap-3 p-3 bg-gray-50 rounded-2xl">
                       <View className="flex-1 flex-row items-center gap-2">
@@ -340,11 +340,11 @@ export default function MasterAvailabilityPage() {
 
         {/* Tips */}
         <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-6">
-          <Text className="font-semibold text-gray-900 mb-3 flex-row items-center gap-2">
+          <View className="flex-row items-center gap-2 mb-3">
             <Ionicons name="bulb" size={20} color="#F59E0B" />
-            Советы по расписанию
-          </Text>
-          <View className="space-y-2">
+            <Text className="font-semibold text-gray-900">Советы по расписанию</Text>
+          </View>
+          <View className="flex flex-col gap-2">
             <Text className="text-sm text-gray-600">• Указывайте реальное время работы</Text>
             <Text className="text-sm text-gray-600">• Оставляйте время между заказами</Text>
             <Text className="text-sm text-gray-600">• Обновляйте расписание при изменениях</Text>

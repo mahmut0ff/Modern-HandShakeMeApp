@@ -1,117 +1,70 @@
+// Accept resolution
+
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import jwt from 'jsonwebtoken';
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, GetCommand, UpdateCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
+import { DisputesRepository } from '../shared/repositories/disputes.repository';
+import { withAuth } from '../shared/middleware/auth';
+import { withErrorHandler } from '../shared/middleware/errorHandler';
+import { success, badRequest, notFound, forbidden } from '../shared/utils/response';
+import { logger } from '../shared/utils/logger';
 
-const dynamoClient = new DynamoDBClient({});
-const docClient = DynamoDBDocumentClient.from(dynamoClient);
-const TABLE_NAME = process.env.DYNAMODB_TABLE || 'handshake-table';
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const disputesRepository = new DisputesRepository();
 
-interface JWTPayload {
-  userId: string;
-  role: string;
-}
+async function acceptResolutionHandler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
+  const userId = (event.requestContext as any).authorizer?.userId;
+  
+  if (!userId) {
+    return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
+  }
 
-export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+  const disputeId = event.pathParameters?.id;
+  if (!disputeId) {
+    return badRequest('Dispute ID is required');
+  }
+
   try {
-    const token = event.headers.Authorization?.replace('Bearer ', '') || '';
-    const decoded = jwt.verify(token, JWT_SECRET) as JWTPayload;
-
-    const disputeId = event.pathParameters?.id;
-    if (!disputeId) {
-      return {
-        statusCode: 400,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Dispute ID is required' }),
-      };
+    const dispute = await disputesRepository.findDisputeById(disputeId);
+    if (!dispute) {
+      return notFound('Dispute not found');
     }
 
-    const disputeResult = await docClient.send(
-      new GetCommand({
-        TableName: TABLE_NAME,
-        Key: { PK: `DISPUTE#${disputeId}`, SK: `DISPUTE#${disputeId}` },
-      })
+    if (dispute.clientId !== userId && dispute.masterId !== userId) {
+      return forbidden('Access denied');
+    }
+
+    if (dispute.status !== 'IN_MEDIATION' && dispute.status !== 'RESOLVED') {
+      return badRequest('No resolution to accept');
+    }
+
+    // Update dispute to resolved status
+    const updatedDispute = await disputesRepository.updateDisputeStatus(
+      disputeId,
+      { status: 'RESOLVED' },
+      userId
     );
 
-    if (!disputeResult.Item) {
-      return {
-        statusCode: 404,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Dispute not found' }),
-      };
-    }
+    // Add timeline entry
+    await disputesRepository.addTimelineEntry(disputeId, {
+      action: 'RESOLUTION_ACCEPTED',
+      description: 'Resolution accepted by user',
+      userId,
+    });
 
-    const dispute = disputeResult.Item;
+    logger.info('Resolution accepted successfully', { disputeId, userId });
 
-    if (
-      dispute.initiatorId !== decoded.userId &&
-      dispute.respondentId !== decoded.userId
-    ) {
-      return {
-        statusCode: 403,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Access denied' }),
-      };
-    }
+    return success({
+      id: disputeId,
+      status: 'RESOLVED',
+      resolvedAt: updatedDispute.resolvedAt,
+      message: 'Resolution accepted successfully',
+    });
 
-    if (dispute.status !== 'in_mediation' && dispute.status !== 'resolved') {
-      return {
-        statusCode: 400,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'No resolution to accept' }),
-      };
-    }
-
-    const now = new Date().toISOString();
-
-    await docClient.send(
-      new UpdateCommand({
-        TableName: TABLE_NAME,
-        Key: { PK: `DISPUTE#${disputeId}`, SK: `DISPUTE#${disputeId}` },
-        UpdateExpression: 'SET #status = :status, resolvedAt = :now, updatedAt = :now',
-        ExpressionAttributeNames: { '#status': 'status' },
-        ExpressionAttributeValues: { ':status': 'resolved', ':now': now },
-      })
-    );
-
-    await docClient.send(
-      new PutCommand({
-        TableName: TABLE_NAME,
-        Item: {
-          PK: `DISPUTE#${disputeId}`,
-          SK: `TIMELINE#${Date.now()}`,
-          action: 'RESOLUTION_ACCEPTED',
-          description: 'Resolution accepted by user',
-          userId: decoded.userId,
-          createdAt: now,
-        },
-      })
-    );
-
-    return {
-      statusCode: 200,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-      body: JSON.stringify({
-        id: disputeId,
-        status: 'resolved',
-        resolved_at: now,
-        message: 'Resolution accepted successfully',
-      }),
-    };
   } catch (error: any) {
-    console.error('Error accepting resolution:', error);
-    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
-      return {
-        statusCode: 401,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Unauthorized' }),
-      };
-    }
+    logger.error('Error accepting resolution', error);
     return {
       statusCode: 500,
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ error: 'Failed to accept resolution' }),
     };
   }
-};
+}
+
+export const handler = withErrorHandler(withAuth(acceptResolutionHandler));

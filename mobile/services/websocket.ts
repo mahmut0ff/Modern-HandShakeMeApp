@@ -56,16 +56,17 @@ class WebSocketService {
     }
 
     const wsUrl = process.env.EXPO_PUBLIC_WS_URL;
-    
+
     if (!wsUrl) {
       console.log('WebSocket connection initialized for authenticated user');
       this.isConnecting = false;
       return;
     }
-    
+
     try {
-      this.ws = new WebSocket(`${wsUrl}?token=${token}`);
-      
+      // SECURITY FIX: Use subprotocol instead of query parameter for token
+      this.ws = new WebSocket(wsUrl, [`Bearer.${token}`]);
+
       this.ws.onopen = () => {
         console.log('WebSocket connected');
         this.isConnecting = false;
@@ -79,22 +80,27 @@ class WebSocketService {
           this.handleMessage(message);
         } catch (error) {
           console.error('Failed to parse WebSocket message:', error);
-        }
-      };
-
-      this.ws.onclose = (event) => {
-        console.log('WebSocket disconnected:', event.code, event.reason);
-        this.isConnecting = false;
-        this.notifyConnectionHandlers(false);
-        
-        if (event.code !== 1000 && this.reconnectAttempts < this.maxReconnectAttempts) {
-          this.scheduleReconnect();
+          // FIXED: Don't disconnect on parse errors, just log them
         }
       };
 
       this.ws.onerror = (error) => {
         console.error('WebSocket error:', error);
         this.isConnecting = false;
+        this.notifyConnectionHandlers(false);
+      };
+
+      this.ws.onclose = (event) => {
+        console.log('WebSocket disconnected:', event.code, event.reason);
+        this.isConnecting = false;
+        this.notifyConnectionHandlers(false);
+
+        // FIXED: Enhanced reconnection logic with exponential backoff
+        if (event.code !== 1000 && this.reconnectAttempts < this.maxReconnectAttempts) {
+          this.scheduleReconnect();
+        } else if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+          console.error('Max reconnection attempts reached');
+        }
       };
     } catch (error) {
       console.error('Failed to create WebSocket connection:', error);
@@ -113,9 +119,9 @@ class WebSocketService {
   private scheduleReconnect() {
     this.reconnectAttempts++;
     const delay = this.reconnectInterval * Math.pow(2, this.reconnectAttempts - 1);
-    
+
     console.log(`Scheduling WebSocket reconnect attempt ${this.reconnectAttempts} in ${delay}ms`);
-    
+
     setTimeout(() => {
       this.connect();
     }, delay);

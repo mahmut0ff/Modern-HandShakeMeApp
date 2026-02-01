@@ -3,9 +3,9 @@ import { View, Text, ScrollView, TouchableOpacity } from 'react-native'
 import { router } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { Ionicons } from '@expo/vector-icons'
-import { 
+import {
   useGetMyProjectsQuery,
-  type Project 
+  type Project
 } from '../../services/projectApi'
 import { LoadingSpinner } from '../../components/LoadingSpinner'
 import { ErrorMessage } from '../../components/ErrorMessage'
@@ -15,20 +15,23 @@ export default function MasterProjectsPage() {
   const [activeTab, setActiveTab] = useState<'active' | 'completed'>('active')
 
   // API queries
-  const { 
-    data: allProjects = [], 
-    isLoading, 
+  const {
+    data: projectsData,
+    isLoading,
     error,
-    refetch 
-  } = useGetMyProjectsQuery({ 
+    refetch
+  } = useGetMyProjectsQuery({
     role: 'master',
     ordering: '-created_at'
   });
 
-  const activeProjects = allProjects.filter(p => 
+  // Handle the projects list
+  const allProjects: Project[] = Array.isArray(projectsData) ? projectsData : [];
+
+  const activeProjects = allProjects.filter((p: any) =>
     p.status === 'in_progress' || p.status === 'pending'
   );
-  const completedProjects = allProjects.filter(p => 
+  const completedProjects = allProjects.filter((p: any) =>
     p.status === 'completed'
   );
 
@@ -64,35 +67,31 @@ export default function MasterProjectsPage() {
   return (
     <View className="flex-1 bg-gray-50">
       <StatusBar style="dark" />
-      
+
       {/* Header */}
       <View className="bg-white px-4 pt-12 pb-4 border-b border-gray-100">
         <Text className="text-2xl font-bold text-gray-900 mb-4">Мои проекты</Text>
-        
+
         {/* Tabs */}
         <View className="flex-row bg-gray-100 rounded-2xl p-1">
           <TouchableOpacity
             onPress={() => setActiveTab('active')}
-            className={`flex-1 py-2 px-4 rounded-xl ${
-              activeTab === 'active' ? 'bg-white shadow-sm' : ''
-            }`}
+            className={`flex-1 py-2 px-4 rounded-xl ${activeTab === 'active' ? 'bg-white shadow-sm' : ''
+              }`}
           >
-            <Text className={`text-center font-medium ${
-              activeTab === 'active' ? 'text-gray-900' : 'text-gray-600'
-            }`}>
+            <Text className={`text-center font-medium ${activeTab === 'active' ? 'text-gray-900' : 'text-gray-600'
+              }`}>
               Активные ({activeProjects.length})
             </Text>
           </TouchableOpacity>
-          
+
           <TouchableOpacity
             onPress={() => setActiveTab('completed')}
-            className={`flex-1 py-2 px-4 rounded-xl ${
-              activeTab === 'completed' ? 'bg-white shadow-sm' : ''
-            }`}
+            className={`flex-1 py-2 px-4 rounded-xl ${activeTab === 'completed' ? 'bg-white shadow-sm' : ''
+              }`}
           >
-            <Text className={`text-center font-medium ${
-              activeTab === 'completed' ? 'text-gray-900' : 'text-gray-600'
-            }`}>
+            <Text className={`text-center font-medium ${activeTab === 'completed' ? 'text-gray-900' : 'text-gray-600'
+              }`}>
               Завершённые ({completedProjects.length})
             </Text>
           </TouchableOpacity>
@@ -110,14 +109,14 @@ export default function MasterProjectsPage() {
               {activeTab === 'active' ? 'Нет активных проектов' : 'Нет завершённых проектов'}
             </Text>
             <Text className="text-gray-400 text-center">
-              {activeTab === 'active' 
+              {activeTab === 'active'
                 ? 'Откликайтесь на заказы, чтобы получить проекты'
                 : 'Завершённые проекты появятся здесь'
               }
             </Text>
           </View>
         ) : (
-          <View className="space-y-4">
+          <View className="flex flex-col gap-4">
             {currentProjects.map(project => (
               <TouchableOpacity
                 key={project.id}
@@ -143,12 +142,12 @@ export default function MasterProjectsPage() {
                     </View>
                   </View>
                 </View>
-                
+
                 {/* Description */}
                 <Text className="text-sm text-gray-600 mb-4" numberOfLines={2}>
                   {project.description || project.order?.description}
                 </Text>
-                
+
                 {/* Progress Bar (for active projects) */}
                 {activeTab === 'active' && (
                   <View className="mb-4">
@@ -157,14 +156,14 @@ export default function MasterProjectsPage() {
                       <Text className="text-sm font-bold text-blue-600">{project.progress}%</Text>
                     </View>
                     <View className="w-full bg-gray-200 rounded-full h-2">
-                      <View 
+                      <View
                         className="bg-blue-500 h-2 rounded-full"
                         style={{ width: `${project.progress}%` }}
                       />
                     </View>
                   </View>
                 )}
-                
+
                 {/* Rating (for completed projects) */}
                 {activeTab === 'completed' && project.status === 'completed' && (
                   <View className="mb-4 p-3 bg-gray-50 rounded-2xl">
@@ -187,7 +186,7 @@ export default function MasterProjectsPage() {
                     </Text>
                   </View>
                 )}
-                
+
                 {/* Dates */}
                 <View className="flex-row items-center justify-between text-xs text-gray-500">
                   <View className="flex-row items-center gap-1">
@@ -202,24 +201,24 @@ export default function MasterProjectsPage() {
                       {project.status === 'completed' && project.completed_at
                         ? `Завершён: ${formatRelativeTime(project.completed_at)}`
                         : project.end_date
-                        ? `Дедлайн: ${formatRelativeTime(project.end_date)}`
-                        : 'Без дедлайна'
+                          ? `Дедлайн: ${formatRelativeTime(project.end_date)}`
+                          : 'Без дедлайна'
                       }
                     </Text>
                   </View>
                 </View>
-                
+
                 {/* Action Buttons */}
                 <View className="flex-row gap-3 mt-4">
-                  <TouchableOpacity 
-                    onPress={() => router.push(`/(master)/chat/${project.id}`)}
+                  <TouchableOpacity
+                    onPress={() => router.push(`/(master)/chat`)}
                     className="flex-1 bg-gray-100 py-3 rounded-2xl flex-row items-center justify-center gap-2"
                   >
                     <Ionicons name="chatbubble" size={16} color="#6B7280" />
                     <Text className="text-gray-700 font-medium">Написать</Text>
                   </TouchableOpacity>
-                  
-                  <TouchableOpacity 
+
+                  <TouchableOpacity
                     onPress={() => router.push(`/(master)/projects/${project.id}`)}
                     className="flex-1 bg-blue-500 py-3 rounded-2xl flex-row items-center justify-center gap-2"
                   >

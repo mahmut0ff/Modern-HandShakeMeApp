@@ -2,89 +2,132 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import { putItem, getItem, queryItems, updateItem } from '../db/dynamodb-client';
-import { Keys } from '../db/dynamodb-keys';
 
 export interface Project {
   id: string;
   orderId: string;
-  masterId: string;
   clientId: string;
-  applicationId?: string;
-  status: 'NEW' | 'IN_PROGRESS' | 'REVIEW' | 'REVISION' | 'COMPLETED' | 'ARCHIVED';
-  priority: 'LOW' | 'MEDIUM' | 'HIGH';
-  progress: number;
+  masterId: string;
+  title: string;
+  description: string;
+  budget: number;
   agreedPrice: number;
-  deadline: string;
+  currency: string;
+  status: 'NEW' | 'IN_PROGRESS' | 'REVIEW' | 'REVISION' | 'COMPLETED' | 'CANCELLED' | 'ARCHIVED' | 'DISPUTED';
+  progress: number;
+  startDate?: string;
+  endDate?: string;
   startedAt?: string;
   completedAt?: string;
+  notes?: string;
+  cancelledAt?: string;
   createdAt: string;
   updatedAt: string;
 }
 
 export class ProjectRepository {
-  async create(data: Partial<Project>): Promise<Project> {
+  async createProject(data: Partial<Project>): Promise<Project> {
     const project: Project = {
       id: uuidv4(),
       orderId: data.orderId!,
-      masterId: data.masterId!,
       clientId: data.clientId!,
-      applicationId: data.applicationId,
-      status: 'NEW',
-      priority: data.priority || 'MEDIUM',
-      progress: 0,
-      agreedPrice: data.agreedPrice!,
-      deadline: data.deadline!,
+      masterId: data.masterId!,
+      title: data.title!,
+      description: data.description!,
+      budget: data.budget!,
+      agreedPrice: data.agreedPrice || data.budget!,
+      currency: data.currency || 'KGS',
+      status: data.status || 'NEW',
+      progress: data.progress || 0,
+      startDate: data.startDate,
+      endDate: data.endDate,
+      startedAt: data.startedAt,
+      completedAt: data.completedAt,
+      notes: data.notes,
+      cancelledAt: data.cancelledAt,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
     
     await putItem({
-      ...Keys.project(project.id),
+      PK: `PROJECT#${project.id}`,
+      SK: 'DETAILS',
       ...project,
-    });
-    
-    // Store in master's projects
-    await putItem({
-      PK: `USER#${project.masterId}`,
-      SK: `PROJECT#${project.createdAt}#${project.id}`,
-      ...project,
-    });
-    
-    // Store in client's projects
-    await putItem({
-      PK: `USER#${project.clientId}`,
-      SK: `PROJECT#${project.createdAt}#${project.id}`,
-      ...project,
+      GSI1PK: `CLIENT#${project.clientId}`,
+      GSI1SK: `PROJECT#${project.createdAt}#${project.id}`,
+      GSI2PK: `MASTER#${project.masterId}`,
+      GSI2SK: `PROJECT#${project.createdAt}#${project.id}`,
     });
     
     return project;
   }
   
   async findById(projectId: string): Promise<Project | null> {
-    const item = await getItem(Keys.project(projectId));
+    const item = await getItem({
+      PK: `PROJECT#${projectId}`,
+      SK: 'DETAILS',
+    });
+    
     return item as Project | null;
   }
   
-  async findByUser(userId: string): Promise<Project[]> {
+  async findProjectById(projectId: string): Promise<Project | null> {
+    return this.findById(projectId);
+  }
+  
+  async findByUser(userId: string, limit = 50): Promise<Project[]> {
+    // First try as client
+    const clientProjects = await this.findClientProjects(userId, limit);
+    
+    // Then try as master
+    const masterProjects = await this.findMasterProjects(userId, limit);
+    
+    // Combine and sort by creation date
+    const allProjects = [...clientProjects, ...masterProjects];
+    return allProjects.sort((a, b) => 
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    ).slice(0, limit);
+  }
+  
+  async findByMaster(masterId: string, limit = 50): Promise<Project[]> {
+    return this.findMasterProjects(masterId, limit);
+  }
+  
+  async findClientProjects(clientId: string, limit = 50): Promise<Project[]> {
     const items = await queryItems({
-      KeyConditionExpression: 'PK = :pk AND begins_with(SK, :sk)',
+      IndexName: 'GSI1',
+      KeyConditionExpression: 'GSI1PK = :pk',
       ExpressionAttributeValues: {
-        ':pk': `USER#${userId}`,
-        ':sk': 'PROJECT#',
+        ':pk': `CLIENT#${clientId}`,
       },
       ScanIndexForward: false,
+      Limit: limit,
     });
     
     return items as Project[];
   }
   
-  async update(projectId: string, data: Partial<Project>): Promise<Project> {
+  async findMasterProjects(masterId: string, limit = 50): Promise<Project[]> {
+    const items = await queryItems({
+      IndexName: 'GSI2',
+      KeyConditionExpression: 'GSI2PK = :pk',
+      ExpressionAttributeValues: {
+        ':pk': `MASTER#${masterId}`,
+      },
+      ScanIndexForward: false,
+      Limit: limit,
+    });
+    
+    return items as Project[];
+  }
+  
+  async update(projectId: string, updates: Partial<Project>): Promise<Project> {
     const updateExpressions: string[] = [];
     const attributeValues: Record<string, any> = {};
     const attributeNames: Record<string, string> = {};
     
-    Object.entries(data).forEach(([key, value], index) => {
-      if (value !== undefined) {
+    Object.entries(updates).forEach(([key, value], index) => {
+      if (value !== undefined && key !== 'id' && key !== 'createdAt') {
         updateExpressions.push(`#attr${index} = :val${index}`);
         attributeNames[`#attr${index}`] = key;
         attributeValues[`:val${index}`] = value;
@@ -96,12 +139,34 @@ export class ProjectRepository {
     attributeValues[':updatedAt'] = new Date().toISOString();
     
     const updated = await updateItem({
-      Key: Keys.project(projectId),
+      Key: {
+        PK: `PROJECT#${projectId}`,
+        SK: 'DETAILS',
+      },
       UpdateExpression: `SET ${updateExpressions.join(', ')}`,
       ExpressionAttributeNames: attributeNames,
       ExpressionAttributeValues: attributeValues,
     });
     
     return updated as Project;
+  }
+  
+  async updateProject(projectId: string, updates: Partial<Project>): Promise<Project> {
+    return this.update(projectId, updates);
+  }
+  
+  async updateProjectStatus(projectId: string, status: Project['status']): Promise<Project> {
+    const updates: Partial<Project> = { status };
+    
+    if (status === 'COMPLETED') {
+      updates.completedAt = new Date().toISOString();
+      updates.progress = 100;
+    }
+    
+    if (status === 'IN_PROGRESS' && !updates.startedAt) {
+      updates.startedAt = new Date().toISOString();
+    }
+    
+    return this.update(projectId, updates);
   }
 }

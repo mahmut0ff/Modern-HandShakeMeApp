@@ -1,28 +1,38 @@
+// List notifications with DynamoDB
+
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { NotificationRepository } from '../shared/repositories/notification.repository';
-import { formatPaginatedResponse } from '../shared/utils/response-formatter';
-import { verifyToken } from '../shared/services/token';
+import { NotificationRepository } from '@/shared/repositories/notification.repository';
+import { success, unauthorized, serverError } from '@/shared/utils/response';
+import { logger } from '@/shared/utils/logger';
+import { verifyJWT } from '@/shared/utils/jwt';
 
 export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
   try {
     const token = event.headers.Authorization?.replace('Bearer ', '');
     if (!token) {
-      return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
+      return unauthorized('Authorization token required');
     }
 
-    const decoded = verifyToken(token);
+    const decoded = verifyJWT(token);
+    const userId = decoded.userId;
+    
+    logger.info('List notifications request', { userId });
+    
     const notificationRepo = new NotificationRepository();
-    const notifications = await notificationRepo.findByUser(decoded.userId);
+    const notifications = await notificationRepo.findByUser(userId);
 
-    return {
-      statusCode: 200,
-      body: JSON.stringify(notifications),
-    };
+    logger.info('Notifications listed successfully', { 
+      userId, 
+      count: notifications.length 
+    });
+
+    return success({
+      notifications,
+      total: notifications.length,
+      unreadCount: notifications.filter(n => !n.isRead).length,
+    });
   } catch (error: any) {
-    console.error('List notifications error:', error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: error.message }),
-    };
+    logger.error('List notifications error:', { error: error.message });
+    return serverError('Failed to list notifications');
   }
 }

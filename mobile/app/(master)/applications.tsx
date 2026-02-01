@@ -3,10 +3,10 @@ import { View, Text, ScrollView, TouchableOpacity, FlatList, Alert } from 'react
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { 
+import {
   useGetMyApplicationsQuery,
   useDeleteApplicationMutation,
-  type Application 
+  type Application
 } from '../../services/applicationApi';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { ErrorMessage } from '../../components/ErrorMessage';
@@ -43,15 +43,18 @@ export default function MyApplicationsPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
   // API queries
-  const { 
-    data: applications = [], 
-    isLoading, 
+  const {
+    data: applicationsData,
+    isLoading,
     error,
-    refetch 
-  } = useGetMyApplicationsQuery({ 
+    refetch
+  } = useGetMyApplicationsQuery({
     status: statusFilter === 'all' ? undefined : statusFilter,
     ordering: '-created_at'
   });
+
+  // Handle the applications list
+  const applications: Application[] = Array.isArray(applicationsData) ? applicationsData : [];
 
   // Mutations
   const [deleteApplication] = useDeleteApplicationMutation();
@@ -104,7 +107,7 @@ export default function MyApplicationsPage() {
     <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-4">
       <View className="flex-row items-start justify-between mb-3">
         <TouchableOpacity
-          onPress={() => router.push(`/master/orders/${item.order}`)}
+          onPress={() => router.push(`/(master)/orders/${item.order}`)}
           className="flex-1"
         >
           <Text className="font-semibold text-gray-900" numberOfLines={1}>
@@ -112,9 +115,9 @@ export default function MyApplicationsPage() {
           </Text>
         </TouchableOpacity>
         <View className={`flex-row items-center gap-1 px-3 py-1 rounded-full ${STATUS_COLORS[item.status] || 'bg-gray-100'}`}>
-          <Ionicons 
-            name={STATUS_ICONS[item.status] || 'help-circle'} 
-            size={12} 
+          <Ionicons
+            name={STATUS_ICONS[item.status] || 'help-circle'}
+            size={12}
             color={item.status === 'viewed' ? '#0165FB' : undefined}
           />
           <Text className="text-xs font-semibold">
@@ -172,7 +175,7 @@ export default function MyApplicationsPage() {
   if (isLoading) {
     return (
       <SafeAreaView className="flex-1 bg-[#F8F7FC]">
-        <View className="px-4 space-y-4">
+        <View className="px-4 flex flex-col gap-4">
           <View className="h-8 bg-gray-200 rounded-full w-1/3 animate-pulse" />
           {[1, 2, 3].map(i => (
             <View key={i} className="bg-white rounded-3xl p-5 animate-pulse">
@@ -190,7 +193,7 @@ export default function MyApplicationsPage() {
       <ScrollView className="flex-1 px-4" contentContainerStyle={{ paddingBottom: 20, paddingTop: 8 }}>
         {/* Header */}
         <View className="flex-row items-center gap-4 mb-4 pt-4 px-0">
-          <TouchableOpacity 
+          <TouchableOpacity
             onPress={() => router.back()}
             className="w-10 h-10 bg-white rounded-2xl items-center justify-center shadow-sm border border-gray-100"
           >
@@ -200,8 +203,8 @@ export default function MyApplicationsPage() {
         </View>
 
         {/* Filter Tabs */}
-        <ScrollView 
-          horizontal 
+        <ScrollView
+          horizontal
           showsHorizontalScrollIndicator={false}
           className="mb-4 px-0"
         >
@@ -210,15 +213,13 @@ export default function MyApplicationsPage() {
               <TouchableOpacity
                 key={tab.key}
                 onPress={() => setStatusFilter(tab.key)}
-                className={`px-4 py-2.5 rounded-2xl ${
-                  statusFilter === tab.key
+                className={`px-4 py-2.5 rounded-2xl ${statusFilter === tab.key
                     ? 'bg-[#0165FB] shadow-lg'
                     : 'bg-white border border-gray-100'
-                }`}
+                  }`}
               >
-                <Text className={`font-medium text-sm ${
-                  statusFilter === tab.key ? 'text-white' : 'text-gray-600'
-                }`}>
+                <Text className={`font-medium text-sm ${statusFilter === tab.key ? 'text-white' : 'text-gray-600'
+                  }`}>
                   {tab.label}
                 </Text>
               </TouchableOpacity>

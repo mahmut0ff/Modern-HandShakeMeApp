@@ -41,14 +41,14 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     if (budget_min) {
       const minBudget = parseFloat(budget_min);
       filteredOrders = filteredOrders.filter(o => 
-        o.budgetMin && parseFloat(o.budgetMin.toString()) >= minBudget
+        o.budgetMin && o.budgetMin >= minBudget
       );
     }
 
     if (budget_max) {
       const maxBudget = parseFloat(budget_max);
       filteredOrders = filteredOrders.filter(o => 
-        o.budgetMax && parseFloat(o.budgetMax.toString()) <= maxBudget
+        o.budgetMax && o.budgetMax <= maxBudget
       );
     }
 

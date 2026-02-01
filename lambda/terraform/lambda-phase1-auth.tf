@@ -1,10 +1,14 @@
-# Auth & User Management Lambda Functions
+# Auth & User Management Lambda Functions - TELEGRAM ONLY
 
-resource "aws_lambda_function" "auth_login" {
-  filename      = "${path.module}/../dist/auth-login.zip"
-  function_name = "${local.name_prefix}-auth-login"
+# REMOVED: auth_login (phone-based)
+# REMOVED: auth_register (phone-based)
+
+# Telegram authentication functions
+resource "aws_lambda_function" "auth_telegram_code" {
+  filename      = "${path.module}/../dist/auth-telegram-code.zip"
+  function_name = "${local.name_prefix}-auth-telegram-code"
   role          = aws_iam_role.lambda_role.arn
-  handler       = "login-dynamodb.handler"
+  handler       = "telegram-code.handler"
   runtime       = "nodejs20.x"
   timeout       = 10
   memory_size   = 256
@@ -19,11 +23,11 @@ resource "aws_lambda_function" "auth_login" {
   tags = local.common_tags
 }
 
-resource "aws_lambda_function" "auth_register" {
-  filename      = "${path.module}/../dist/auth-register.zip"
-  function_name = "${local.name_prefix}-auth-register"
+resource "aws_lambda_function" "auth_telegram_check" {
+  filename      = "${path.module}/../dist/auth-telegram-check.zip"
+  function_name = "${local.name_prefix}-auth-telegram-check"
   role          = aws_iam_role.lambda_role.arn
-  handler       = "register-dynamodb.handler"
+  handler       = "telegram-check.handler"
   runtime       = "nodejs20.x"
   timeout       = 10
   memory_size   = 256
@@ -32,6 +36,26 @@ resource "aws_lambda_function" "auth_register" {
     variables = {
       DYNAMODB_TABLE = aws_dynamodb_table.main.name
       JWT_SECRET_ARN = aws_secretsmanager_secret.jwt_secret.arn
+      AWS_REGION     = var.aws_region
+    }
+  }
+  tags = local.common_tags
+}
+
+resource "aws_lambda_function" "auth_telegram_register" {
+  filename      = "${path.module}/../dist/auth-telegram-register.zip"
+  function_name = "${local.name_prefix}-auth-telegram-register"
+  role          = aws_iam_role.lambda_role.arn
+  handler       = "telegram-register-dynamodb.handler"
+  runtime       = "nodejs20.x"
+  timeout       = 10
+  memory_size   = 256
+
+  environment {
+    variables = {
+      DYNAMODB_TABLE = aws_dynamodb_table.main.name
+      JWT_SECRET_ARN = aws_secretsmanager_secret.jwt_secret.arn
+      TELEGRAM_BOT_TOKEN = var.telegram_bot_token
       AWS_REGION     = var.aws_region
     }
   }

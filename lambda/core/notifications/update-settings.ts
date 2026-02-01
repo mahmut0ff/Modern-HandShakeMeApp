@@ -1,19 +1,19 @@
-// Update notification settings
+// Update notification settings with DynamoDB
 
 import type { APIGatewayProxyResult } from 'aws-lambda';
 import { z } from 'zod';
-import { getPrismaClient } from '@/shared/db/client';
-import { success } from '@/shared/utils/response';
+import { NotificationRepository } from '@/shared/repositories/notification.repository';
+import { success, badRequest } from '@/shared/utils/response';
 import { withAuth, AuthenticatedEvent } from '@/shared/middleware/auth';
 import { withErrorHandler } from '@/shared/middleware/errorHandler';
 import { withRequestTransform } from '@/shared/middleware/requestTransform';
-import { validateSafe } from '@/shared/utils/validation';
+import { validate } from '@/shared/utils/validation';
 import { logger } from '@/shared/utils/logger';
 
 const settingsSchema = z.object({
-  emailNotifications: z.boolean().optional(),
-  pushNotifications: z.boolean().optional(),
-  smsNotifications: z.boolean().optional(),
+  pushEnabled: z.boolean().optional(),
+  emailEnabled: z.boolean().optional(),
+  smsEnabled: z.boolean().optional(),
   newOrders: z.boolean().optional(),
   newApplications: z.boolean().optional(),
   applicationAccepted: z.boolean().optional(),
@@ -32,23 +32,20 @@ async function updateNotificationSettingsHandler(
   logger.info('Update notification settings request', { userId });
   
   const body = JSON.parse(event.body || '{}');
-  const result = validateSafe(settingsSchema, body);
+  const data = validate(settingsSchema, body);
   
-  if (!result.success) {
-    return success({ message: 'Invalid data' });
+  const notificationRepo = new NotificationRepository();
+  
+  // Check if settings exist, create if not
+  let existingSettings = await notificationRepo.getNotificationSettings(userId);
+  if (!existingSettings) {
+    existingSettings = await notificationRepo.createDefaultNotificationSettings(userId);
   }
   
-  const data = result.data;
-  const prisma = getPrismaClient();
+  // Update settings
+  const settings = await notificationRepo.updateNotificationSettings(userId, data);
   
-  const settings = await prisma.notificationSettings.upsert({
-    where: { userId },
-    create: {
-      userId,
-      ...data,
-    },
-    update: data,
-  });
+  logger.info('Notification settings updated', { userId, updatedFields: Object.keys(data) });
   
   return success(settings);
 }

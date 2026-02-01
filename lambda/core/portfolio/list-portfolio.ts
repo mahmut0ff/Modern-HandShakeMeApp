@@ -1,11 +1,12 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { z } from 'zod';
-import { success, badRequest, unauthorized, paginated } from '../shared/utils/response';
-import { withAuth } from '../shared/middleware/auth';
-import { withRequestTransform } from '../shared/middleware/requestTransform';
-import { getPrismaClient } from '../shared/utils/prisma';
+import { PortfolioRepository } from '../shared/repositories/portfolio.repository';
+import { CategoryService } from '../shared/services/category.service';
 import { CacheService } from '../shared/services/cache';
+import { verifyToken } from '../shared/services/token';
 
+const portfolioRepository = new PortfolioRepository();
+const categoryService = new CategoryService();
 const cache = new CacheService();
 
 // Query parameters validation schema
@@ -20,12 +21,20 @@ const querySchema = z.object({
   pageSize: z.string().regex(/^\d+$/).transform(Number).default('20')
 });
 
-async function listPortfolioHandler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
-  const prisma = getPrismaClient();
-  
+export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   try {
     // Authenticate user (optional for public portfolio viewing)
-    const user = (event as any).user;
+    let user = null;
+    try {
+      const authHeader = event.headers.Authorization || event.headers.authorization;
+      if (authHeader) {
+        const token = authHeader.replace('Bearer ', '');
+        const decoded = verifyToken(token);
+        user = { userId: decoded.userId };
+      }
+    } catch (error) {
+      // Continue without authentication for public viewing
+    }
     
     // Parse and validate query parameters
     const queryParams = event.queryStringParameters || {};
@@ -35,7 +44,11 @@ async function listPortfolioHandler(event: APIGatewayProxyEvent): Promise<APIGat
     const targetMasterId = validatedQuery.masterId || user?.userId;
     
     if (!targetMasterId) {
-      return badRequest('Master ID is required');
+      return {
+        statusCode: 400,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Master ID is required' })
+      };
     }
 
     // Determine visibility permissions
@@ -52,90 +65,57 @@ async function listPortfolioHandler(event: APIGatewayProxyEvent): Promise<APIGat
         // Async increment view counts without blocking response
         Promise.all(
           cachedPortfolio.results.map((item: any) =>
-            prisma.portfolioItem.update({
-              where: { id: item.id },
-              data: { viewsCount: { increment: 1 } }
-            }).catch(err => console.error('Error incrementing view count:', err))
+            portfolioRepository.incrementViewCount(item.id, targetMasterId)
+              .catch(err => console.error('Error incrementing view count:', err))
           )
         );
       }
       
-      return success(cachedPortfolio);
-    }
-
-    // Build where clause
-    const whereClause: any = {
-      masterId: targetMasterId
-    };
-
-    if (validatedQuery.categoryId) {
-      whereClause.categoryId = validatedQuery.categoryId;
-    }
-
-    if (validatedQuery.isPublic) {
-      whereClause.isPublic = validatedQuery.isPublic === 'true';
-    } else if (!showPrivate) {
-      whereClause.isPublic = true;
-    }
-
-    // Handle skills filtering
-    if (validatedQuery.skills) {
-      const skillsArray = validatedQuery.skills.split(',').map(s => s.trim());
-      whereClause.skills = {
-        hasSome: skillsArray
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cachedPortfolio)
       };
     }
 
-    // Determine sorting
-    let orderBy: any = { createdAt: 'desc' }; // default: recent
-    
-    switch (validatedQuery.sortBy) {
-      case 'popular':
-        orderBy = { viewsCount: 'desc' };
-        break;
-      case 'rating':
-        orderBy = { clientRating: 'desc' };
-        break;
-    }
+    // Build filters
+    const filters = {
+      masterId: targetMasterId,
+      categoryId: validatedQuery.categoryId,
+      skills: validatedQuery.skills ? validatedQuery.skills.split(',').map(s => s.trim()) : undefined,
+      isPublic: validatedQuery.isPublic ? validatedQuery.isPublic === 'true' : undefined,
+      includePrivate: showPrivate,
+      sortBy: validatedQuery.sortBy,
+      page: validatedQuery.page,
+      pageSize: validatedQuery.pageSize
+    };
 
-    // Calculate pagination
-    const page = validatedQuery.page;
-    const pageSize = validatedQuery.pageSize;
-    const skip = (page - 1) * pageSize;
-
-    // Fetch portfolio items from database
-    const [portfolioItems, totalCount] = await Promise.all([
-      prisma.portfolioItem.findMany({
-        where: whereClause,
-        include: {
-          category: {
-            select: {
-              id: true,
-              name: true
-            }
-          }
-        },
-        orderBy,
-        take: pageSize,
-        skip
-      }),
-      prisma.portfolioItem.count({
-        where: whereClause
-      })
-    ]);
+    // Fetch portfolio items from repository
+    const { items: portfolioItems, total: totalCount } = await portfolioRepository.findMasterItems(
+      targetMasterId,
+      filters
+    );
 
     // Increment view counts for public viewing (not for owner)
     if (!isOwnPortfolio && portfolioItems.length > 0) {
       // Async increment view counts without blocking response
       Promise.all(
         portfolioItems.map(item =>
-          prisma.portfolioItem.update({
-            where: { id: item.id },
-            data: { viewsCount: { increment: 1 } }
-          }).catch(err => console.error('Error incrementing view count:', err))
+          portfolioRepository.incrementViewCount(item.id, targetMasterId)
+            .catch(err => console.error('Error incrementing view count:', err))
         )
       );
     }
+
+    // Get category details for items that have categories
+    const categoryIds = [...new Set(portfolioItems.map(item => item.categoryId).filter(Boolean))];
+    const categories = await Promise.all(
+      categoryIds.map(async (categoryId) => {
+        const category = await categoryService.findCategoryById(categoryId!);
+        return category ? { [categoryId!]: category } : {};
+      })
+    );
+    const categoryMap = categories.reduce((acc, cat) => ({ ...acc, ...cat }), {});
 
     // Format response
     const formattedItems = portfolioItems.map(item => ({
@@ -144,31 +124,58 @@ async function listPortfolioHandler(event: APIGatewayProxyEvent): Promise<APIGat
       description: item.description,
       images: item.images,
       skills: item.skills,
-      cost: item.cost ? Number(item.cost) : null,
+      cost: item.cost,
       durationDays: item.durationDays,
       clientReview: item.clientReview,
       clientRating: item.clientRating,
-      category: item.category,
+      category: item.categoryId && categoryMap[item.categoryId] ? {
+        id: categoryMap[item.categoryId].id,
+        name: categoryMap[item.categoryId].name
+      } : null,
       isPublic: item.isPublic,
       viewsCount: item.viewsCount,
       createdAt: item.createdAt,
       updatedAt: item.updatedAt
     }));
 
-    // Cache the response for 10 minutes (shorter for portfolio due to view counts)
-    await cache.set(cacheKey, { results: formattedItems, count: totalCount }, 600);
+    const response = {
+      results: formattedItems,
+      count: totalCount,
+      next: validatedQuery.page * validatedQuery.pageSize < totalCount 
+        ? `?page=${validatedQuery.page + 1}` 
+        : null,
+      previous: validatedQuery.page > 1 
+        ? `?page=${validatedQuery.page - 1}` 
+        : null
+    };
 
-    return paginated(formattedItems, totalCount, page, pageSize);
+    // Cache the response for 10 minutes (shorter for portfolio due to view counts)
+    await cache.set(cacheKey, response, 600);
+
+    return {
+      statusCode: 200,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(response)
+    };
 
   } catch (error) {
     console.error('Error listing portfolio:', error);
     
     if (error instanceof z.ZodError) {
-      return badRequest(error.errors[0].message);
+      return {
+        statusCode: 400,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          error: 'Validation error',
+          details: error.errors 
+        })
+      };
     }
 
-    return badRequest('Failed to fetch portfolio');
+    return {
+      statusCode: 500,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ error: 'Failed to fetch portfolio' })
+    };
   }
-}
-
-export const handler = withRequestTransform(withAuth(listPortfolioHandler, { optional: true }));
+};

@@ -86,7 +86,7 @@ class ErrorBoundary extends Component<Props, State> {
               </Text>
 
               {/* Action Buttons */}
-              <View className="w-full space-y-3">
+              <View className="w-full flex flex-col gap-3">
                 <TouchableOpacity
                   onPress={this.handleRetry}
                   className="bg-[#0165FB] py-4 px-6 rounded-2xl items-center"

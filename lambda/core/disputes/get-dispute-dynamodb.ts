@@ -1,154 +1,117 @@
+// Get dispute details
+
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import jwt from 'jsonwebtoken';
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, GetCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
+import { DisputesRepository } from '../shared/repositories/disputes.repository';
+import { withAuth } from '../shared/middleware/auth';
+import { withErrorHandler } from '../shared/middleware/errorHandler';
+import { success, notFound, forbidden } from '../shared/utils/response';
+import { logger } from '../shared/utils/logger';
 
-const dynamoClient = new DynamoDBClient({});
-const docClient = DynamoDBDocumentClient.from(dynamoClient);
-const TABLE_NAME = process.env.DYNAMODB_TABLE || 'handshake-table';
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const disputesRepository = new DisputesRepository();
 
-interface JWTPayload {
-  userId: string;
-  role: string;
-}
+async function getDisputeHandler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
+  const userId = (event.requestContext as any).authorizer?.userId;
+  const userRole = (event.requestContext as any).authorizer?.role;
+  
+  if (!userId) {
+    return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
+  }
 
-export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+  const disputeId = event.pathParameters?.id;
+  if (!disputeId) {
+    return { statusCode: 400, body: JSON.stringify({ error: 'Dispute ID is required' }) };
+  }
+
   try {
-    // Verify JWT token
-    const token = event.headers.Authorization?.replace('Bearer ', '') || '';
-    const decoded = jwt.verify(token, JWT_SECRET) as JWTPayload;
-
-    const disputeId = event.pathParameters?.id;
-    if (!disputeId) {
-      return {
-        statusCode: 400,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Dispute ID is required' }),
-      };
-    }
-
     // Get dispute details
-    const disputeResult = await docClient.send(
-      new GetCommand({
-        TableName: TABLE_NAME,
-        Key: {
-          PK: `DISPUTE#${disputeId}`,
-          SK: `DISPUTE#${disputeId}`,
-        },
-      })
-    );
-
-    if (!disputeResult.Item) {
-      return {
-        statusCode: 404,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Dispute not found' }),
-      };
+    const dispute = await disputesRepository.findDisputeById(disputeId);
+    
+    if (!dispute) {
+      return notFound('Dispute not found');
     }
-
-    const dispute = disputeResult.Item;
 
     // Verify user has access to this dispute
     if (
-      dispute.initiatorId !== decoded.userId &&
-      dispute.respondentId !== decoded.userId &&
-      decoded.role !== 'admin'
+      dispute.clientId !== userId &&
+      dispute.masterId !== userId &&
+      userRole !== 'ADMIN'
     ) {
-      return {
-        statusCode: 403,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Access denied' }),
-      };
+      return forbidden('Access denied');
     }
 
-    // Get evidence files
-    const evidenceResult = await docClient.send(
-      new QueryCommand({
-        TableName: TABLE_NAME,
-        KeyConditionExpression: 'PK = :pk AND begins_with(SK, :sk)',
-        ExpressionAttributeValues: {
-          ':pk': `DISPUTE#${disputeId}`,
-          ':sk': 'EVIDENCE#',
-        },
-      })
-    );
-
-    const evidence_files = (evidenceResult.Items || []).map(item => ({
-      id: item.SK.replace('EVIDENCE#', ''),
-      file_url: item.fileUrl,
-      file_name: item.fileName,
-      file_type: item.fileType,
-      file_size: item.fileSize,
-      uploaded_by: item.uploadedBy,
-      uploaded_at: item.uploadedAt,
-    }));
+    // Get evidence and stats
+    const [evidence, stats] = await Promise.all([
+      disputesRepository.findDisputeEvidence(disputeId),
+      disputesRepository.getDisputeStats(disputeId)
+    ]);
 
     // Format response
     const response = {
-      id: disputeId,
-      project: {
+      id: dispute.id,
+      order: {
+        id: dispute.orderId,
+        title: 'Order Title', // TODO: Get from order service
+      },
+      project: dispute.projectId ? {
         id: dispute.projectId,
-        title: dispute.projectTitle,
-        order_title: dispute.orderTitle,
+        title: 'Project Title', // TODO: Get from project service
+      } : undefined,
+      client: {
+        id: dispute.clientId,
+        firstName: 'Client', // TODO: Get from user service
+        lastName: 'Name',
+        avatar: undefined,
+        role: 'CLIENT',
       },
-      initiator: {
-        id: dispute.initiatorId,
-        name: dispute.initiatorName,
-        avatar: dispute.initiatorAvatar,
-        role: dispute.initiatorRole,
-      },
-      respondent: {
-        id: dispute.respondentId,
-        name: dispute.respondentName,
-        avatar: dispute.respondentAvatar,
-        role: dispute.respondentRole,
+      master: {
+        id: dispute.masterId,
+        firstName: 'Master', // TODO: Get from user service
+        lastName: 'Name',
+        avatar: undefined,
+        role: 'MASTER',
       },
       reason: dispute.reason,
       description: dispute.description,
       status: dispute.status,
-      priority: dispute.priority || 'medium',
+      priority: dispute.priority,
       resolution: dispute.resolution,
-      resolution_type: dispute.resolutionType,
-      amount_disputed: dispute.amountDisputed,
-      amount_resolved: dispute.amountResolved,
-      evidence_files,
-      messages_count: dispute.messagesCount || 0,
-      created_at: dispute.createdAt,
-      updated_at: dispute.updatedAt,
-      resolved_at: dispute.resolvedAt,
-      closed_at: dispute.closedAt,
-      mediator: dispute.mediatorId
-        ? {
-            id: dispute.mediatorId,
-            name: dispute.mediatorName,
-          }
-        : undefined,
+      resolutionType: dispute.resolutionType,
+      resolutionNotes: dispute.resolutionNotes,
+      amountDisputed: dispute.amountDisputed,
+      amountResolved: dispute.amountResolved,
+      evidenceFiles: evidence.map(e => ({
+        id: e.id,
+        type: e.type,
+        url: e.url,
+        fileName: e.fileName,
+        fileSize: e.fileSize,
+        description: e.description,
+        uploadedBy: e.uploadedBy,
+        uploadedAt: e.uploadedAt,
+      })),
+      evidenceCount: stats.evidenceCount,
+      messageCount: stats.messageCount,
+      createdAt: dispute.createdAt,
+      updatedAt: dispute.updatedAt,
+      resolvedAt: dispute.resolvedAt,
+      closedAt: dispute.closedAt,
+      mediator: dispute.mediatorId ? {
+        id: dispute.mediatorId,
+        firstName: 'Mediator', // TODO: Get from user service
+        lastName: 'Name',
+      } : undefined,
     };
 
-    return {
-      statusCode: 200,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-      },
-      body: JSON.stringify(response),
-    };
+    logger.info('Dispute retrieved successfully', { disputeId, userId });
+    return success(response);
+
   } catch (error: any) {
-    console.error('Error fetching dispute:', error);
-
-    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
-      return {
-        statusCode: 401,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Unauthorized' }),
-      };
-    }
-
+    logger.error('Error fetching dispute', error);
     return {
       statusCode: 500,
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ error: 'Failed to fetch dispute' }),
     };
   }
-};
+}
+
+export const handler = withErrorHandler(withAuth(getDisputeHandler));

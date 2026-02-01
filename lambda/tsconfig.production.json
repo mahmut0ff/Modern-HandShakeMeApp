@@ -1,0 +1,43 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "CommonJS",
+    "lib": ["ES2020"],
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": false,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": false,
+    "noEmit": false,
+    "declaration": false,
+    "sourceMap": false,
+    "outDir": "./build",
+    "rootDir": "./",
+    "baseUrl": ".",
+    "types": ["node", "@types/aws-lambda"]
+  },
+  "include": [
+    "core/auth/telegram-login.ts",
+    "core/kyrgyzstan/instant-booking-kg.ts",
+    "core/kyrgyzstan/sms-notifications-kg.ts",
+    "core/health/health-check.ts",
+    "core/orders/create-order.ts",
+    "core/orders/get-orders.ts",
+    "core/profiles/get-user-profile.ts",
+    "core/profiles/update-user-profile.ts",
+    "core/files/process-uploaded-file.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "build",
+    "terraform",
+    "scripts",
+    "__tests__/**/*",
+    "**/*.test.*",
+    "**/*.spec.*"
+  ]
+}

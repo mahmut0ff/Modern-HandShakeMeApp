@@ -17,7 +17,9 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.handshakeme.mobile",
       "infoPlist": {
-        "UIBackgroundModes": ["remote-notification"]
+        "UIBackgroundModes": [
+          "remote-notification"
+        ]
       }
     },
     "android": {
@@ -46,9 +48,12 @@
         {
           "icon": "./assets/notification-icon.png",
           "color": "#0165FB",
-          "sounds": ["./assets/notification-sound.wav"]
+          "sounds": [
+            "./assets/notification-sound.wav"
+          ]
         }
-      ]
+      ],
+      "expo-secure-store"
     ]
   }
 }

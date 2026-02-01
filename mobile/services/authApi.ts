@@ -1,17 +1,19 @@
 import { api } from './api';
+import { transformUserFromAPI } from '../utils/apiTransform';
 
 export interface User {
   id: number;
-  phone: string;
-  role: 'master' | 'client' | 'admin';
-  first_name?: string;
-  last_name?: string;
-  full_name?: string;
+  phone: string | null; // Может быть null для Telegram пользователей
+  role: 'CLIENT' | 'MASTER' | 'ADMIN';
+  firstName?: string;
+  lastName?: string;
+  fullName?: string;
   avatar?: string;
-  is_phone_verified: boolean;
-  two_factor_enabled: boolean;
-  last_seen?: string;
-  created_at: string;
+  isPhoneVerified: boolean;
+  telegramId?: string;
+  telegramUsername?: string;
+  lastSeen?: string;
+  createdAt: string;
 }
 
 export interface AuthTokens {
@@ -19,55 +21,33 @@ export interface AuthTokens {
   refresh: string;
 }
 
-export interface RegisterRequest {
-  phone: string;
-  code?: string;
-  role?: 'master' | 'client';
-  first_name?: string;
-  last_name?: string;
+// REMOVED: Phone-based registration and login interfaces
+// Only Telegram authentication remains
+
+export interface TelegramCompleteRequest {
+  telegram_id: number;
+  first_name: string;
+  last_name: string;
+  role: 'CLIENT' | 'MASTER';
+  username?: string;
+  photo_url?: string;
 }
 
-export interface RegisterResponse {
+export interface TelegramCompleteResponse {
   user: User;
   tokens: AuthTokens;
   message: string;
-}
-
-export interface LoginRequest {
-  phone: string;
-  code?: string;
-}
-
-export interface LoginResponse {
-  access: string;
-  refresh: string;
-  user: User;
-}
-
-export interface VerifyPhoneRequest {
-  phone: string;
-  code: string;
-}
-
-export interface VerifyPhoneResponse {
-  message: string;
-  user: User;
-  tokens: AuthTokens;
 }
 
 export const authApi = api.injectEndpoints({
   endpoints: (builder) => ({
-    register: builder.mutation<RegisterResponse, RegisterRequest>({
-      query: (body) => ({
-        url: '/auth/register',
-        method: 'POST',
-        body,
-      }),
-    }),
+    // REMOVED: Phone-based authentication endpoints
+    // register, login, verifyPhone, resendVerification
     
-    login: builder.mutation<LoginResponse, LoginRequest>({
+    // Telegram authentication
+    telegramComplete: builder.mutation<TelegramCompleteResponse, TelegramCompleteRequest>({
       query: (body) => ({
-        url: '/auth/login',
+        url: '/auth/telegram/complete',
         method: 'POST',
         body,
       }),
@@ -89,25 +69,10 @@ export const authApi = api.injectEndpoints({
       }),
     }),
     
-    verifyPhone: builder.mutation<VerifyPhoneResponse, VerifyPhoneRequest>({
-      query: (body) => ({
-        url: '/auth/verify-phone',
-        method: 'POST',
-        body,
-      }),
-    }),
-    
-    resendVerification: builder.mutation<{ message: string }, { phone: string }>({
-      query: (body) => ({
-        url: '/auth/resend-verification',
-        method: 'POST',
-        body,
-      }),
-    }),
-    
     getCurrentUser: builder.query<User, void>({
       query: () => '/users/me',
       providesTags: ['User'],
+      transformResponse: (response: any) => transformUserFromAPI(response),
     }),
     
     updateCurrentUser: builder.mutation<User, Partial<User>>({
@@ -117,6 +82,7 @@ export const authApi = api.injectEndpoints({
         body,
       }),
       invalidatesTags: ['User'],
+      transformResponse: (response: any) => transformUserFromAPI(response),
     }),
     
     uploadAvatar: builder.mutation<{ message: string; avatar: string | null }, FormData>({
@@ -140,12 +106,13 @@ export const authApi = api.injectEndpoints({
 });
 
 export const {
-  useRegisterMutation,
-  useLoginMutation,
+  // REMOVED: Phone-based hooks
+  // useRegisterMutation, useLoginMutation, useVerifyPhoneMutation, useResendVerificationMutation
+  
+  // Only Telegram and user management hooks remain
+  useTelegramCompleteMutation,
   useLogoutMutation,
   useRefreshTokenMutation,
-  useVerifyPhoneMutation,
-  useResendVerificationMutation,
   useGetCurrentUserQuery,
   useUpdateCurrentUserMutation,
   useUploadAvatarMutation,

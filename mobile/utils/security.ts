@@ -1,272 +1,217 @@
 import * as SecureStore from 'expo-secure-store';
 
-/**
- * Security utilities for the mobile app
- */
-
-/**
- * Securely store sensitive data
- */
-export async function secureStore(key: string, value: string): Promise<void> {
+// Secure Storage
+export const secureStore = async (key: string, value: string): Promise<void> => {
   try {
     await SecureStore.setItemAsync(key, value);
   } catch (error) {
-    console.error('Failed to store securely:', error);
-    throw error;
+    console.error(`Secure store error for key ${key}:`, error);
   }
-}
+};
 
-/**
- * Retrieve securely stored data
- */
-export async function secureRetrieve(key: string): Promise<string | null> {
+export const secureRetrieve = async (key: string): Promise<string | null> => {
   try {
     return await SecureStore.getItemAsync(key);
   } catch (error) {
-    console.error('Failed to retrieve securely:', error);
+    console.error(`Secure retrieve error for key ${key}:`, error);
     return null;
   }
-}
+};
 
-/**
- * Delete securely stored data
- */
-export async function secureDelete(key: string): Promise<void> {
+export const secureDelete = async (key: string): Promise<void> => {
   try {
     await SecureStore.deleteItemAsync(key);
   } catch (error) {
-    console.error('Failed to delete securely:', error);
+    console.error(`Secure delete error for key ${key}:`, error);
   }
-}
+};
 
-/**
- * Sanitize user input to prevent XSS
- */
-export function sanitizeInput(input: string): string {
-  return input
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#x27;')
-    .replace(/\//g, '&#x2F;');
-}
-
-/**
- * Validate email format
- */
-export function isValidEmail(email: string): boolean {
+// Email validation
+export const validateEmail = (email: string): boolean => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email);
-}
+};
 
-/**
- * Validate phone number format
- */
-export function isValidPhone(phone: string): boolean {
-  const phoneRegex = /^\+?[1-9]\d{1,14}$/;
-  return phoneRegex.test(phone.replace(/[\s-]/g, ''));
-}
+// Phone validation for Kyrgyzstan
+export const validatePhone = (phone: string): boolean => {
+  // Kyrgyzstan phone formats: +996XXXXXXXXX or 0XXXXXXXXX
+  const phoneRegex = /^(\+996|0)[0-9]{9}$/;
+  return phoneRegex.test(phone.replace(/\s/g, ''));
+};
 
-/**
- * Check password strength
- */
-export function checkPasswordStrength(password: string): {
+// Password validation
+export const validatePassword = (password: string): boolean => {
+  // At least 8 characters, 1 uppercase, 1 lowercase, 1 number, 1 special char
+  const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+  return passwordRegex.test(password);
+};
+
+// Input sanitization
+export const sanitizeInput = (input: string): string => {
+  return input
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/javascript:/gi, '')
+    .replace(/on\w+\s*=/gi, '')
+    .replace(/\.\.\//g, '')
+    .replace(/SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER/gi, '');
+};
+
+// Generate secure password
+export const generateSecurePassword = (length: number = 12): string => {
+  const lowercase = 'abcdefghijklmnopqrstuvwxyz';
+  const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const numbers = '0123456789';
+  const symbols = '!@#$%^&*';
+
+  const allChars = lowercase + uppercase + numbers + symbols;
+  let password = '';
+
+  // Ensure at least one character from each category
+  password += lowercase[Math.floor(Math.random() * lowercase.length)];
+  password += uppercase[Math.floor(Math.random() * uppercase.length)];
+  password += numbers[Math.floor(Math.random() * numbers.length)];
+  password += symbols[Math.floor(Math.random() * symbols.length)];
+
+  // Fill the rest randomly
+  for (let i = 4; i < length; i++) {
+    password += allChars[Math.floor(Math.random() * allChars.length)];
+  }
+
+  // Shuffle the password
+  return password.split('').sort(() => Math.random() - 0.5).join('');
+};
+
+// Hash password (simple implementation for client-side)
+export const hashPassword = (password: string): string => {
+  // This is a simple hash for demo purposes
+  // In production, use proper hashing on the server
+  let hash = 0;
+  for (let i = 0; i < password.length; i++) {
+    const char = password.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32-bit integer
+  }
+  return hash.toString();
+};
+
+// Password strength validation
+export const validatePasswordStrength = (password: string): {
+  level: 'very-weak' | 'weak' | 'medium' | 'strong' | 'very-strong';
   score: number;
-  feedback: string[];
-} {
-  const feedback: string[] = [];
+  suggestions: string[];
+} => {
   let score = 0;
+  const suggestions: string[] = [];
 
-  if (password.length >= 8) {
-    score += 1;
-  } else {
-    feedback.push('Пароль должен быть не менее 8 символов');
-  }
+  // Length check
+  if (password.length >= 8) score += 20;
+  else suggestions.push('Use at least 8 characters');
 
-  if (/[a-z]/.test(password)) {
-    score += 1;
-  } else {
-    feedback.push('Добавьте строчные буквы');
-  }
+  if (password.length >= 12) score += 10;
 
-  if (/[A-Z]/.test(password)) {
-    score += 1;
-  } else {
-    feedback.push('Добавьте заглавные буквы');
-  }
+  // Character variety
+  if (/[a-z]/.test(password)) score += 15;
+  else suggestions.push('Add lowercase letters');
 
-  if (/[0-9]/.test(password)) {
-    score += 1;
-  } else {
-    feedback.push('Добавьте цифры');
-  }
+  if (/[A-Z]/.test(password)) score += 15;
+  else suggestions.push('Add uppercase letters');
 
-  if (/[^a-zA-Z0-9]/.test(password)) {
-    score += 1;
-  } else {
-    feedback.push('Добавьте специальные символы');
-  }
+  if (/[0-9]/.test(password)) score += 15;
+  else suggestions.push('Add numbers');
 
-  return { score, feedback };
-}
+  if (/[^A-Za-z0-9]/.test(password)) score += 25;
+  else suggestions.push('Add special characters');
 
-/**
- * Mask sensitive data for display
- */
-export function maskSensitiveData(data: string, visibleChars: number = 4): string {
-  if (data.length <= visibleChars) {
-    return data;
-  }
+  // Determine level
+  let level: 'very-weak' | 'weak' | 'medium' | 'strong' | 'very-strong';
+  if (score < 30) level = 'very-weak';
+  else if (score < 50) level = 'weak';
+  else if (score < 70) level = 'medium';
+  else if (score < 90) level = 'strong';
+  else level = 'very-strong';
 
-  const masked = '*'.repeat(data.length - visibleChars);
-  return masked + data.slice(-visibleChars);
-}
+  return { level, score, suggestions };
+};
 
-/**
- * Validate file type for uploads
- */
-export function isValidFileType(
-  filename: string,
-  allowedTypes: string[]
-): boolean {
-  const extension = filename.split('.').pop()?.toLowerCase();
-  return extension ? allowedTypes.includes(extension) : false;
-}
+// HTML sanitization
+export const sanitizeHtml = (html: string): string => {
+  // Remove dangerous tags
+  return html
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '')
+    .replace(/<object\b[^<]*(?:(?!<\/object>)<[^<]*)*<\/object>/gi, '')
+    .replace(/<embed\b[^<]*(?:(?!<\/embed>)<[^<]*)*<\/embed>/gi, '')
+    .replace(/<link\b[^<]*(?:(?!<\/link>)<[^<]*)*<\/link>/gi, '')
+    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '');
+};
 
-/**
- * Validate file size
- */
-export function isValidFileSize(size: number, maxSizeMB: number = 10): boolean {
-  const maxSizeBytes = maxSizeMB * 1024 * 1024;
-  return size <= maxSizeBytes;
-}
-
-/**
- * Generate secure random string
- */
-export function generateSecureRandom(length: number = 32): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let result = '';
-  
-  for (let i = 0; i < length; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  
-  return result;
-}
-
-/**
- * Check if URL is safe
- */
-export function isSafeURL(url: string): boolean {
+// URL validation
+export const validateUrl = (url: string): boolean => {
   try {
-    const parsed = new URL(url);
-    return parsed.protocol === 'https:' || parsed.protocol === 'http:';
+    const urlObj = new URL(url);
+    return urlObj.protocol === 'http:' || urlObj.protocol === 'https:';
   } catch {
     return false;
   }
-}
-
-/**
- * Rate limiting helper
- */
-export class RateLimiter {
-  private attempts: Map<string, number[]> = new Map();
-  private maxAttempts: number;
-  private windowMs: number;
-
-  constructor(maxAttempts: number = 5, windowMs: number = 60000) {
-    this.maxAttempts = maxAttempts;
-    this.windowMs = windowMs;
-  }
-
-  isAllowed(key: string): boolean {
-    const now = Date.now();
-    const attempts = this.attempts.get(key) || [];
-
-    // Remove old attempts
-    const recentAttempts = attempts.filter(time => now - time < this.windowMs);
-
-    if (recentAttempts.length >= this.maxAttempts) {
-      return false;
-    }
-
-    recentAttempts.push(now);
-    this.attempts.set(key, recentAttempts);
-    return true;
-  }
-
-  reset(key: string): void {
-    this.attempts.delete(key);
-  }
-}
-
-/**
- * Content Security Policy helpers
- */
-export const CSP = {
-  /**
-   * Check if content is safe to render
-   */
-  isSafeContent(content: string): boolean {
-    // Check for script tags
-    if (/<script/i.test(content)) {
-      return false;
-    }
-
-    // Check for event handlers
-    if (/on\w+\s*=/i.test(content)) {
-      return false;
-    }
-
-    // Check for javascript: protocol
-    if (/javascript:/i.test(content)) {
-      return false;
-    }
-
-    return true;
-  },
-
-  /**
-   * Strip dangerous content
-   */
-  stripDangerousContent(content: string): string {
-    return content
-      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-      .replace(/on\w+\s*=\s*["'][^"']*["']/gi, '')
-      .replace(/javascript:/gi, '');
-  },
 };
 
-/**
- * Audit log for security events
- */
-export class SecurityAuditLog {
-  private logs: Array<{
-    timestamp: number;
-    event: string;
-    details: any;
-  }> = [];
+// Phone number validation (alias for consistency)
+export const isValidPhoneNumber = validatePhone;
 
-  log(event: string, details: any = {}): void {
-    this.logs.push({
-      timestamp: Date.now(),
+// Security audit logger
+export class SecurityAuditLogger {
+  private static instance: SecurityAuditLogger;
+  private failedAttempts: Map<string, { count: number; lastAttempt: Date }> = new Map();
+
+  constructor() {
+    if (SecurityAuditLogger.instance) {
+      return SecurityAuditLogger.instance;
+    }
+    SecurityAuditLogger.instance = this;
+  }
+
+  logSecurityEvent(event: string, data: Record<string, any>) {
+    const logEntry = {
+      timestamp: new Date().toISOString(),
       event,
-      details,
-    });
+      ...data
+    };
 
-    if (__DEV__) {
-      console.log(`🔒 Security Event: ${event}`, details);
+    console.warn('SECURITY_EVENT', logEntry);
+
+    // In production, send to monitoring service
+    if (!__DEV__) {
+      // Send to Sentry or other monitoring service
     }
   }
 
-  getLogs(): typeof this.logs {
-    return this.logs;
+  logFailedAttempt(userId: string, action: string) {
+    const key = `${userId}:${action}`;
+    const current = this.failedAttempts.get(key) || { count: 0, lastAttempt: new Date() };
+
+    current.count++;
+    current.lastAttempt = new Date();
+
+    this.failedAttempts.set(key, current);
+
+    this.logSecurityEvent('FAILED_ATTEMPT', {
+      userId,
+      action,
+      count: current.count
+    });
   }
 
-  clear(): void {
-    this.logs = [];
+  getFailedAttempts(userId: string, action: string): number {
+    const key = `${userId}:${action}`;
+    return this.failedAttempts.get(key)?.count || 0;
+  }
+
+  isSuspiciousActivity(userId: string, action: string, threshold: number = 5): boolean {
+    return this.getFailedAttempts(userId, action) >= threshold;
+  }
+
+  clearFailedAttempts(userId: string, action: string) {
+    const key = `${userId}:${action}`;
+    this.failedAttempts.delete(key);
   }
 }
-
-export const securityAudit = new SecurityAuditLog();

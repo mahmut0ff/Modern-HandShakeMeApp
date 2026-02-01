@@ -1,93 +1,179 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import jwt from 'jsonwebtoken';
+import type { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
+import { verify, sign, JwtPayload } from 'jsonwebtoken';
 import { unauthorized } from '../utils/response';
+import { logger } from '../utils/logger';
+import { UserRepository } from '../repositories/user.repository';
 
-export interface AuthUser {
+export interface AuthContext {
   userId: string;
-  role: 'MASTER' | 'CLIENT' | 'ADMIN';
+  role: 'CLIENT' | 'MASTER' | 'ADMIN';
   email: string;
+  phone?: string;
+  isVerified: boolean;
 }
 
 export interface AuthenticatedEvent extends APIGatewayProxyEvent {
-  user: AuthUser;
+  auth: AuthContext;
 }
 
-/**
- * Authentication middleware
- * Validates JWT token and attaches user to event
- */
-export function withAuth(
-  handler: (event: APIGatewayProxyEvent) => Promise<APIGatewayProxyResult>,
-  options: { optional?: boolean } = {}
-) {
-  return async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+export type AuthenticatedHandler = (
+  event: AuthenticatedEvent,
+  context: Context
+) => Promise<APIGatewayProxyResult>;
+
+interface JWTPayload extends JwtPayload {
+  userId: string;
+  role: 'CLIENT' | 'MASTER' | 'ADMIN';
+  email: string;
+  phone?: string;
+  isVerified: boolean;
+}
+
+const userRepository = new UserRepository();
+
+export function withAuth(handler: AuthenticatedHandler) {
+  return async (
+    event: APIGatewayProxyEvent,
+    context: Context
+  ): Promise<APIGatewayProxyResult> => {
     try {
-      const authHeader = event.headers.authorization || event.headers.Authorization;
+      // Extract authorization header
+      const authHeader = event.headers.Authorization || event.headers.authorization;
       
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        if (options.optional) {
-          // Allow unauthenticated access
-          return handler(event);
-        }
-        return unauthorized('Missing or invalid authorization header');
+      if (!authHeader) {
+        logger.warn('Missing authorization header');
+        return unauthorized('Authorization header required');
       }
+
+      // Extract token from Bearer header
+      const token = authHeader.replace('Bearer ', '');
       
-      const token = authHeader.substring(7);
-      
-      // Verify JWT token
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'test-secret') as any;
-      
-      // Attach user to event
-      (event as any).user = {
-        userId: decoded.userId,
-        role: decoded.role,
-        email: decoded.email
-      };
-      
-      return handler(event);
-    } catch (error) {
-      if (options.optional) {
-        return handler(event);
+      if (!token) {
+        logger.warn('Missing bearer token');
+        return unauthorized('Bearer token required');
       }
+
+      // Validate token and extract user info
+      const authContext = await validateToken(token);
       
-      if (error.name === 'JsonWebTokenError') {
+      if (!authContext) {
+        logger.warn('Invalid token', { token: token.substring(0, 10) + '...' });
         return unauthorized('Invalid token');
       }
-      
-      if (error.name === 'TokenExpiredError') {
-        return unauthorized('Token expired');
-      }
-      
+
+      // Add auth context to event
+      const authenticatedEvent: AuthenticatedEvent = {
+        ...event,
+        auth: authContext
+      };
+
+      logger.info('Request authenticated', { 
+        userId: authContext.userId,
+        role: authContext.role 
+      });
+
+      return await handler(authenticatedEvent, context);
+
+    } catch (error) {
+      logger.error('Authentication error', error);
       return unauthorized('Authentication failed');
     }
   };
 }
 
-// Legacy function for backward compatibility
-export function requireAuth() {
-  return async (event: APIGatewayProxyEvent): Promise<AuthUser> => {
-    const authHeader = event.headers.authorization || event.headers.Authorization;
-    
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      const error: any = new Error('Missing or invalid authorization header');
-      error.name = 'UnauthorizedError';
-      throw error;
+async function validateToken(token: string): Promise<AuthContext | null> {
+  try {
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      logger.error('JWT_SECRET environment variable not set');
+      return null;
     }
+
+    // Verify JWT token
+    const decoded = verify(token, jwtSecret) as JWTPayload;
     
-    const token = authHeader.substring(7);
-    
-    try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'test-secret') as any;
+    if (!decoded.userId || !decoded.role || !decoded.email) {
+      logger.warn('Invalid JWT payload structure');
+      return null;
+    }
+
+    // Verify user still exists and is active
+    const user = await userRepository.findById(decoded.userId);
+    if (!user) {
+      logger.warn('User not found', { userId: decoded.userId });
+      return null;
+    }
+
+    // Check if user is active (you can add isActive field to User interface)
+    // if (!user.isActive) {
+    //   logger.warn('User account is deactivated', { userId: decoded.userId });
+    //   return null;
+    // }
+
+    return {
+      userId: decoded.userId,
+      role: decoded.role,
+      email: decoded.email,
+      phone: decoded.phone,
+      isVerified: decoded.isVerified || user.isPhoneVerified
+    };
+
+  } catch (error: any) {
+    if (error.name === 'TokenExpiredError') {
+      logger.warn('JWT token expired');
+    } else if (error.name === 'JsonWebTokenError') {
+      logger.warn('Invalid JWT token');
+    } else {
+      logger.error('Token validation failed', error);
+    }
+    return null;
+  }
+}
+
+// Helper function to create JWT tokens (for login endpoints)
+export function createJWTToken(user: {
+  id: string;
+  role: 'CLIENT' | 'MASTER' | 'ADMIN';
+  email?: string;
+  phone?: string;
+  isPhoneVerified: boolean;
+}): string {
+  const jwtSecret = process.env.JWT_SECRET;
+  if (!jwtSecret) {
+    throw new Error('JWT_SECRET environment variable not set');
+  }
+
+  const payload: JWTPayload = {
+    userId: user.id,
+    role: user.role,
+    email: user.email || '',
+    phone: user.phone,
+    isVerified: user.isPhoneVerified
+  };
+
+  const options: any = {
+    expiresIn: process.env.JWT_EXPIRES_IN || '7d',
+    issuer: 'handshakeme.app',
+    audience: 'handshakeme.app'
+  };
+
+  return sign(payload, jwtSecret, options);
+}
+
+// Helper function for role-based authorization
+export function requireRole(...allowedRoles: ('CLIENT' | 'MASTER' | 'ADMIN')[]) {
+  return (handler: AuthenticatedHandler): AuthenticatedHandler => {
+    return async (event: AuthenticatedEvent, context: Context) => {
+      if (!allowedRoles.includes(event.auth.role)) {
+        logger.warn('Insufficient permissions', { 
+          userId: event.auth.userId,
+          role: event.auth.role,
+          requiredRoles: allowedRoles 
+        });
+        return unauthorized('Insufficient permissions');
+      }
       
-      return {
-        userId: decoded.userId,
-        role: decoded.role,
-        email: decoded.email
-      };
-    } catch (error) {
-      const authError: any = new Error('Invalid or expired token');
-      authError.name = 'UnauthorizedError';
-      throw authError;
-    }
+      return handler(event, context);
+    };
   };
 }

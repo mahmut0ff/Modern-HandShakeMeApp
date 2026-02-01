@@ -1,11 +1,12 @@
 // Get current user Lambda function
 
 import type { APIGatewayProxyResult } from 'aws-lambda';
-import { getPrismaClient } from '@/shared/db/client';
-import { success } from '@/shared/utils/response';
-import { withAuth, AuthenticatedEvent } from '@/shared/middleware/auth';
-import { withErrorHandler } from '@/shared/middleware/errorHandler';
-import { logger } from '@/shared/utils/logger';
+import { success, notFound } from '../shared/utils/response';
+import { withAuth, AuthenticatedEvent } from '../shared/middleware/auth';
+import { withErrorHandler } from '../shared/middleware/errorHandler';
+import { withRequestTransform } from '../shared/middleware/requestTransform';
+import { logger } from '../shared/utils/logger';
+import { UserRepository } from '../shared/repositories/user.repository';
 
 async function getCurrentUserHandler(
   event: AuthenticatedEvent
@@ -14,29 +15,12 @@ async function getCurrentUserHandler(
   
   logger.info('Get current user request', { userId });
   
-  const prisma = getPrismaClient();
-  
-  // Get user with profile information
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      id: true,
-      phone: true,
-      role: true,
-      firstName: true,
-      lastName: true,
-      avatar: true,
-      isPhoneVerified: true,
-      twoFactorEnabled: true,
-      lastSeen: true,
-      createdAt: true,
-      updatedAt: true,
-    },
-  });
+  const userRepository = new UserRepository();
+  const user = await userRepository.findById(userId);
   
   if (!user) {
     logger.warn('User not found', { userId });
-    return success(null, 404);
+    return notFound('User not found');
   }
   
   logger.info('Current user retrieved successfully', { userId });
@@ -46,17 +30,22 @@ async function getCurrentUserHandler(
     id: user.id,
     phone: user.phone,
     role: user.role.toLowerCase(),
-    firstName: user.firstName,
-    lastName: user.lastName,
-    fullName: `${user.firstName} ${user.lastName}`,
+    first_name: user.firstName,
+    last_name: user.lastName,
+    full_name: `${user.firstName} ${user.lastName}`.trim(),
     avatar: user.avatar,
-    isPhoneVerified: user.isPhoneVerified,
-    twoFactorEnabled: user.twoFactorEnabled || false,
-    lastSeen: user.lastSeen?.toISOString(),
-    createdAt: user.createdAt.toISOString(),
+    is_phone_verified: user.isPhoneVerified,
+    two_factor_enabled: user.twoFactorEnabled || false,
+    last_seen: user.lastSeen,
+    created_at: user.createdAt,
+    updated_at: user.updatedAt,
   };
   
   return success(response);
 }
 
-export const handler = withErrorHandler(withAuth(getCurrentUserHandler));
+export const handler = withErrorHandler(
+  withRequestTransform(
+    withAuth(getCurrentUserHandler)
+  )
+);

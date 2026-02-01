@@ -3,9 +3,9 @@ import { View, Text, ScrollView, TouchableOpacity, FlatList } from 'react-native
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { 
+import {
   useGetMyProjectsQuery,
-  type Project 
+  type Project
 } from '../../services/projectApi';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { ErrorMessage } from '../../components/ErrorMessage';
@@ -13,20 +13,23 @@ import { formatRelativeTime } from '../../utils/format';
 
 export default function ClientProjectsPage() {
   // API queries
-  const { 
-    data: allProjects = [], 
-    isLoading, 
+  const {
+    data: projectsData,
+    isLoading,
     error,
-    refetch 
-  } = useGetMyProjectsQuery({ 
+    refetch
+  } = useGetMyProjectsQuery({
     role: 'client',
     ordering: '-created_at'
   });
 
-  const activeProjects = allProjects.filter(p => 
+  // Handle the projects list
+  const allProjects: Project[] = Array.isArray(projectsData) ? projectsData : [];
+
+  const activeProjects = allProjects.filter((p: any) =>
     p.status === 'in_progress' || p.status === 'pending'
   );
-  const completedProjects = allProjects.filter(p => 
+  const completedProjects = allProjects.filter((p: any) =>
     p.status === 'completed'
   );
 
@@ -69,7 +72,7 @@ export default function ClientProjectsPage() {
           <Text className="text-xs font-medium">{getStatusLabel(item.status)}</Text>
         </View>
       </View>
-      
+
       <View className="flex-row items-center gap-3 text-sm text-gray-500 mb-2">
         <View className="flex-row items-center gap-1">
           <Ionicons name="person" size={14} color="#6B7280" />
@@ -108,8 +111,8 @@ export default function ClientProjectsPage() {
             <Text className="text-xs font-medium text-gray-700">{item.progress}%</Text>
           </View>
           <View className="w-full bg-gray-200 rounded-full h-2">
-            <View 
-              className="bg-[#0165FB] h-2 rounded-full" 
+            <View
+              className="bg-[#0165FB] h-2 rounded-full"
               style={{ width: `${item.progress}%` }}
             />
           </View>
@@ -137,7 +140,7 @@ export default function ClientProjectsPage() {
       <ScrollView className="flex-1 px-4" contentContainerStyle={{ paddingBottom: 20, paddingTop: 8 }}>
         {/* Header */}
         <View className="flex-row items-center gap-4 mb-4 pt-4 px-0">
-          <TouchableOpacity 
+          <TouchableOpacity
             onPress={() => router.back()}
             className="w-10 h-10 bg-white rounded-2xl items-center justify-center shadow-sm border border-gray-100"
           >

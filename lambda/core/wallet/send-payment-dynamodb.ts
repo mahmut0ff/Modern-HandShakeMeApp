@@ -1,76 +1,100 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import jwt from 'jsonwebtoken';
+// Send payment Lambda function
+
+import type { APIGatewayProxyResult } from 'aws-lambda';
 import { TransactionRepository } from '../shared/repositories/transaction.repository';
-import { v4 as uuidv4 } from 'uuid';
+import { success, badRequest } from '../shared/utils/response';
+import { withAuth, AuthenticatedEvent } from '../shared/middleware/auth';
+import { withErrorHandler } from '../shared/middleware/errorHandler';
+import { withRequestTransform } from '../shared/middleware/requestTransform';
+import { logger } from '../shared/utils/logger';
+import { z } from 'zod';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
-const transactionRepository = new TransactionRepository();
+const sendPaymentSchema = z.object({
+  recipient_id: z.string(),
+  amount: z.number().positive(),
+  description: z.string().optional(),
+  order_id: z.string().optional(),
+  project_id: z.string().optional(),
+});
 
-export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
-  try {
-    const authHeader = event.headers.Authorization || event.headers.authorization;
-    if (!authHeader) {
-      return {
-        statusCode: 401,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Authorization required' })
-      };
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const decoded: any = jwt.verify(token, JWT_SECRET);
-
-    const body = JSON.parse(event.body || '{}');
-    const { recipient_id, amount, description, order_id, project_id } = body;
-
-    if (!recipient_id || !amount) {
-      return {
-        statusCode: 400,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Missing required fields' })
-      };
-    }
-
-    // Create transaction for sender (debit)
-    const senderTransaction = await transactionRepository.create({
-      userId: decoded.userId,
-      type: 'PAYMENT_SENT',
-      amount: amount.toString(),
-      status: 'COMPLETED',
-      description: description || `Payment to user ${recipient_id}`,
-      relatedObjectType: order_id ? 'ORDER' : project_id ? 'PROJECT' : undefined,
-      relatedObjectId: order_id || project_id
-    });
-
-    // Create transaction for recipient (credit)
-    const recipientTransaction = await transactionRepository.create({
-      userId: recipient_id,
-      type: 'PAYMENT_RECEIVED',
-      amount: amount.toString(),
-      status: 'COMPLETED',
-      description: description || `Payment from user ${decoded.userId}`,
-      relatedObjectType: order_id ? 'ORDER' : project_id ? 'PROJECT' : undefined,
-      relatedObjectId: order_id || project_id
-    });
-
-    return {
-      statusCode: 200,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        id: senderTransaction.transactionId,
-        transaction_type: 'payment',
-        amount: amount.toString(),
-        status: 'completed',
-        recipient_id,
-        created_at: senderTransaction.createdAt
-      })
-    };
-  } catch (error) {
-    console.error('Error:', error);
-    return {
-      statusCode: 500,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: 'Internal server error' })
-    };
+async function sendPaymentHandler(
+  event: AuthenticatedEvent
+): Promise<APIGatewayProxyResult> {
+  const userId = event.auth.userId;
+  
+  logger.info('Send payment request', { userId });
+  
+  const body = JSON.parse(event.body || '{}');
+  const validationResult = sendPaymentSchema.safeParse(body);
+  
+  if (!validationResult.success) {
+    return badRequest('Invalid input data');
   }
-};
+  
+  const { recipient_id, amount, description, order_id, project_id } = validationResult.data;
+  
+  const transactionRepo = new TransactionRepository();
+  
+  // Check sender balance
+  const senderTransactions = await transactionRepo.findByUser(userId);
+  let balance = 0;
+  for (const txn of senderTransactions) {
+    if (txn.status === 'COMPLETED') {
+      const txAmount = txn.amount;
+      if (txn.type === 'DEPOSIT' || txn.type === 'PAYMENT_RECEIVED' || txn.type === 'REFUND') {
+        balance += txAmount;
+      } else if (txn.type === 'WITHDRAWAL' || txn.type === 'PAYMENT_SENT' || txn.type === 'PAYMENT' || txn.type === 'COMMISSION') {
+        balance -= txAmount;
+      }
+    }
+  }
+  
+  if (balance < amount) {
+    return badRequest('Insufficient balance');
+  }
+  
+  // Create transaction for sender (debit)
+  const senderTransaction = await transactionRepo.create({
+    userId,
+    type: 'PAYMENT_SENT',
+    amount: amount,
+    currency: 'KGS',
+    status: 'COMPLETED',
+    description: description || `Payment to user ${recipient_id}`,
+    relatedObjectType: order_id ? 'ORDER' : project_id ? 'PROJECT' : undefined,
+    relatedObjectId: order_id || project_id
+  });
+  
+  // Create transaction for recipient (credit)
+  const recipientTransaction = await transactionRepo.create({
+    userId: recipient_id,
+    type: 'PAYMENT_RECEIVED',
+    amount: amount,
+    currency: 'KGS',
+    status: 'COMPLETED',
+    description: description || `Payment from user ${userId}`,
+    relatedObjectType: order_id ? 'ORDER' : project_id ? 'PROJECT' : undefined,
+    relatedObjectId: order_id || project_id
+  });
+  
+  logger.info('Payment sent successfully', { 
+    userId, 
+    recipientId: recipient_id, 
+    amount 
+  });
+  
+  return success({
+    id: senderTransaction.id,
+    transaction_type: 'payment',
+    amount: amount,
+    status: 'completed',
+    recipient_id,
+    created_at: senderTransaction.createdAt
+  });
+}
+
+export const handler = withErrorHandler(
+  withRequestTransform(
+    withAuth(sendPaymentHandler)
+  )
+);

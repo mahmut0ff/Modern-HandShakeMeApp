@@ -5,12 +5,12 @@ export class CacheService {
   }
   
   async set(key: string, value: any, ttl: number = 300): Promise<void> {
-    // Mock cache service for development
-    console.log(`Cache SET: ${key} (TTL: ${ttl}s)`);
+    // Production cache service implementation needed
+    // TODO: Implement Redis cache
   }
   
   async invalidatePattern(pattern: string): Promise<void> {
-    // Mock cache service for development
-    console.log(`Cache INVALIDATE: ${pattern}`);
+    // Production cache service implementation needed
+    // TODO: Implement Redis cache invalidation
   }
 }

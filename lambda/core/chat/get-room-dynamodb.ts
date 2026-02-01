@@ -1,50 +1,46 @@
+// Get chat room details
+
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import jwt from 'jsonwebtoken';
 import { ChatRepository } from '../shared/repositories/chat.repository';
+import { withAuth } from '../shared/middleware/auth';
+import { withErrorHandler } from '../shared/middleware/errorHandler';
+import { success, notFound, forbidden } from '../shared/utils/response';
+import { logger } from '../shared/utils/logger';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
-const chatRepository = new ChatRepository();
+async function getRoomHandler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
+  const userId = (event.requestContext as any).authorizer?.userId;
+  
+  if (!userId) {
+    return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
+  }
 
-export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+  const roomId = event.pathParameters?.id;
+  if (!roomId) {
+    return { statusCode: 400, body: JSON.stringify({ error: 'Room ID required' }) };
+  }
+
   try {
-    const authHeader = event.headers.Authorization || event.headers.authorization;
-    if (!authHeader) {
-      return {
-        statusCode: 401,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Authorization required' })
-      };
-    }
-
-    const roomId = event.pathParameters?.id;
-    if (!roomId) {
-      return {
-        statusCode: 400,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Room ID required' })
-      };
-    }
-
+    const chatRepository = new ChatRepository();
     const room = await chatRepository.findRoomById(roomId);
+    
     if (!room) {
-      return {
-        statusCode: 404,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Room not found' })
-      };
+      return notFound('Room not found');
+    }
+    
+    // Verify user is participant
+    if (!room.participants.includes(userId)) {
+      return forbidden('You are not a participant in this room');
     }
 
-    return {
-      statusCode: 200,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(room)
-    };
+    logger.info('Room retrieved', { roomId, userId });
+    return success(room);
   } catch (error) {
-    console.error('Error:', error);
+    logger.error('Get room error', error);
     return {
       statusCode: 500,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: 'Internal server error' })
+      body: JSON.stringify({ error: 'Internal server error' }),
     };
   }
-};
+}
+
+export const handler = withErrorHandler(withAuth(getRoomHandler));

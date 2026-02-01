@@ -1,34 +1,34 @@
+// Mark all notifications as read with DynamoDB
+
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { NotificationRepository } from '../shared/repositories/notification.repository';
-import { verifyToken } from '../shared/services/token';
+import { NotificationRepository } from '@/shared/repositories/notification.repository';
+import { success, unauthorized, serverError } from '@/shared/utils/response';
+import { logger } from '@/shared/utils/logger';
+import { verifyJWT } from '@/shared/utils/jwt';
 
 export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
   try {
     const token = event.headers.Authorization?.replace('Bearer ', '');
     if (!token) {
-      return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
+      return unauthorized('Authorization token required');
     }
 
-    const decoded = verifyToken(token);
+    const decoded = verifyJWT(token);
+    const userId = decoded.userId;
+    
+    logger.info('Mark all notifications as read request', { userId });
+    
     const notificationRepo = new NotificationRepository();
-    const notifications = await notificationRepo.findByUser(decoded.userId);
+    const updatedCount = await notificationRepo.markAllAsRead(userId);
 
-    // Mark all as read
-    for (const notification of notifications) {
-      if (!notification.isRead) {
-        await notificationRepo.update(decoded.userId, notification.id, { isRead: true });
-      }
-    }
+    logger.info('All notifications marked as read', { userId, updatedCount });
 
-    return {
-      statusCode: 200,
-      body: JSON.stringify({ message: 'All notifications marked as read' }),
-    };
+    return success({ 
+      message: 'All notifications marked as read',
+      updatedCount 
+    });
   } catch (error: any) {
-    console.error('Mark all read error:', error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: error.message }),
-    };
+    logger.error('Mark all read error:', { error: error.message });
+    return serverError('Failed to mark notifications as read');
   }
 }

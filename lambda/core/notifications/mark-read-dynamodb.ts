@@ -1,41 +1,44 @@
+// Mark notification as read with DynamoDB
+
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { NotificationRepository } from '../shared/repositories/notification.repository';
-import { verifyToken } from '../shared/services/token';
+import { NotificationRepository } from '@/shared/repositories/notification.repository';
+import { success, unauthorized, badRequest, notFound, serverError } from '@/shared/utils/response';
+import { logger } from '@/shared/utils/logger';
+import { verifyJWT } from '@/shared/utils/jwt';
 
 export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
   try {
     const token = event.headers.Authorization?.replace('Bearer ', '');
     if (!token) {
-      return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
+      return unauthorized('Authorization token required');
     }
 
-    const decoded = verifyToken(token);
+    const decoded = verifyJWT(token);
+    const userId = decoded.userId;
     const notificationId = event.pathParameters?.id;
 
     if (!notificationId) {
-      return { statusCode: 400, body: JSON.stringify({ error: 'Notification ID required' }) };
+      return badRequest('Notification ID required');
     }
+
+    logger.info('Mark notification as read request', { userId, notificationId });
 
     const notificationRepo = new NotificationRepository();
-    const notification = await notificationRepo.findById(decoded.userId, notificationId);
+    
+    try {
+      const updated = await notificationRepo.update(userId, notificationId, {
+        isRead: true,
+      });
 
-    if (!notification) {
-      return { statusCode: 404, body: JSON.stringify({ error: 'Notification not found' }) };
+      logger.info('Notification marked as read', { userId, notificationId });
+
+      return success(updated);
+    } catch (error) {
+      logger.error('Failed to mark notification as read', { userId, notificationId, error });
+      return notFound('Notification not found');
     }
-
-    const updated = await notificationRepo.update(decoded.userId, notificationId, {
-      isRead: true,
-    });
-
-    return {
-      statusCode: 200,
-      body: JSON.stringify(updated),
-    };
   } catch (error: any) {
-    console.error('Mark notification read error:', error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: error.message }),
-    };
+    logger.error('Mark notification read error:', { error: error.message });
+    return serverError('Failed to mark notification as read');
   }
 }

@@ -169,12 +169,12 @@ export default function CreatePortfolioItemPage() {
         </View>
 
         {/* Form */}
-        <View className="space-y-6">
+        <View className="flex flex-col gap-6">
           {/* Title */}
           <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100">
             <Text className="text-lg font-bold text-gray-900 mb-4">Основная информация</Text>
             
-            <View className="space-y-4">
+            <View className="flex flex-col gap-4">
               <View>
                 <Text className="text-sm font-medium text-gray-700 mb-2">Название работы *</Text>
                 <TextInput
@@ -285,7 +285,7 @@ export default function CreatePortfolioItemPage() {
           <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100">
             <Text className="text-lg font-bold text-gray-900 mb-4">Детали проекта</Text>
             
-            <View className="space-y-4">
+            <View className="flex flex-col gap-4">
               <View className="flex-row gap-3">
                 <View className="flex-1">
                   <Text className="text-sm font-medium text-gray-700 mb-2">Длительность</Text>

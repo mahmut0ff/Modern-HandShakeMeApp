@@ -1,19 +1,22 @@
-// Create application for an order
+import { APIGatewayProxyResult } from 'aws-lambda';
+import { z } from 'zod';
+import { ApplicationRepository } from '../shared/repositories/application.repository';
+import { OrderRepository } from '../shared/repositories/order.repository';
+import { UserRepository } from '../shared/repositories/user.repository';
+import { NotificationService } from '../shared/services/notification';
+import { success, badRequest, notFound, forbidden } from '../shared/utils/response';
+import { withAuth, AuthenticatedEvent } from '../shared/middleware/auth';
+import { withErrorHandler, ValidationError } from '../shared/middleware/errorHandler';
+import { logger } from '../shared/utils/logger';
 
-import type { APIGatewayProxyResult } from 'aws-lambda';
-import { getPrismaClient } from '@/shared/db/client';
-import { publishEvent } from '@/shared/events/publisher';
-import { success, forbidden, notFound } from '@/shared/utils/response';
-import { applicationSchema, validate } from '@/shared/utils/validation';
-import { withAuth, AuthenticatedEvent } from '@/shared/middleware/auth';
-import { withErrorHandler, ConflictError } from '@/shared/middleware/errorHandler';
-import { withRequestTransform } from '@/shared/middleware/requestTransform';
-import { logger } from '@/shared/utils/logger';
-import { EventType } from '@/shared/types';
+const createApplicationSchema = z.object({
+  orderId: z.string().min(1, 'Order ID is required'),
+  coverLetter: z.string().min(50, 'Cover letter must be at least 50 characters').max(2000, 'Cover letter must be less than 2000 characters'),
+  proposedPrice: z.number().positive('Proposed price must be positive'),
+  proposedDurationDays: z.number().positive('Duration must be positive'),
+});
 
-async function createApplicationHandler(
-  event: AuthenticatedEvent
-): Promise<APIGatewayProxyResult> {
+async function createApplicationHandler(event: AuthenticatedEvent): Promise<APIGatewayProxyResult> {
   const userId = event.auth.userId;
   
   if (event.auth.role !== 'MASTER') {
@@ -22,115 +25,72 @@ async function createApplicationHandler(
   
   logger.info('Create application request', { userId });
   
-  // Request is already transformed by withRequestTransform middleware
   const body = JSON.parse(event.body || '{}');
-  const data = validate(applicationSchema, body);
   
-  const prisma = getPrismaClient();
-  
-  // Get master profile
-  const masterProfile = await prisma.masterProfile.findUnique({
-    where: { userId },
-  });
-  
-  if (!masterProfile) {
-    return forbidden('Master profile not found');
+  // Validate input
+  let validatedData;
+  try {
+    validatedData = createApplicationSchema.parse(body);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      throw new ValidationError('Validation failed', error.errors);
+    }
+    throw error;
   }
   
-  // Check if order exists and is open
-  const order = await prisma.order.findUnique({
-    where: { id: data.order_id.toString() },
-  });
+  const orderRepo = new OrderRepository();
+  const applicationRepo = new ApplicationRepository();
+  const userRepo = new UserRepository();
+  const notificationService = new NotificationService();
   
+  // Check if order exists and is active
+  const order = await orderRepo.findById(validatedData.orderId);
   if (!order) {
     return notFound('Order not found');
   }
   
   if (order.status !== 'ACTIVE') {
-    return forbidden('Order is not accepting applications');
+    return badRequest('Order is not active');
   }
   
-  // Check for existing application
-  const existingApplication = await prisma.application.findFirst({
-    where: {
-      orderId: data.order_id.toString(),
-      masterId: masterProfile.id,
-    },
-  });
+  // Check if master already applied to this order
+  const existingApplications = await applicationRepo.findByOrder(validatedData.orderId);
+  const existingApplication = existingApplications.find(app => app.masterId === userId);
   
   if (existingApplication) {
-    throw new ConflictError('You have already applied to this order');
+    return badRequest('You have already applied to this order');
   }
   
+  // Get master details for notification
+  const master = await userRepo.findById(userId);
+  
   // Create application
-  const application = await prisma.application.create({
-    data: {
-      orderId: data.order_id.toString(),
-      masterId: masterProfile.id,
-      proposal: data.proposal,
-      price: data.price,
-      estimatedDuration: data.estimatedDuration,
-      coverLetter: data.coverLetter,
-      status: 'SENT',
-    },
-    include: {
-      order: {
-        select: {
-          id: true,
-          title: true,
-          categoryId: true,
-        },
-      },
-      master: {
-        include: {
-          user: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              avatar: true,
-            },
-          },
-        },
-      },
-    },
+  const application = await applicationRepo.create(userId, validatedData);
+  
+  // Update order applications count
+  await orderRepo.incrementApplicationsCount(validatedData.orderId);
+  
+  // Send notification to client
+  try {
+    await notificationService.notifyApplicationCreated(order.clientId, {
+      applicationId: application.id,
+      orderId: validatedData.orderId,
+      orderTitle: order.title,
+      masterName: master?.name || `${master?.firstName} ${master?.lastName}`.trim(),
+      proposedPrice: validatedData.proposedPrice,
+    });
+  } catch (error) {
+    logger.error('Failed to send application created notification', error);
+    // Don't fail the request if notification fails
+  }
+  
+  logger.info('Application created successfully', {
+    userId,
+    applicationId: application.id,
+    orderId: validatedData.orderId,
   });
   
-  // Publish application.created event
-  await publishEvent(
-    EventType.APPLICATION_CREATED,
-    userId,
-    {
-      applicationId: application.id,
-      orderId: data.order_id.toString(),
-      masterId: masterProfile.id,
-    }
-  );
-  
-  logger.info('Application created', { userId, applicationId: application.id });
-  
-  // Format response
-  const response = {
-    id: application.id,
-    orderId: application.orderId,
-    orderTitle: application.order.title,
-    masterId: application.masterId,
-    master: {
-      id: application.master.user.id,
-      name: `${application.master.user.firstName} ${application.master.user.lastName}`,
-      avatar: application.master.user.avatar,
-    },
-    proposal: application.proposal,
-    price: application.price?.toString(),
-    estimatedDuration: application.estimatedDuration,
-    coverLetter: application.coverLetter,
-    status: application.status,
-    createdAt: application.createdAt,
-    updatedAt: application.updatedAt,
-  };
-  
-  // Response will be automatically transformed
-  return success(response, { statusCode: 201 });
+  return success(application, { statusCode: 201 });
 }
 
-export const handler = withErrorHandler(withRequestTransform(withAuth(createApplicationHandler)));
+export const handler = withErrorHandler(withAuth(createApplicationHandler, { roles: ['MASTER'] }));

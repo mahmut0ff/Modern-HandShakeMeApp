@@ -54,16 +54,16 @@ export default function MasterServicesPage() {
   });
 
   // API queries
-  const { 
-    data: servicesData, 
-    isLoading: servicesLoading, 
+  const {
+    data: servicesData,
+    isLoading: servicesLoading,
     error: servicesError,
-    refetch: refetchServices 
+    refetch: refetchServices
   } = useGetMyServicesQuery();
 
-  const { 
-    data: categoriesData, 
-    isLoading: categoriesLoading 
+  const {
+    data: categoriesData,
+    isLoading: categoriesLoading
   } = useGetServiceCategoriesQuery();
 
   // Mutations
@@ -72,8 +72,8 @@ export default function MasterServicesPage() {
   const [deleteService] = useDeleteServiceMutation();
   const [toggleServiceStatus] = useToggleServiceStatusMutation();
 
-  const services = servicesData || [];
-  const categories = categoriesData || [];
+  const services = (servicesData || []) as any[];
+  const categories = (categoriesData || []) as any[];
   const units = ['час', 'м²', 'шт', 'проект', 'день'];
 
   // Set default category when categories load
@@ -99,7 +99,7 @@ export default function MasterServicesPage() {
         unit: reverseUnitMap[newService.unit] as any,
         is_active: true,
       }).unwrap();
-      
+
       setNewService({
         name: '',
         description: '',
@@ -149,7 +149,7 @@ export default function MasterServicesPage() {
   };
 
   const getCategoryName = (categoryId: number): string => {
-    const category = categories.find(c => c.id === categoryId);
+    const category = categories.find((c: any) => c.id === categoryId);
     return category?.name || 'Общие услуги';
   };
 
@@ -159,7 +159,7 @@ export default function MasterServicesPage() {
         {/* Header */}
         <View className="flex-row items-center justify-between mb-6">
           <View className="flex-row items-center gap-4">
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={() => router.back()}
               className="w-10 h-10 bg-white rounded-2xl items-center justify-center shadow-sm border border-gray-100"
             >
@@ -193,7 +193,7 @@ export default function MasterServicesPage() {
             <Text className="text-gray-500 text-center mb-4">
               Не удалось загрузить список услуг
             </Text>
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={() => refetchServices()}
               className="bg-[#0165FB] px-6 py-2 rounded-xl"
             >
@@ -213,15 +213,15 @@ export default function MasterServicesPage() {
               <View className="w-px bg-white/20" />
               <View className="items-center flex-1">
                 <Text className="text-3xl font-bold text-white">
-                  {services.filter(s => s.is_active).length}
+                  {services.filter((s: any) => s.is_active).length}
                 </Text>
                 <Text className="text-white/70 text-sm">Активных</Text>
               </View>
               <View className="w-px bg-white/20" />
               <View className="items-center flex-1">
                 <Text className="text-3xl font-bold text-white">
-                  {services.length > 0 
-                    ? Math.round(services.reduce((sum, s) => sum + parseFloat(s.price_from), 0) / services.length)
+                  {services.length > 0
+                    ? Math.round(services.reduce((sum: number, s: any) => sum + parseFloat(s.price_from), 0) / services.length)
                     : 0
                   }
                 </Text>
@@ -235,13 +235,13 @@ export default function MasterServicesPage() {
         {showAddForm && !servicesLoading && (
           <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-6">
             <Text className="text-lg font-bold text-gray-900 mb-4">Добавить услугу</Text>
-            
-            <View className="space-y-4">
+
+            <View className="flex flex-col gap-4">
               <View>
                 <Text className="text-sm font-medium text-gray-700 mb-2">Название услуги *</Text>
                 <TextInput
                   value={newService.name}
-                  onChangeText={(text) => setNewService({...newService, name: text})}
+                  onChangeText={(text) => setNewService({ ...newService, name: text })}
                   placeholder="Например: Ремонт сантехники"
                   className="w-full px-4 py-3 bg-gray-50 rounded-2xl text-gray-900"
                 />
@@ -251,7 +251,7 @@ export default function MasterServicesPage() {
                 <Text className="text-sm font-medium text-gray-700 mb-2">Описание</Text>
                 <TextInput
                   value={newService.description}
-                  onChangeText={(text) => setNewService({...newService, description: text})}
+                  onChangeText={(text) => setNewService({ ...newService, description: text })}
                   placeholder="Краткое описание услуги"
                   className="w-full px-4 py-3 bg-gray-50 rounded-2xl text-gray-900"
                   multiline
@@ -264,7 +264,7 @@ export default function MasterServicesPage() {
                   <Text className="text-sm font-medium text-gray-700 mb-2">Цена от *</Text>
                   <TextInput
                     value={newService.price_from}
-                    onChangeText={(text) => setNewService({...newService, price_from: text})}
+                    onChangeText={(text) => setNewService({ ...newService, price_from: text })}
                     placeholder="1500"
                     keyboardType="numeric"
                     className="w-full px-4 py-3 bg-gray-50 rounded-2xl text-gray-900"
@@ -274,7 +274,7 @@ export default function MasterServicesPage() {
                   <Text className="text-sm font-medium text-gray-700 mb-2">Цена до</Text>
                   <TextInput
                     value={newService.price_to}
-                    onChangeText={(text) => setNewService({...newService, price_to: text})}
+                    onChangeText={(text) => setNewService({ ...newService, price_to: text })}
                     placeholder="3000"
                     keyboardType="numeric"
                     className="w-full px-4 py-3 bg-gray-50 rounded-2xl text-gray-900"
@@ -290,16 +290,14 @@ export default function MasterServicesPage() {
                       {units.map(unit => (
                         <TouchableOpacity
                           key={unit}
-                          onPress={() => setNewService({...newService, unit})}
-                          className={`px-3 py-2 rounded-full ${
-                            newService.unit === unit
+                          onPress={() => setNewService({ ...newService, unit })}
+                          className={`px-3 py-2 rounded-full ${newService.unit === unit
                               ? 'bg-[#0165FB]'
                               : 'bg-gray-100'
-                          }`}
+                            }`}
                         >
-                          <Text className={`text-sm font-medium ${
-                            newService.unit === unit ? 'text-white' : 'text-gray-700'
-                          }`}>
+                          <Text className={`text-sm font-medium ${newService.unit === unit ? 'text-white' : 'text-gray-700'
+                            }`}>
                             {unit}
                           </Text>
                         </TouchableOpacity>
@@ -318,19 +316,17 @@ export default function MasterServicesPage() {
                 ) : (
                   <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                     <View className="flex-row gap-2">
-                      {categories.map(category => (
+                      {categories.map((category: any) => (
                         <TouchableOpacity
                           key={category.id}
-                          onPress={() => setNewService({...newService, category: category.id})}
-                          className={`px-3 py-2 rounded-full ${
-                            newService.category === category.id
+                          onPress={() => setNewService({ ...newService, category: category.id })}
+                          className={`px-3 py-2 rounded-full ${newService.category === category.id
                               ? 'bg-[#0165FB]'
                               : 'bg-gray-100'
-                          }`}
+                            }`}
                         >
-                          <Text className={`text-sm font-medium ${
-                            newService.category === category.id ? 'text-white' : 'text-gray-700'
-                          }`}>
+                          <Text className={`text-sm font-medium ${newService.category === category.id ? 'text-white' : 'text-gray-700'
+                            }`}>
                             {category.name}
                           </Text>
                         </TouchableOpacity>
@@ -343,9 +339,8 @@ export default function MasterServicesPage() {
               <TouchableOpacity
                 onPress={handleAddService}
                 disabled={createLoading}
-                className={`py-4 rounded-2xl ${
-                  createLoading ? 'bg-gray-400' : 'bg-[#0165FB]'
-                }`}
+                className={`py-4 rounded-2xl ${createLoading ? 'bg-gray-400' : 'bg-[#0165FB]'
+                  }`}
               >
                 <Text className="text-center font-semibold text-white">
                   {createLoading ? 'Добавление...' : 'Добавить услугу'}
@@ -357,7 +352,7 @@ export default function MasterServicesPage() {
 
         {/* Services List */}
         {!servicesLoading && !servicesError && (
-          <View className="space-y-4 mb-6">
+          <View className="flex flex-col gap-4 mb-6">
             {services.length === 0 ? (
               <View className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100 items-center">
                 <View className="w-20 h-20 bg-[#0165FB]/10 rounded-full items-center justify-center mb-4">
@@ -369,18 +364,16 @@ export default function MasterServicesPage() {
                 </Text>
               </View>
             ) : (
-              services.map(service => (
+              services.map((service: any) => (
                 <View key={service.id} className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100">
                   <View className="flex-row items-start justify-between mb-3">
                     <View className="flex-1">
                       <View className="flex-row items-center gap-2 mb-1">
                         <Text className="font-semibold text-gray-900">{service.name}</Text>
-                        <View className={`px-2 py-1 rounded-full ${
-                          service.is_active ? 'bg-green-100' : 'bg-gray-100'
-                        }`}>
-                          <Text className={`text-xs font-medium ${
-                            service.is_active ? 'text-green-700' : 'text-gray-500'
+                        <View className={`px-2 py-1 rounded-full ${service.is_active ? 'bg-green-100' : 'bg-gray-100'
                           }`}>
+                          <Text className={`text-xs font-medium ${service.is_active ? 'text-green-700' : 'text-gray-500'
+                            }`}>
                             {service.is_active ? 'Активна' : 'Неактивна'}
                           </Text>
                         </View>
@@ -403,13 +396,11 @@ export default function MasterServicesPage() {
                   <View className="flex-row gap-2">
                     <TouchableOpacity
                       onPress={() => handleToggleServiceStatus(service.id)}
-                      className={`flex-1 py-3 rounded-2xl ${
-                        service.is_active ? 'bg-gray-100' : 'bg-green-100'
-                      }`}
+                      className={`flex-1 py-3 rounded-2xl ${service.is_active ? 'bg-gray-100' : 'bg-green-100'
+                        }`}
                     >
-                      <Text className={`text-center font-medium ${
-                        service.is_active ? 'text-gray-700' : 'text-green-700'
-                      }`}>
+                      <Text className={`text-center font-medium ${service.is_active ? 'text-gray-700' : 'text-green-700'
+                        }`}>
                         {service.is_active ? 'Деактивировать' : 'Активировать'}
                       </Text>
                     </TouchableOpacity>

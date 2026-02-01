@@ -1,39 +1,65 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { success, badRequest, notFound, forbidden } from '../shared/utils/response';
-import { withAuth } from '../shared/middleware/auth';
-import { withRequestTransform } from '../shared/middleware/requestTransform';
-import { getPrismaClient } from '../shared/utils/prisma';
-import { CacheService } from '../shared/services/cache';
+import { PortfolioRepository } from '../shared/repositories/portfolio.repository';
+import { UserService } from '../shared/services/user.service';
 import { S3Service } from '../shared/services/s3';
+import { CacheService } from '../shared/services/cache';
+import { verifyToken } from '../shared/services/token';
 
-const cache = new CacheService();
+const portfolioRepository = new PortfolioRepository();
+const userService = new UserService();
 const s3Service = new S3Service();
+const cache = new CacheService();
 
-async function deletePortfolioItemHandler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
-  const prisma = getPrismaClient();
-  
+export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   try {
-    const user = (event as any).user;
-    
-    if (user.role !== 'MASTER') {
-      return forbidden('Only masters can delete portfolio items');
+    const authHeader = event.headers.Authorization || event.headers.authorization;
+    if (!authHeader) {
+      return {
+        statusCode: 401,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Authorization required' })
+      };
     }
 
     const itemId = event.pathParameters?.id;
     if (!itemId) {
-      return badRequest('Portfolio item ID is required');
+      return {
+        statusCode: 400,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Portfolio item ID is required' })
+      };
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+    const decoded = verifyToken(token);
+    const userId = decoded.userId;
+
+    // Get user information
+    const user = await userService.findUserById(userId);
+    if (!user) {
+      return {
+        statusCode: 404,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'User not found' })
+      };
+    }
+    
+    if (user.role !== 'MASTER') {
+      return {
+        statusCode: 403,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Only masters can delete portfolio items' })
+      };
     }
 
     // Check if portfolio item exists and belongs to the master
-    const existingItem = await prisma.portfolioItem.findFirst({
-      where: {
-        id: itemId,
-        masterId: user.userId
-      }
-    });
-
+    const existingItem = await portfolioRepository.findItemById(itemId, userId);
     if (!existingItem) {
-      return notFound('Portfolio item not found or access denied');
+      return {
+        statusCode: 404,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Portfolio item not found or access denied' })
+      };
     }
 
     // Delete associated images from S3
@@ -49,26 +75,38 @@ async function deletePortfolioItemHandler(event: APIGatewayProxyEvent): Promise<
     }
 
     // Delete the portfolio item
-    await prisma.portfolioItem.delete({
-      where: { id: itemId }
-    });
+    await portfolioRepository.deleteItem(itemId, userId);
 
     // Invalidate cache
-    await cache.invalidatePattern(`portfolio:${user.userId}*`);
-    await cache.invalidatePattern(`master:profile:${user.userId}*`);
+    await cache.invalidatePattern(`portfolio:${userId}*`);
+    await cache.invalidatePattern(`master:profile:${userId}*`);
 
-    console.log(`Portfolio item deleted: ${itemId} by master ${user.userId}`);
+    console.log(`Portfolio item deleted: ${itemId} by master ${userId}`);
 
-    return success({
-      message: 'Portfolio item deleted successfully',
-      itemId: itemId
-    });
+    return {
+      statusCode: 200,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: 'Portfolio item deleted successfully',
+        itemId: itemId
+      })
+    };
 
   } catch (error) {
     console.error('Error deleting portfolio item:', error);
 
-    return badRequest('Failed to delete portfolio item');
-  }
-}
+    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+      return {
+        statusCode: 401,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Invalid or expired token' })
+      };
+    }
 
-export const handler = withRequestTransform(withAuth(deletePortfolioItemHandler));
+    return {
+      statusCode: 500,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ error: 'Failed to delete portfolio item' })
+    };
+  }
+};

@@ -3,12 +3,12 @@ import { View, Text, ScrollView, TouchableOpacity, Alert, ActivityIndicator } fr
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { 
-  useGetMyReviewsQuery, 
+import {
+  useGetMyReviewsQuery,
   useDeleteReviewMutation,
   useMarkReviewHelpfulMutation,
   useRemoveReviewHelpfulMutation,
-  type Review as APIReview 
+  type Review as APIReview
 } from '../../services/reviewApi';
 import { ReviewList, Review } from '../../features/reviews';
 import { useSelector } from 'react-redux';
@@ -20,9 +20,9 @@ export default function ClientReviewsPage() {
 
   const { data, isLoading, error, refetch } = useGetMyReviewsQuery({
     role: 'client',
-    ordering: filter === 'recent' ? '-created_at' : 
-              filter === 'high' ? '-rating' :
-              filter === 'low' ? 'rating' : undefined,
+    ordering: filter === 'recent' ? '-created_at' :
+      filter === 'high' ? '-rating' :
+        filter === 'low' ? 'rating' : undefined,
   });
 
   const [deleteReview] = useDeleteReviewMutation();
@@ -39,12 +39,12 @@ export default function ClientReviewsPage() {
     reviewer: {
       id: review.client?.id || 0,
       name: review.client?.name || review.client_name || 'You',
-      avatar: review.client?.avatar || review.client_avatar,
+      avatar: (review.client?.avatar || review.client_avatar) ?? undefined,
     },
     master: {
       id: review.master?.id || 0,
       name: review.master?.name || review.master_name || 'Master',
-      avatar: review.master?.avatar || review.master_avatar,
+      avatar: (review.master?.avatar || review.master_avatar) ?? undefined,
     },
     project: review.project,
     response: review.response ? {
@@ -57,7 +57,8 @@ export default function ClientReviewsPage() {
   }));
 
   const handleEdit = (reviewId: number) => {
-    router.push(`/(client)/reviews/edit/${reviewId}`);
+    // TODO: Implement review editing - for now just show alert
+    Alert.alert('Редактирование', 'Функция редактирования отзыва в разработке');
   };
 
   const handleDelete = (reviewId: number) => {
@@ -100,7 +101,7 @@ export default function ClientReviewsPage() {
       <ScrollView className="flex-1 px-4" contentContainerStyle={{ paddingBottom: 20, paddingTop: 8 }}>
         {/* Header */}
         <View className="flex-row items-center gap-4 mb-6">
-          <TouchableOpacity 
+          <TouchableOpacity
             onPress={() => router.back()}
             className="w-10 h-10 bg-white rounded-2xl items-center justify-center shadow-sm border border-gray-100"
           >
@@ -119,7 +120,7 @@ export default function ClientReviewsPage() {
             <Text className="text-gray-500 text-center mb-4">
               Не удалось загрузить отзывы
             </Text>
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={() => refetch()}
               className="bg-[#0165FB] px-6 py-2 rounded-xl"
             >
@@ -140,13 +141,11 @@ export default function ClientReviewsPage() {
               <TouchableOpacity
                 key={tab.key}
                 onPress={() => setFilter(tab.key as any)}
-                className={`flex-1 py-2 px-3 rounded-lg ${
-                  filter === tab.key ? 'bg-white shadow-sm' : ''
-                }`}
+                className={`flex-1 py-2 px-3 rounded-lg ${filter === tab.key ? 'bg-white shadow-sm' : ''
+                  }`}
               >
-                <Text className={`text-xs font-medium text-center ${
-                  filter === tab.key ? 'text-gray-900' : 'text-gray-500'
-                }`}>
+                <Text className={`text-xs font-medium text-center ${filter === tab.key ? 'text-gray-900' : 'text-gray-500'
+                  }`}>
                   {tab.label}
                 </Text>
               </TouchableOpacity>

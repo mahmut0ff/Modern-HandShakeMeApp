@@ -176,7 +176,7 @@ export default function MasterProfilePage() {
             
             <View className="flex-1">
               {isEditing ? (
-                <View className="space-y-2">
+                <View className="flex flex-col gap-2">
                   <TextInput
                     value={profile.user?.first_name || ''}
                     placeholder="Имя"
@@ -238,12 +238,12 @@ export default function MasterProfilePage() {
         </View>
 
         {/* Profile Details */}
-        <View className="px-4 space-y-6">
+        <View className="px-4 flex flex-col gap-6">
           {/* Profile Details */}
           <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100">
             <Text className="text-lg font-bold text-gray-900 mb-4">Информация о профиле</Text>
             
-            <View className="space-y-4">
+            <View className="flex flex-col gap-4">
               <View>
                 <Text className="text-sm font-medium text-gray-700 mb-2">Город</Text>
                 {isEditing ? (
@@ -314,7 +314,7 @@ export default function MasterProfilePage() {
           <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100">
             <Text className="text-lg font-bold text-gray-900 mb-4">Дополнительная информация</Text>
             
-            <View className="space-y-3">
+            <View className="flex flex-col gap-3">
               <View className="flex-row items-center justify-between">
                 <Text className="text-gray-600">Опыт работы</Text>
                 <Text className="text-gray-900 font-medium">

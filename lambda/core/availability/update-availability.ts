@@ -1,39 +1,13 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
-import { createResponse, createErrorResponse } from '@/shared/utils/response';
-import { validateInput } from '@/shared/utils/validation';
-import { requireAuth } from '@/shared/middleware/auth';
-import { CacheService } from '@/shared/services/cache';
+import { createResponse, createErrorResponse } from '../shared/utils/response';
+import { validateInput, updateAvailabilitySchema } from '../shared/utils/validation';
+import { requireAuth } from '../shared/middleware/auth';
+import { CacheService } from '../shared/services/cache';
+import { AvailabilityRepository } from '../shared/repositories/availability.repository';
 
-const prisma = new PrismaClient();
+const availabilityRepo = new AvailabilityRepository();
 const cache = new CacheService();
-
-// Validation schema
-const workingHoursSchema = z.object({
-  start: z.string().regex(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/, 'Invalid time format (HH:MM)'),
-  end: z.string().regex(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/, 'Invalid time format (HH:MM)'),
-  enabled: z.boolean()
-});
-
-const updateAvailabilitySchema = z.object({
-  workingHours: z.object({
-    monday: workingHoursSchema.optional(),
-    tuesday: workingHoursSchema.optional(),
-    wednesday: workingHoursSchema.optional(),
-    thursday: workingHoursSchema.optional(),
-    friday: workingHoursSchema.optional(),
-    saturday: workingHoursSchema.optional(),
-    sunday: workingHoursSchema.optional()
-  }).optional(),
-  timezone: z.string().optional(),
-  blockedDates: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),
-  generateSlots: z.object({
-    startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    slotDuration: z.number().min(15).max(480).default(60) // 15 minutes to 8 hours
-  }).optional()
-});
 
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   try {
@@ -62,9 +36,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     }
 
     // Get or create master availability
-    let availability = await prisma.masterAvailability.findUnique({
-      where: { masterId: user.userId }
-    });
+    let availability = await availabilityRepo.getMasterAvailability(user.userId);
 
     const currentWorkingHours = availability?.workingHours || {
       monday: { start: '09:00', end: '18:00', enabled: true },
@@ -84,35 +56,27 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
 
     // Update or create availability
     if (availability) {
-      availability = await prisma.masterAvailability.update({
-        where: { masterId: user.userId },
-        data: {
-          workingHours: updatedWorkingHours,
-          ...(validatedData.timezone && { timezone: validatedData.timezone })
-        }
+      availability = await availabilityRepo.updateMasterAvailability(user.userId, {
+        workingHours: updatedWorkingHours,
+        ...(validatedData.timezone && { timezone: validatedData.timezone })
       });
     } else {
-      availability = await prisma.masterAvailability.create({
-        data: {
-          masterId: user.userId,
-          workingHours: updatedWorkingHours,
-          timezone: validatedData.timezone || 'Asia/Bishkek'
-        }
+      availability = await availabilityRepo.createMasterAvailability(user.userId, {
+        workingHours: updatedWorkingHours,
+        timezone: validatedData.timezone || 'Asia/Bishkek'
       });
     }
 
     // Block dates if provided
     if (validatedData.blockedDates && validatedData.blockedDates.length > 0) {
       // Delete existing slots for blocked dates
-      await prisma.availabilitySlot.deleteMany({
-        where: {
-          masterId: user.userId,
-          date: {
-            in: validatedData.blockedDates.map(date => new Date(date))
-          },
-          isBooked: false // Don't delete booked slots
-        }
-      });
+      for (const date of validatedData.blockedDates) {
+        await availabilityRepo.deleteSlots(user.userId, {
+          startDate: date,
+          endDate: date,
+          onlyUnbooked: true // Don't delete booked slots
+        });
+      }
     }
 
     // Generate new slots if requested
@@ -131,7 +95,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       const currentDate = new Date(start);
 
       while (currentDate <= end) {
-        const dayName = currentDate.toLocaleDateString('en-US', { weekday: 'lowercase' });
+        const dayName = currentDate.toLocaleDateString('en-US', { weekday: 'lowercase' }) as keyof typeof updatedWorkingHours;
         const dayHours = updatedWorkingHours[dayName];
 
         if (dayHours && dayHours.enabled) {
@@ -159,11 +123,9 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
             
             if (slotEnd <= dayEnd) {
               slotsToCreate.push({
-                masterId: user.userId,
-                date: new Date(currentDate),
+                date: currentDate.toISOString().split('T')[0],
                 startTime: slotStart.toTimeString().slice(0, 5),
-                endTime: slotEnd.toTimeString().slice(0, 5),
-                isBooked: false
+                endTime: slotEnd.toTimeString().slice(0, 5)
               });
             }
 
@@ -175,22 +137,14 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       }
 
       // Delete existing unbooked slots in the range and create new ones
-      await prisma.availabilitySlot.deleteMany({
-        where: {
-          masterId: user.userId,
-          date: {
-            gte: start,
-            lte: end
-          },
-          isBooked: false
-        }
+      await availabilityRepo.deleteSlots(user.userId, {
+        startDate,
+        endDate,
+        onlyUnbooked: true
       });
 
       if (slotsToCreate.length > 0) {
-        await prisma.availabilitySlot.createMany({
-          data: slotsToCreate,
-          skipDuplicates: true
-        });
+        await availabilityRepo.createManySlots(user.userId, slotsToCreate);
       }
     }
 
@@ -222,7 +176,5 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     }
 
     return createErrorResponse(500, 'INTERNAL_ERROR', 'Failed to update availability');
-  } finally {
-    await prisma.$disconnect();
   }
 };

@@ -1,14 +1,15 @@
 // Send file message in chat
 
 import type { APIGatewayProxyResult } from 'aws-lambda';
-import { getPrismaClient } from '@/shared/db/client';
-import { S3Service } from '@/shared/services/s3';
-import { success, forbidden, notFound, badRequest } from '@/shared/utils/response';
-import { withAuth, AuthenticatedEvent } from '@/shared/middleware/auth';
-import { withErrorHandler } from '@/shared/middleware/errorHandler';
-import { logger } from '@/shared/utils/logger';
+import { ChatRepository } from '../shared/repositories/chat.repository';
+import { S3Service } from '../shared/services/s3';
+import { success, forbidden, notFound, badRequest } from '../shared/utils/response';
+import { withAuth, AuthenticatedEvent } from '../shared/middleware/auth';
+import { withErrorHandler } from '../shared/middleware/errorHandler';
+import { logger } from '../shared/utils/logger';
 
 const s3Service = new S3Service();
+const chatRepository = new ChatRepository();
 
 async function sendFileHandler(
   event: AuthenticatedEvent
@@ -26,17 +27,13 @@ async function sendFileHandler(
   
   logger.info('Send file message request', { userId, roomId });
   
-  const prisma = getPrismaClient();
-  
   // Check if user is participant
-  const participant = await prisma.chatRoomParticipant.findFirst({
-    where: {
-      roomId,
-      userId,
-    },
-  });
+  const room = await chatRepository.findRoomById(roomId);
+  if (!room) {
+    return notFound('Room not found');
+  }
   
-  if (!participant) {
+  if (!room.participants.includes(userId)) {
     return forbidden('You are not a participant in this chat room');
   }
   
@@ -53,36 +50,23 @@ async function sendFileHandler(
   );
   
   // Create message with file
-  const message = await prisma.message.create({
-    data: {
-      roomId,
-      senderId: userId,
-      content: `[File: ${fileName}]`,
-      messageType: 'FILE',
-      fileUrl,
-      fileName,
-    },
-    include: {
-      sender: {
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          avatar: true,
-        },
-      },
-    },
+  const message = await chatRepository.createMessage({
+    roomId,
+    senderId: userId,
+    content: `[File: ${fileName}]`,
+    type: 'FILE',
+    fileUrl,
+    fileName,
+    fileSize: fileBuffer.length,
   });
   
   // Update room last message
-  await prisma.chatRoom.update({
-    where: { id: roomId },
-    data: {
-      lastMessageAt: new Date(),
-      lastMessage: `[File: ${fileName}]`,
-    },
+  await chatRepository.updateRoom(roomId, {
+    lastMessageAt: message.createdAt,
+    lastMessage: `[File: ${fileName}]`,
   });
   
+  logger.info('File message sent', { messageId: message.id, roomId, fileName });
   return success(message, { statusCode: 201 });
 }
 

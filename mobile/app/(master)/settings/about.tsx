@@ -54,7 +54,7 @@ export default function MasterAboutPage() {
         <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-4">
           <Text className="text-lg font-bold text-gray-900 mb-4">Возможности для мастеров</Text>
           
-          <View className="space-y-4">
+          <View className="flex flex-col gap-4">
             {[
               { icon: 'briefcase', title: 'Поиск заказов', desc: 'Находите подходящие заказы в вашем городе' },
               { icon: 'shield-checkmark', title: 'Безопасные сделки', desc: 'Защищенные платежи через эскроу' },
@@ -84,7 +84,7 @@ export default function MasterAboutPage() {
             максимально простым, безопасным и прозрачным.
           </Text>
 
-          <View className="space-y-3">
+          <View className="flex flex-col gap-3">
             <TouchableOpacity
               onPress={() => handleOpenLink('https://handshakeme.kg/privacy')}
               className="flex-row items-center justify-between py-2"
@@ -115,7 +115,7 @@ export default function MasterAboutPage() {
         <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-6">
           <Text className="text-lg font-bold text-gray-900 mb-4">Контакты</Text>
           
-          <View className="space-y-3">
+          <View className="flex flex-col gap-3">
             <TouchableOpacity
               onPress={() => handleOpenLink('mailto:support@handshakeme.kg')}
               className="flex-row items-center gap-3"

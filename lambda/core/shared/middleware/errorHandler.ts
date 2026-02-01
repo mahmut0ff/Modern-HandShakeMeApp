@@ -1,92 +1,59 @@
-// Error handling middleware
-
-import type { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { ZodError } from 'zod';
+import type { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
+import { internalServerError, badRequest, unprocessableEntity } from '../utils/response';
 import { logger } from '../utils/logger';
-import { error, internalError, validationError } from '../utils/response';
+import { ZodError } from 'zod';
 
-export type Handler = (
-  event: APIGatewayProxyEvent
+export type LambdaHandler = (
+  event: APIGatewayProxyEvent,
+  context: Context
 ) => Promise<APIGatewayProxyResult>;
 
-// Custom error classes
-export class AppError extends Error {
-  constructor(
-    public code: string,
-    message: string,
-    public statusCode: number = 400,
-    public details?: unknown
-  ) {
-    super(message);
-    this.name = 'AppError';
-  }
-}
-
-export class ValidationError extends AppError {
-  constructor(message: string, details?: unknown) {
-    super('VALIDATION_ERROR', message, 400, details);
-    this.name = 'ValidationError';
-  }
-}
-
-export class UnauthorizedError extends AppError {
-  constructor(message = 'Unauthorized') {
-    super('UNAUTHORIZED', message, 401);
-    this.name = 'UnauthorizedError';
-  }
-}
-
-export class ForbiddenError extends AppError {
-  constructor(message = 'Forbidden') {
-    super('FORBIDDEN', message, 403);
-    this.name = 'ForbiddenError';
-  }
-}
-
-export class NotFoundError extends AppError {
-  constructor(message = 'Resource not found') {
-    super('NOT_FOUND', message, 404);
-    this.name = 'NotFoundError';
-  }
-}
-
-export class ConflictError extends AppError {
-  constructor(message: string) {
-    super('CONFLICT', message, 409);
-    this.name = 'ConflictError';
-  }
-}
-
-// Error handler middleware
-export function withErrorHandler(handler: Handler): Handler {
-  return async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+export function withErrorHandler(handler: LambdaHandler): LambdaHandler {
+  return async (
+    event: APIGatewayProxyEvent,
+    context: Context
+  ): Promise<APIGatewayProxyResult> => {
     try {
-      return await handler(event);
-    } catch (err) {
-      logger.error('Handler error', err);
+      return await handler(event, context);
+    } catch (error) {
+      logger.error('Lambda function error', error, {
+        requestId: context.awsRequestId,
+        functionName: context.functionName,
+        path: event.path,
+        httpMethod: event.httpMethod
+      });
 
-      // Handle Zod validation errors
-      if (err instanceof ZodError) {
-        return validationError('Validation failed', err.errors);
+      // Handle specific error types
+      if (error instanceof ZodError) {
+        return unprocessableEntity('Validation failed', {
+          validationErrors: error.errors.map(err => ({
+            path: err.path.join('.'),
+            message: err.message,
+            code: err.code
+          }))
+        });
       }
 
-      // Handle custom app errors
-      if (err instanceof AppError) {
-        return error(err.code, err.message, err.statusCode, err.details);
+      const err = error as any;
+      if (err.name === 'ValidationError') {
+        return badRequest(err.message);
       }
 
-      // Handle unknown errors
-      if (err instanceof Error) {
-        // Don't expose internal error details in production
-        const message =
-          process.env.NODE_ENV === 'production'
-            ? 'Internal server error'
-            : err.message;
-
-        return internalError(message);
+      if (err.name === 'ConditionalCheckFailedException') {
+        return badRequest('Resource conflict or not found');
       }
 
-      return internalError();
+      if (err.name === 'ResourceNotFoundException') {
+        return badRequest('Resource not found');
+      }
+
+      if (err.name === 'AccessDeniedException') {
+        return badRequest('Access denied');
+      }
+
+      // Generic error response
+      const errorMessage = err.message || 'An unexpected error occurred';
+      return internalServerError(errorMessage);
     }
   };
 }

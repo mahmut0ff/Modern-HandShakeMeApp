@@ -1,56 +1,36 @@
-// Get notifications for current user
+// Get notifications with DynamoDB
 
-import type { APIGatewayProxyResult } from 'aws-lambda';
-import { z } from 'zod';
-import { getPrismaClient } from '@/shared/db/client';
+import { APIGatewayProxyResult } from 'aws-lambda';
+import { NotificationRepository } from '@/shared/repositories/notification.repository';
 import { success } from '@/shared/utils/response';
-import { paginationSchema, validateSafe } from '@/shared/utils/validation';
 import { withAuth, AuthenticatedEvent } from '@/shared/middleware/auth';
 import { withErrorHandler } from '@/shared/middleware/errorHandler';
 import { logger } from '@/shared/utils/logger';
 
-const filterSchema = paginationSchema.extend({
-  unreadOnly: z.coerce.boolean().optional(),
-});
-
-async function getNotificationsHandler(
-  event: AuthenticatedEvent
-): Promise<APIGatewayProxyResult> {
+async function getNotificationsHandler(event: AuthenticatedEvent): Promise<APIGatewayProxyResult> {
   const userId = event.auth.userId;
-  logger.info('Get notifications', { userId });
+  const limit = parseInt(event.queryStringParameters?.limit || '50');
   
-  const result = validateSafe(filterSchema, event.queryStringParameters || {});
+  logger.info('Get notifications request', { userId, limit });
   
-  if (!result.success) {
-    return success({ data: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 0 } });
-  }
+  const notificationRepo = new NotificationRepository();
   
-  const { page, limit, unreadOnly } = result.data;
+  // Get user notifications
+  const notifications = await notificationRepo.findByUser(userId, limit);
   
-  const prisma = getPrismaClient();
+  // Get unread count
+  const unreadCount = notifications.filter(n => !n.isRead).length;
   
-  const where: any = {
+  logger.info('Notifications retrieved successfully', {
     userId,
-    ...(unreadOnly && { isRead: false }),
-  };
-  
-  const total = await prisma.notification.count({ where });
-  
-  const notifications = await prisma.notification.findMany({
-    where,
-    skip: (page - 1) * limit,
-    take: limit,
-    orderBy: { createdAt: 'desc' },
+    count: notifications.length,
+    unreadCount,
   });
   
   return success({
-    data: notifications,
-    pagination: {
-      page,
-      limit,
-      total,
-      totalPages: Math.ceil(total / limit),
-    },
+    notifications,
+    unreadCount,
+    total: notifications.length,
   });
 }
 

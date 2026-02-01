@@ -1,50 +1,73 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { z } from 'zod';
+import jwt from 'jsonwebtoken';
+import { success, error, forbidden, notFound, badRequest, unauthorized } from '../shared/utils/response';
 import { ReviewRepository } from '../shared/repositories/review.repository';
-import { verifyToken } from '../shared/services/token';
+import { getCacheInvalidator } from '../shared/utils/cache-invalidation';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
 const respondSchema = z.object({
-  response: z.string().min(10).max(1000),
+  response: z.string().min(10, 'Response must be at least 10 characters').max(1000, 'Response must be at most 1000 characters').trim(),
 });
 
 export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
   try {
-    const token = event.headers.Authorization?.replace('Bearer ', '');
-    if (!token) {
-      return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
+    // Get token from header
+    const authHeader = event.headers.Authorization || event.headers.authorization;
+    if (!authHeader) {
+      return unauthorized('Authorization header required');
     }
 
-    const decoded = verifyToken(token);
+    const token = authHeader.replace('Bearer ', '');
+    
+    // Verify token
+    let decoded: any;
+    try {
+      decoded = jwt.verify(token, JWT_SECRET);
+    } catch (error) {
+      return unauthorized('Invalid or expired token');
+    }
+
+    if (decoded.role !== 'MASTER') {
+      return forbidden('Only masters can respond to reviews');
+    }
+
     const reviewId = event.pathParameters?.id;
 
     if (!reviewId) {
-      return { statusCode: 400, body: JSON.stringify({ error: 'Review ID required' }) };
+      return badRequest('Review ID is required');
     }
 
     const reviewRepo = new ReviewRepository();
+    
+    // Find review for this master
     const review = await reviewRepo.findById(decoded.userId, reviewId);
 
     if (!review) {
-      return { statusCode: 404, body: JSON.stringify({ error: 'Review not found' }) };
+      return notFound('Review not found or you do not have permission to respond');
     }
 
     const body = JSON.parse(event.body || '{}');
     const { response } = respondSchema.parse(body);
 
-    const updated = await reviewRepo.update(decoded.userId, reviewId, {
-      response,
-      respondedAt: new Date().toISOString(),
-    });
+    const updated = await reviewRepo.addResponse(decoded.userId, reviewId, response);
+    
+    // Invalidate cache
+    const cacheInvalidator = getCacheInvalidator();
+    await cacheInvalidator.invalidateReviewCache(decoded.userId);
+    
+    console.log(`Response added to review: ${reviewId} by master: ${decoded.userId}`);
 
-    return {
-      statusCode: 200,
-      body: JSON.stringify(updated),
-    };
-  } catch (error: any) {
-    console.error('Respond to review error:', error);
-    return {
-      statusCode: error.name === 'ZodError' ? 400 : 500,
-      body: JSON.stringify({ error: error.message }),
-    };
+    return success(updated);
+    
+  } catch (err) {
+    console.error('Respond to review error:', err);
+    
+    if (err instanceof z.ZodError) {
+      return error('Validation error: ' + err.errors[0].message, 400);
+    }
+    
+    return error('Failed to respond to review', 500);
   }
 }

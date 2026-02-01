@@ -1,14 +1,14 @@
 // Update project milestone
 
-import type { APIGatewayProxyResult } from 'aws-lambda';
+import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { z } from 'zod';
-import { getPrismaClient } from '@/shared/db/client';
-import { success, forbidden, notFound } from '@/shared/utils/response';
-import { withAuth, AuthenticatedEvent } from '@/shared/middleware/auth';
-import { withErrorHandler } from '@/shared/middleware/errorHandler';
-import { withRequestTransform } from '@/shared/middleware/requestTransform';
-import { validateSafe } from '@/shared/utils/validation';
-import { logger } from '@/shared/utils/logger';
+import jwt from 'jsonwebtoken';
+import { ProjectRepository } from '../shared/repositories/project.repository';
+import { MilestoneRepository } from '../shared/repositories/milestone.repository';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const projectRepository = new ProjectRepository();
+const milestoneRepository = new MilestoneRepository();
 
 const updateMilestoneSchema = z.object({
   title: z.string().min(1).max(200).optional(),
@@ -19,62 +19,118 @@ const updateMilestoneSchema = z.object({
   orderNum: z.number().int().nonnegative().optional(),
 });
 
-async function updateMilestoneHandler(
-  event: AuthenticatedEvent
-): Promise<APIGatewayProxyResult> {
-  const userId = event.auth.userId;
-  const milestoneId = event.pathParameters?.id;
-  
-  if (!milestoneId) {
-    return notFound('Milestone ID is required');
-  }
-  
-  logger.info('Update milestone request', { userId, milestoneId });
-  
-  const body = JSON.parse(event.body || '{}');
-  const result = validateSafe(updateMilestoneSchema, body);
-  
-  if (!result.success) {
-    return forbidden('Invalid data');
-  }
-  
-  const data = result.data;
-  const prisma = getPrismaClient();
-  
-  const milestone = await prisma.projectMilestone.findUnique({
-    where: { id: milestoneId },
-    include: {
-      project: {
-        include: {
-          order: true,
-        },
-      },
-    },
-  });
-  
-  if (!milestone) {
-    return notFound('Milestone not found');
-  }
-  
-  // Only client or master can update milestones
-  if (milestone.project.order.clientId !== userId && milestone.project.masterId !== userId) {
-    return forbidden('You do not have permission to update this milestone');
-  }
-  
-  const updateData: any = {};
-  if (data.title) updateData.title = data.title;
-  if (data.description !== undefined) updateData.description = data.description;
-  if (data.amount) updateData.amount = data.amount;
-  if (data.dueDate) updateData.dueDate = new Date(data.dueDate);
-  if (data.status) updateData.status = data.status;
-  if (data.orderNum !== undefined) updateData.orderNum = data.orderNum;
-  
-  const updated = await prisma.projectMilestone.update({
-    where: { id: milestoneId },
-    data: updateData,
-  });
-  
-  return success(updated);
-}
+export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+  try {
+    // Get token from header
+    const authHeader = event.headers.Authorization || event.headers.authorization;
+    if (!authHeader) {
+      return {
+        statusCode: 401,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Authorization header required' })
+      };
+    }
 
-export const handler = withErrorHandler(withRequestTransform(withAuth(updateMilestoneHandler)));
+    const token = authHeader.replace('Bearer ', '');
+    
+    // Verify token
+    let decoded: any;
+    try {
+      decoded = jwt.verify(token, JWT_SECRET);
+    } catch (error) {
+      return {
+        statusCode: 401,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Invalid or expired token' })
+      };
+    }
+
+    const milestoneId = event.pathParameters?.id;
+    const projectId = event.pathParameters?.projectId;
+    
+    if (!milestoneId) {
+      return {
+        statusCode: 400,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Milestone ID is required' })
+      };
+    }
+
+    if (!projectId) {
+      return {
+        statusCode: 400,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Project ID is required' })
+      };
+    }
+    
+    console.log('Update milestone request', { userId: decoded.userId, milestoneId, projectId });
+    
+    const body = JSON.parse(event.body || '{}');
+    
+    // Validate input
+    let data;
+    try {
+      data = updateMilestoneSchema.parse(body);
+    } catch (error) {
+      return {
+        statusCode: 400,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          error: 'Invalid request data',
+          details: error instanceof z.ZodError ? error.errors : 'Validation failed'
+        })
+      };
+    }
+    
+    // Get project to verify ownership
+    const project = await projectRepository.findById(projectId);
+    if (!project) {
+      return {
+        statusCode: 404,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Project not found' })
+      };
+    }
+    
+    // Only client or master can update milestones
+    if (project.clientId !== decoded.userId && project.masterId !== decoded.userId) {
+      return {
+        statusCode: 403,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'You do not have permission to update this milestone' })
+      };
+    }
+    
+    // Check if milestone exists
+    const milestone = await milestoneRepository.findById(milestoneId, projectId);
+    if (!milestone) {
+      return {
+        statusCode: 404,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Milestone not found' })
+      };
+    }
+    
+    // Add completion timestamp if status is being set to completed
+    const updateData: any = { ...data };
+    if (data.status === 'COMPLETED' && milestone.status !== 'COMPLETED') {
+      updateData.completedAt = new Date().toISOString();
+    }
+    
+    const updated = await milestoneRepository.update(milestoneId, projectId, updateData);
+    
+    return {
+      statusCode: 200,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updated)
+    };
+  } catch (error) {
+    console.error('Error updating milestone:', error);
+    return {
+      statusCode: 500,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ error: 'Internal server error' })
+    };
+  }
+};

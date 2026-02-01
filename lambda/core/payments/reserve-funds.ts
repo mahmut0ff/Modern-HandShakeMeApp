@@ -1,10 +1,13 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { z } from 'zod';
-import { success, forbidden, notFound, badRequest } from '../shared/utils/response';
-import { withAuth } from '../shared/middleware/auth';
-import { withRequestTransform } from '../shared/middleware/requestTransform';
-import { getPrismaClient } from '../shared/utils/prisma';
-import { logger } from '../shared/utils/logger';
+import { WalletRepository } from '../shared/repositories/wallet.repository';
+import { ProjectRepository } from '../shared/repositories/project.repository';
+import { UserService } from '../shared/services/user.service';
+import { verifyToken } from '../shared/services/token';
+
+const walletRepository = new WalletRepository();
+const projectRepository = new ProjectRepository();
+const userService = new UserService();
 
 const reserveFundsSchema = z.object({
   projectId: z.string().uuid(),
@@ -21,112 +24,167 @@ function calculateCommission(amount: number): number {
   }
 }
 
-async function reserveFundsHandler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
-  const prisma = getPrismaClient();
-  
+export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   try {
-    const user = (event as any).user;
-    const userId = user.userId;
+    const authHeader = event.headers.Authorization || event.headers.authorization;
+    if (!authHeader) {
+      return {
+        statusCode: 401,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Authorization required' })
+      };
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+    const decoded = verifyToken(token);
+    const userId = decoded.userId;
     
-    if (user.role !== 'CLIENT') {
-      return forbidden('Only clients can reserve funds');
+    // Get user to check role
+    const user = await userService.findUserById(userId);
+    if (!user) {
+      return {
+        statusCode: 404,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'User not found' })
+      };
     }
     
-    logger.info('Reserve funds request', { userId });
+    if (user.role !== 'CLIENT') {
+      return {
+        statusCode: 403,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Only clients can reserve funds' })
+      };
+    }
+    
+    console.log('Reserve funds request', { userId });
     
     const body = JSON.parse(event.body || '{}');
     const data = reserveFundsSchema.parse(body);
     
     // Check idempotency
-    const existingTransaction = await prisma.transaction.findUnique({
-      where: { idempotencyKey: data.idempotencyKey },
-    });
-    
+    const existingTransaction = await walletRepository.findTransactionByIdempotencyKey(data.idempotencyKey);
     if (existingTransaction) {
-      logger.info('Idempotent request, returning existing transaction', {
+      console.log('Idempotent request, returning existing transaction', {
         transactionId: existingTransaction.id,
       });
-      return success(existingTransaction);
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(existingTransaction)
+      };
     }
     
     // Get project
-    const project = await prisma.project.findUnique({
-      where: { id: data.projectId },
-      include: {
-        client: true,
-        master: true,
-      },
-    });
-    
+    const project = await projectRepository.findProjectById(data.projectId);
     if (!project) {
-      return notFound('Project not found');
+      return {
+        statusCode: 404,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Project not found' })
+      };
     }
     
     // Verify user is client
-    if (project.client.userId !== userId) {
-      return forbidden('You can only reserve funds for your own projects');
+    if (project.clientId !== userId) {
+      return {
+        statusCode: 403,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'You can only reserve funds for your own projects' })
+      };
     }
     
     // Calculate commission
     const commission = calculateCommission(project.budget);
     const totalAmount = project.budget + commission;
     
-    // Use transaction for atomicity
-    const result = await prisma.$transaction(async (tx) => {
-      // Get or create client wallet
-      let wallet = await tx.wallet.findUnique({
-        where: { userId },
+    // Get or create client wallet
+    let wallet = await walletRepository.findUserWallet(userId);
+    if (!wallet) {
+      wallet = await walletRepository.createWallet({
+        userId,
+        balance: 0,
+        currency: project.currency,
       });
-      
-      if (!wallet) {
-        wallet = await tx.wallet.create({
-          data: { userId, balance: 0 },
-        });
-      }
-      
-      // Check balance
-      if (wallet.balance < totalAmount) {
-        throw new Error('Insufficient balance');
-      }
-      
-      // Deduct from wallet
-      await tx.wallet.update({
-        where: { id: wallet.id },
-        data: { balance: { decrement: totalAmount } },
-      });
-      
-      // Create transaction record
-      const transaction = await tx.transaction.create({
-        data: {
-          userId,
-          projectId: data.projectId,
-          type: 'RESERVE',
-          amount: project.budget,
-          commission,
-          status: 'COMPLETED',
-          idempotencyKey: data.idempotencyKey,
-        },
-      });
-      
-      return transaction;
+    }
+    
+    // Check balance
+    if (wallet.balance < totalAmount) {
+      return {
+        statusCode: 400,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          error: 'Insufficient balance',
+          required: totalAmount,
+          available: wallet.balance,
+          shortfall: totalAmount - wallet.balance
+        })
+      };
+    }
+    
+    // Create transaction record first
+    const transaction = await walletRepository.createTransaction({
+      userId,
+      walletId: wallet.id,
+      type: 'RESERVE',
+      amount: project.budget,
+      commission,
+      currency: project.currency,
+      status: 'PENDING',
+      description: `Reserve funds for project: ${project.title}`,
+      projectId: data.projectId,
+      idempotencyKey: data.idempotencyKey,
     });
     
-    logger.info('Funds reserved', { userId, transactionId: result.id });
+    try {
+      // Deduct from wallet
+      await walletRepository.updateBalance(wallet.id, -totalAmount);
+      
+      // Update transaction status to completed
+      await walletRepository.updateTransactionStatus(transaction.id, userId, 'COMPLETED');
+      
+      console.log('Funds reserved', { userId, transactionId: transaction.id });
+      
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...transaction,
+          status: 'COMPLETED'
+        })
+      };
+    } catch (error) {
+      // If wallet update fails, mark transaction as failed
+      await walletRepository.updateTransactionStatus(transaction.id, userId, 'FAILED');
+      throw error;
+    }
     
-    return success(result);
   } catch (error) {
     console.error('Error reserving funds:', error);
     
     if (error instanceof z.ZodError) {
-      return badRequest(error.errors[0].message);
+      return {
+        statusCode: 400,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          error: 'Validation error',
+          details: error.errors 
+        })
+      };
     }
 
-    if ((error as any).message === 'Insufficient balance') {
-      return badRequest('Insufficient balance');
+    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+      return {
+        statusCode: 401,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Invalid or expired token' })
+      };
     }
 
-    return badRequest('Failed to reserve funds');
+    return {
+      statusCode: 500,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ error: 'Failed to reserve funds' })
+    };
   }
-}
-
-export const handler = withRequestTransform(withAuth(reserveFundsHandler));
+};

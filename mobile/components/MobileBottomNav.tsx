@@ -1,8 +1,25 @@
 import React, { useMemo } from 'react'
 import { View, TouchableOpacity, Text, Platform } from 'react-native'
-import { useRouter, usePathname } from 'expo-router'
+import { useRouter, usePathname, useSegments } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useAppSelector } from '../hooks/redux'
+
+// FIXED: Proper route typing
+type ClientRoute = 
+  | '/(client)/dashboard'
+  | '/(client)/orders'
+  | '/(client)/masters'
+  | '/(client)/chat'
+  | '/(client)/profile'
+
+type MasterRoute = 
+  | '/(master)/dashboard'
+  | '/(master)/projects'
+  | '/(master)/orders'
+  | '/(master)/chat'
+  | '/(master)/profile'
+
+type AppRoute = ClientRoute | MasterRoute
 
 // Icon mapping from BoxIcons to Ionicons
 const iconMap: Record<string, string> = {
@@ -21,36 +38,57 @@ const iconMap: Record<string, string> = {
   'bxs-user': 'person',
 }
 
+// Safe hook wrapper to handle navigation context issues
+function useSafeNavigation() {
+  try {
+    const router = useRouter()
+    const pathname = usePathname() || ''
+    const segments = useSegments() || []
+    return { router, pathname, segments, isReady: true }
+  } catch (error) {
+    return { router: null, pathname: '', segments: [], isReady: false }
+  }
+}
+
 const MobileBottomNav = React.memo(function MobileBottomNav() {
-  const router = useRouter()
-  const pathname = usePathname()
   const { user } = useAppSelector((state) => state.auth)
+  const { router, pathname, isReady } = useSafeNavigation()
   
-  const isMaster = user?.role === 'master' || user?.role === 'admin'
+  // FIXED: Use uppercase role format
+  const isMaster = user?.role === 'MASTER' || user?.role === 'ADMIN'
   
+  // All hooks must be called before any conditional returns
   const navItems = useMemo(() => {
     if (isMaster) {
       return [
-        { path: '/(master)/dashboard', icon: 'bx-home-alt-2', activeIcon: 'bxs-home-alt-2', label: 'Главная' },
-        { path: '/(master)/projects', icon: 'bx-folder', activeIcon: 'bxs-folder', label: 'Проекты' },
-        { path: '/(master)/orders', icon: 'bx-briefcase', activeIcon: 'bxs-briefcase', label: 'Вакансии', isCenter: true },
-        { path: '/(master)/chat', icon: 'bx-chat', activeIcon: 'bxs-chat', label: 'Чаты' },
-        { path: '/(master)/profile', icon: 'bx-user', activeIcon: 'bxs-user', label: 'Профиль' },
+        { path: '/(master)/dashboard' as MasterRoute, icon: 'bx-home-alt-2', activeIcon: 'bxs-home-alt-2', label: 'Главная' },
+        { path: '/(master)/projects' as MasterRoute, icon: 'bx-folder', activeIcon: 'bxs-folder', label: 'Проекты' },
+        { path: '/(master)/orders' as MasterRoute, icon: 'bx-briefcase', activeIcon: 'bxs-briefcase', label: 'Вакансии', isCenter: true },
+        { path: '/(master)/chat' as MasterRoute, icon: 'bx-chat', activeIcon: 'bxs-chat', label: 'Чаты' },
+        { path: '/(master)/profile' as MasterRoute, icon: 'bx-user', activeIcon: 'bxs-user', label: 'Профиль' },
       ]
     }
     return [
-      { path: '/(client)/dashboard', icon: 'bx-home-alt-2', activeIcon: 'bxs-home-alt-2', label: 'Главная' },
-      { path: '/(client)/orders', icon: 'bx-file', activeIcon: 'bxs-file', label: 'Заказы' },
-      { path: '/(client)/masters', icon: 'bx-search', activeIcon: 'bx-search', label: 'Мастера', isCenter: true },
-      { path: '/(client)/chat', icon: 'bx-chat', activeIcon: 'bxs-chat', label: 'Чаты' },
-      { path: '/(client)/profile', icon: 'bx-user', activeIcon: 'bxs-user', label: 'Профиль' },
+      { path: '/(client)/dashboard' as ClientRoute, icon: 'bx-home-alt-2', activeIcon: 'bxs-home-alt-2', label: 'Главная' },
+      { path: '/(client)/orders' as ClientRoute, icon: 'bx-file', activeIcon: 'bxs-file', label: 'Заказы' },
+      { path: '/(client)/masters' as ClientRoute, icon: 'bx-search', activeIcon: 'bx-search', label: 'Мастера', isCenter: true },
+      { path: '/(client)/chat' as ClientRoute, icon: 'bx-chat', activeIcon: 'bxs-chat', label: 'Чаты' },
+      { path: '/(client)/profile' as ClientRoute, icon: 'bx-user', activeIcon: 'bxs-user', label: 'Профиль' },
     ]
   }, [isMaster])
   
-  // Don't render if no user or in specific chat
-  if (!user) return null
-  const isSpecificChatUrl = pathname.match(/\/chat\/\d+/)
+  // Don't render if navigation context is not ready or no user
+  if (!isReady || !router || !user) return null
+  
+  // Don't render in specific chat
+  const isSpecificChatUrl = pathname?.match(/\/chat\/\d+/)
   if (isSpecificChatUrl) return null
+
+  const handleNavigation = (path: AppRoute) => {
+    if (router) {
+      router.push(path) // FIXED: Removed 'as any'
+    }
+  }
 
   return (
     <View style={{
@@ -94,7 +132,7 @@ const MobileBottomNav = React.memo(function MobileBottomNav() {
             return (
               <TouchableOpacity
                 key={item.path}
-                onPress={() => router.push(item.path as any)}
+                onPress={() => handleNavigation(item.path)}
                 style={{
                   flexDirection: 'column',
                   alignItems: 'center',
@@ -137,7 +175,7 @@ const MobileBottomNav = React.memo(function MobileBottomNav() {
           return (
             <TouchableOpacity
               key={item.path}
-              onPress={() => router.push(item.path as any)}
+              onPress={() => handleNavigation(item.path)}
               style={{
                 flexDirection: 'column',
                 alignItems: 'center',

@@ -101,7 +101,7 @@ export default function CardsPage() {
             </TouchableOpacity>
           </View>
         ) : (
-          <View className="space-y-4">
+          <View className="flex flex-col gap-4">
             {cards.map(card => (
               <View key={card.id} className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100">
                 <View className="flex-row items-center gap-4 mb-4">

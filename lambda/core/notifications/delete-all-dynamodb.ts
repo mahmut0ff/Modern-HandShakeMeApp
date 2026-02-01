@@ -1,27 +1,34 @@
+// Delete all notifications with DynamoDB
+
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { NotificationRepository } from '../shared/repositories/notification.repository';
-import { verifyToken } from '../shared/services/token';
+import { NotificationRepository } from '@/shared/repositories/notification.repository';
+import { success, unauthorized, serverError } from '@/shared/utils/response';
+import { logger } from '@/shared/utils/logger';
+import { verifyJWT } from '@/shared/utils/jwt';
 
 export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
   try {
     const token = event.headers.Authorization?.replace('Bearer ', '');
     if (!token) {
-      return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
+      return unauthorized('Authorization token required');
     }
 
-    const decoded = verifyToken(token);
+    const decoded = verifyJWT(token);
+    const userId = decoded.userId;
+    
+    logger.info('Delete all notifications request', { userId });
+    
     const notificationRepo = new NotificationRepository();
-    await notificationRepo.deleteAllForUser(decoded.userId);
+    const deletedCount = await notificationRepo.deleteAllForUser(userId);
+
+    logger.info('All notifications deleted', { userId, deletedCount });
 
     return {
       statusCode: 204,
       body: '',
     };
   } catch (error: any) {
-    console.error('Delete all notifications error:', error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: error.message }),
-    };
+    logger.error('Delete all notifications error:', { error: error.message });
+    return serverError('Failed to delete notifications');
   }
 }

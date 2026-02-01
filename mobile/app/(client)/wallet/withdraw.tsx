@@ -40,8 +40,8 @@ export default function WithdrawPage() {
   const [accountNumber, setAccountNumber] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Mock wallet balance
-  const availableBalance = 12000;
+  // TODO: Replace with actual API call
+  const availableBalance = 0;
 
   const selectedMethodData = WITHDRAWAL_METHODS.find(m => m.id === selectedMethod);
 
@@ -134,7 +134,7 @@ export default function WithdrawPage() {
         <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-4">
           <Text className="text-lg font-bold text-gray-900 mb-4">Способ вывода</Text>
           
-          <View className="space-y-2">
+          <View className="flex flex-col gap-2">
             {WITHDRAWAL_METHODS.map((method) => (
               <TouchableOpacity
                 key={method.id}
@@ -225,7 +225,7 @@ export default function WithdrawPage() {
           <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-4">
             <Text className="text-lg font-bold text-gray-900 mb-4">Детали операции</Text>
             
-            <View className="space-y-3">
+            <View className="flex flex-col gap-3">
               <View className="flex-row justify-between">
                 <Text className="text-gray-600">Сумма вывода:</Text>
                 <Text className="font-semibold text-gray-900">{amount} сом</Text>

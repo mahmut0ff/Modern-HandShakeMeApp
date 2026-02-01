@@ -1,15 +1,18 @@
 // Get verification requirements
 
 import type { APIGatewayProxyResult } from 'aws-lambda';
-import { success } from '@/shared/utils/response';
-import { withErrorHandler } from '@/shared/middleware/errorHandler';
-import { withRequestTransform } from '@/shared/middleware/requestTransform';
-import { logger } from '@/shared/utils/logger';
+import { success } from '../shared/utils/response';
+import { withAuth, AuthenticatedEvent } from '../shared/middleware/auth';
+import { withErrorHandler } from '../shared/middleware/errorHandler';
+import { withRequestTransform } from '../shared/middleware/requestTransform';
+import { logger } from '../shared/utils/logger';
 
 async function getVerificationRequirementsHandler(
-  event: any
+  event: AuthenticatedEvent
 ): Promise<APIGatewayProxyResult> {
-  logger.info('Get verification requirements request');
+  const userId = event.auth.userId;
+  
+  logger.info('Get verification requirements request', { userId });
   
   const requirements = {
     documents: [
@@ -50,4 +53,8 @@ async function getVerificationRequirementsHandler(
   return success(requirements);
 }
 
-export const handler = withErrorHandler(withRequestTransform(getVerificationRequirementsHandler));
+export const handler = withErrorHandler(
+  withRequestTransform(
+    withAuth(getVerificationRequirementsHandler)
+  )
+);

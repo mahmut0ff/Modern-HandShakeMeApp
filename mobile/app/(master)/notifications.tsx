@@ -312,11 +312,11 @@ export default function MasterNotificationsPage() {
     return (
       <ScrollView className="flex-1">
         <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-4">
-          <Text className="text-lg font-bold text-gray-900 mb-4">
+          <View className="flex-row items-center gap-2 mb-4">
             <Ionicons name="chatbubble" size={20} color="#0165FB" />
-            {' '}SMS уведомления
-          </Text>
-          <View className="space-y-2">
+            <Text className="text-lg font-bold text-gray-900">SMS уведомления</Text>
+          </View>
+          <View className="flex flex-col gap-2">
             <View className="flex-row items-center justify-between p-3 bg-gray-50 rounded-2xl">
               <View className="flex-row items-center gap-3">
                 <Ionicons name="shield-checkmark" size={20} color="#6B7280" />
@@ -345,11 +345,11 @@ export default function MasterNotificationsPage() {
         </View>
 
         <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-6">
-          <Text className="text-lg font-bold text-gray-900 mb-4">
+          <View className="flex-row items-center gap-2 mb-4">
             <Ionicons name="notifications" size={20} color="#0165FB" />
-            {' '}Push уведомления
-          </Text>
-          <View className="space-y-2">
+            <Text className="text-lg font-bold text-gray-900">Push уведомления</Text>
+          </View>
+          <View className="flex flex-col gap-2">
             {[
               { key: 'push_new_order', label: 'Новые заказы', icon: 'briefcase' },
               { key: 'push_application_status', label: 'Статус откликов', icon: 'checkmark-circle' },
@@ -505,7 +505,7 @@ export default function MasterNotificationsPage() {
                   <Text className="text-gray-500">Здесь будут появляться ваши уведомления</Text>
                 </View>
               ) : (
-                <View className="space-y-4 pb-6 px-0">
+                <View className="flex flex-col gap-4 pb-6 px-0">
                   {groupedNotifications?.today?.length > 0 && (
                     <View>
                       <Text className="text-sm font-semibold text-gray-500 mb-2 px-1">Сегодня</Text>

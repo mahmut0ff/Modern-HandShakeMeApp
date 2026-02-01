@@ -3,19 +3,36 @@
  * Manages push notification registration, handling, and permissions
  */
 
-import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 
-// Configure notification behavior
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
-});
+// Check if we're in Expo Go
+const isExpoGo = Constants.appOwnership === 'expo';
+
+// Only import and configure notifications if not in Expo Go
+let Notifications: typeof import('expo-notifications') | null = null;
+
+if (!isExpoGo) {
+  try {
+    Notifications = require('expo-notifications');
+
+    if (Notifications) {
+      // Configure notification behavior
+      Notifications.setNotificationHandler({
+        handleNotification: async () => ({
+          shouldShowAlert: true,
+          shouldPlaySound: true,
+          shouldSetBadge: true,
+          shouldShowBanner: true,
+          shouldShowList: true,
+        }),
+      });
+    }
+  } catch (e) {
+    console.warn('Failed to load expo-notifications');
+  }
+}
 
 export interface PushNotificationData {
   title?: string;
@@ -25,8 +42,8 @@ export interface PushNotificationData {
 
 class PushNotificationService {
   private expoPushToken: string | null = null;
-  private notificationListener: Notifications.Subscription | null = null;
-  private responseListener: Notifications.Subscription | null = null;
+  private notificationListener: any = null;
+  private responseListener: any = null;
 
   /**
    * Initialize push notifications
@@ -34,7 +51,7 @@ class PushNotificationService {
    */
   async initialize(): Promise<string | null> {
     // Skip initialization in Expo Go (SDK 53+)
-    if (!Device.isDevice || Constants.appOwnership === 'expo') {
+    if (!Device.isDevice || isExpoGo || !Notifications) {
       console.warn('Push notifications require a development build (not available in Expo Go)');
       return null;
     }
@@ -56,7 +73,7 @@ class PushNotificationService {
 
       // Get Expo push token
       const projectId = Constants.expoConfig?.extra?.eas?.projectId;
-      
+
       if (!projectId) {
         console.warn('No project ID found for push notifications');
         return null;
@@ -89,9 +106,11 @@ class PushNotificationService {
    * Set up notification listeners
    */
   setupListeners(
-    onNotificationReceived?: (notification: Notifications.Notification) => void,
-    onNotificationResponse?: (response: Notifications.NotificationResponse) => void
+    onNotificationReceived?: (notification: any) => void,
+    onNotificationResponse?: (response: any) => void
   ) {
+    if (!Notifications) return;
+
     // Listener for notifications received while app is foregrounded
     this.notificationListener = Notifications.addNotificationReceivedListener(
       (notification) => {
@@ -113,14 +132,16 @@ class PushNotificationService {
    * Remove notification listeners
    */
   removeListeners() {
+    if (!Notifications) return;
+
     try {
       if (this.notificationListener) {
-        Notifications.removeNotificationSubscription(this.notificationListener);
+        (Notifications as any).removeNotificationSubscription(this.notificationListener);
         this.notificationListener = null;
       }
 
       if (this.responseListener) {
-        Notifications.removeNotificationSubscription(this.responseListener);
+        (Notifications as any).removeNotificationSubscription(this.responseListener);
         this.responseListener = null;
       }
     } catch (error) {
@@ -136,8 +157,10 @@ class PushNotificationService {
     title: string,
     body: string,
     data?: Record<string, any>,
-    trigger?: Notifications.NotificationTriggerInput
+    trigger?: any
   ): Promise<string> {
+    if (!Notifications) return '';
+
     return await Notifications.scheduleNotificationAsync({
       content: {
         title,
@@ -153,6 +176,7 @@ class PushNotificationService {
    * Cancel a scheduled notification
    */
   async cancelNotification(notificationId: string): Promise<void> {
+    if (!Notifications) return;
     await Notifications.cancelScheduledNotificationAsync(notificationId);
   }
 
@@ -160,6 +184,7 @@ class PushNotificationService {
    * Cancel all scheduled notifications
    */
   async cancelAllNotifications(): Promise<void> {
+    if (!Notifications) return;
     await Notifications.cancelAllScheduledNotificationsAsync();
   }
 
@@ -167,6 +192,7 @@ class PushNotificationService {
    * Get badge count
    */
   async getBadgeCount(): Promise<number> {
+    if (!Notifications) return 0;
     return await Notifications.getBadgeCountAsync();
   }
 
@@ -174,6 +200,7 @@ class PushNotificationService {
    * Set badge count
    */
   async setBadgeCount(count: number): Promise<void> {
+    if (!Notifications) return;
     await Notifications.setBadgeCountAsync(count);
   }
 
@@ -181,6 +208,7 @@ class PushNotificationService {
    * Clear badge
    */
   async clearBadge(): Promise<void> {
+    if (!Notifications) return;
     await Notifications.setBadgeCountAsync(0);
   }
 
@@ -195,6 +223,7 @@ class PushNotificationService {
    * Check if notifications are enabled
    */
   async areNotificationsEnabled(): Promise<boolean> {
+    if (!Notifications) return false;
     const { status } = await Notifications.getPermissionsAsync();
     return status === 'granted';
   }
@@ -203,6 +232,7 @@ class PushNotificationService {
    * Open device notification settings
    */
   async openSettings(): Promise<void> {
+    if (!Notifications) return;
     await Notifications.getPermissionsAsync();
   }
 }

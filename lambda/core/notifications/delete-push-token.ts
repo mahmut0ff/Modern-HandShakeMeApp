@@ -1,8 +1,8 @@
-// Delete push notification token
+// Delete push notification token with DynamoDB
 
 import type { APIGatewayProxyResult } from 'aws-lambda';
 import { z } from 'zod';
-import { getPrismaClient } from '@/shared/db/client';
+import { NotificationRepository } from '@/shared/repositories/notification.repository';
 import { success, notFound } from '@/shared/utils/response';
 import { withAuth, AuthenticatedEvent } from '@/shared/middleware/auth';
 import { withErrorHandler } from '@/shared/middleware/errorHandler';
@@ -24,20 +24,18 @@ async function deletePushTokenHandler(
   const body = JSON.parse(event.body || '{}');
   const data = validate(deletePushTokenSchema, body);
   
-  const prisma = getPrismaClient();
+  const notificationRepo = new NotificationRepository();
   
-  const deleted = await prisma.pushToken.deleteMany({
-    where: {
-      userId,
-      platform: data.platform,
-    },
-  });
-  
-  if (deleted.count === 0) {
+  try {
+    await notificationRepo.deletePushToken(userId, data.platform);
+    
+    logger.info('Push token deleted successfully', { userId, platform: data.platform });
+    
+    return success({ message: 'Push token deleted successfully' });
+  } catch (error) {
+    logger.warn('Push token not found or already deleted', { userId, platform: data.platform });
     return notFound('Push token not found');
   }
-  
-  return success({ message: 'Push token deleted successfully' });
 }
 
 export const handler = withErrorHandler(withRequestTransform(withAuth(deletePushTokenHandler)));

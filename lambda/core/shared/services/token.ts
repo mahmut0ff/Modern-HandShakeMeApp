@@ -1,6 +1,7 @@
 // JWT token service
 
-import { sign, verify } from 'jsonwebtoken';
+import jwt from 'jsonwebtoken';
+const { sign, verify } = jwt;
 import { getRedisClient } from '../cache/client';
 import { logger } from '../utils/logger';
 import type { AuthContext } from '../types';

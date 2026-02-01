@@ -1,112 +1,131 @@
 // List services Lambda function
 
-import type { APIGatewayProxyResult } from 'aws-lambda';
+import type { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import { paginatedResponse, badRequestResponse } from '../shared/utils/unified-response';
+import { logger } from '../shared/utils/logger';
+import { ServiceRepository, ServiceCategoryRepository } from '../shared/repositories/service.repository';
 import { z } from 'zod';
-import { getPrismaClient } from '@/shared/db/client';
-import { paginated } from '@/shared/utils/response';
-import { paginationSchema, validateSafe } from '@/shared/utils/validation';
-import { withAuth, AuthenticatedEvent } from '@/shared/middleware/auth';
-import { withErrorHandler } from '@/shared/middleware/errorHandler';
-import { withRequestTransform } from '@/shared/middleware/requestTransform';
-import { logger } from '@/shared/utils/logger';
 
-const filterSchema = paginationSchema.extend({
-  masterId: z.string().optional(),
-  categoryId: z.coerce.number().int().positive().optional(),
-  isActive: z.enum(['true', 'false']).optional(),
+const listServicesSchema = z.object({
+  page: z.coerce.number().min(1).default(1),
+  page_size: z.coerce.number().min(1).max(100).default(20),
+  master_id: z.string().optional(),
+  category_id: z.string().optional(),
+  is_active: z.enum(['true', 'false']).optional(),
+  location: z.enum(['CLIENT_LOCATION', 'MASTER_LOCATION', 'REMOTE', 'BOTH']).optional(),
+  price_min: z.coerce.number().positive().optional(),
+  price_max: z.coerce.number().positive().optional(),
+  search: z.string().min(2).optional(),
 });
 
-async function listServicesHandler(
-  event: AuthenticatedEvent
+export async function handler(
+  event: APIGatewayProxyEvent
 ): Promise<APIGatewayProxyResult> {
-  const userId = event.auth.userId;
-  
-  logger.info('List services request', { userId });
-  
-  const result = validateSafe(filterSchema, event.queryStringParameters || {});
-  
-  if (!result.success) {
-    return paginated([], 0, 1, 20);
-  }
-  
-  const { page, page_size, masterId, categoryId, isActive } = result.data;
-  
-  const prisma = getPrismaClient();
-  
-  // Build where clause
-  const where: any = {};
-  
-  if (masterId) {
-    where.masterId = masterId;
-  }
-  
-  if (categoryId) {
-    where.categoryId = categoryId;
-  }
-  
-  if (isActive !== undefined) {
-    where.isActive = isActive === 'true';
-  }
-  
-  // Get total count
-  const total = await prisma.masterService.count({ where });
-  
-  // Get services
-  const services = await prisma.masterService.findMany({
-    where,
-    skip: (page - 1) * page_size,
-    take: page_size,
-    include: {
-      category: {
-        select: {
-          id: true,
-          name: true
-        }
+  try {
+    logger.info('List services request');
+    
+    const queryParams = event.queryStringParameters || {};
+    const result = listServicesSchema.safeParse(queryParams);
+    
+    if (!result.success) {
+      return badRequestResponse('Invalid query parameters', result.error.errors);
+    }
+    
+    const { 
+      page, 
+      page_size, 
+      master_id, 
+      category_id, 
+      is_active, 
+      location,
+      price_min,
+      price_max,
+      search 
+    } = result.data;
+    
+    const serviceRepository = new ServiceRepository();
+    
+    // Build search options
+    const searchOptions = {
+      query: search,
+      categoryId: category_id,
+      masterId: master_id,
+      location: location,
+      priceMin: price_min,
+      priceMax: price_max,
+      isActive: is_active !== undefined ? is_active === 'true' : true,
+      limit: page_size * page, // Get more for pagination
+    };
+    
+    // Search services
+    const allServices = await serviceRepository.searchServices(searchOptions);
+    
+    // Manual pagination
+    const startIndex = (page - 1) * page_size;
+    const endIndex = startIndex + page_size;
+    const paginatedServices = allServices.slice(startIndex, endIndex);
+    const total = allServices.length;
+    
+    logger.info('Services retrieved', { 
+      count: paginatedServices.length,
+      total,
+      filters: searchOptions 
+    });
+    
+    // Get category names for services
+    const categoryRepository = new ServiceCategoryRepository();
+    const categoryIds = [...new Set(paginatedServices.map(s => s.categoryId))];
+    const categories = await Promise.all(
+      categoryIds.map(id => categoryRepository.findById(id))
+    );
+    const categoryMap = Object.fromEntries(
+      categories.filter(Boolean).map(cat => [cat!.id, cat!.name])
+    );
+    
+    // Format services for mobile app
+    const formattedServices = paginatedServices.map(service => ({
+      id: service.id,
+      master_id: service.masterId,
+      category_id: service.categoryId,
+      category_name: categoryMap[service.categoryId] || '',
+      title: service.title,
+      description: service.description,
+      price_type: service.priceType.toLowerCase(),
+      price_from: service.priceFrom?.toString(),
+      price_to: service.priceTo?.toString(),
+      price_per_hour: service.pricePerHour?.toString(),
+      duration: service.duration,
+      location: service.location.toLowerCase(),
+      is_active: service.isActive,
+      is_instant_booking: service.isInstantBooking,
+      tags: service.tags,
+      images: service.images,
+      views_count: service.viewsCount,
+      orders_count: service.ordersCount,
+      rating: service.rating,
+      reviews_count: service.reviewsCount,
+      created_at: service.createdAt,
+      updated_at: service.updatedAt,
+    }));
+    
+    return paginatedResponse(formattedServices, total, page, page_size);
+  } catch (error: any) {
+    logger.error('List services failed', { error });
+    
+    return {
+      statusCode: 500,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
       },
-      master: {
-        include: {
-          user: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              avatar: true
-            }
-          }
-        }
-      }
-    },
-    orderBy: [
-      { isActive: 'desc' },
-      { createdAt: 'desc' }
-    ]
-  });
-  
-  logger.info('Services retrieved', { count: services.length });
-  
-  // Format services
-  const formattedServices = services.map(service => ({
-    id: service.id,
-    masterId: service.masterId,
-    masterName: `${service.master.user.firstName} ${service.master.user.lastName}`,
-    masterAvatar: service.master.user.avatar,
-    masterCompanyName: service.master.companyName,
-    masterRating: service.master.rating?.toString(),
-    name: service.name,
-    description: service.description,
-    priceFrom: service.priceFrom.toString(),
-    priceTo: service.priceTo?.toString(),
-    unit: service.unit,
-    categoryId: service.categoryId,
-    categoryName: service.category.name,
-    isActive: service.isActive,
-    isFeatured: service.isFeatured || false,
-    orderNum: service.order_num || 0,
-    createdAt: service.createdAt,
-    updatedAt: service.updatedAt
-  }));
-  
-  return paginated(formattedServices, total, page, page_size);
+      body: JSON.stringify({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Internal server error',
+        },
+        timestamp: new Date().toISOString(),
+      }),
+    };
+  }
 }
-
-export const handler = withErrorHandler(withRequestTransform(withAuth(listServicesHandler)));

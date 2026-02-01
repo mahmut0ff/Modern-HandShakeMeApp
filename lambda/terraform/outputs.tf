@@ -18,3 +18,34 @@ output "lambda_role_arn" {
   value       = aws_iam_role.lambda_role.arn
 }
 
+
+# Worker outputs
+output "rating_calculation_queue_url" {
+  description = "Rating calculation SQS queue URL"
+  value       = aws_sqs_queue.rating_calculation_queue.url
+}
+
+output "rating_calculation_queue_arn" {
+  description = "Rating calculation SQS queue ARN"
+  value       = aws_sqs_queue.rating_calculation_queue.arn
+}
+
+output "recommendation_queue_url" {
+  description = "Recommendation SQS queue URL"
+  value       = aws_sqs_queue.recommendation_queue.url
+}
+
+output "recommendation_queue_arn" {
+  description = "Recommendation SQS queue ARN"
+  value       = aws_sqs_queue.recommendation_queue.arn
+}
+
+output "rating_calculator_function_name" {
+  description = "Rating calculator Lambda function name"
+  value       = aws_lambda_function.rating_calculator.function_name
+}
+
+output "recommendation_function_name" {
+  description = "Recommendation Lambda function name"
+  value       = aws_lambda_function.recommendation.function_name
+}

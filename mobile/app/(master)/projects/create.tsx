@@ -114,7 +114,7 @@ export default function CreateProjectPage() {
         <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-4">
           <Text className="font-semibold text-gray-900 mb-4">Основная информация</Text>
           
-          <View className="space-y-4">
+          <View className="flex flex-col gap-4">
             <View>
               <Text className="text-sm font-medium text-gray-700 mb-2">Заказ *</Text>
               <TouchableOpacity 
@@ -210,7 +210,7 @@ export default function CreateProjectPage() {
             </TouchableOpacity>
           </View>
           
-          <View className="space-y-4">
+          <View className="flex flex-col gap-4">
             {formData.milestones.map((milestone, index) => (
               <View key={index} className="p-4 bg-gray-50 rounded-2xl">
                 <View className="flex-row items-center justify-between mb-3">
@@ -225,7 +225,7 @@ export default function CreateProjectPage() {
                   )}
                 </View>
                 
-                <View className="space-y-3">
+                <View className="flex flex-col gap-3">
                   <TextInput
                     value={milestone.title}
                     onChangeText={(text) => handleMilestoneChange(index, 'title', text)}

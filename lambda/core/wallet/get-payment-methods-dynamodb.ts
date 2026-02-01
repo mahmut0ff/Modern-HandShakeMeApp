@@ -1,47 +1,44 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import jwt from 'jsonwebtoken';
+// Get payment methods Lambda function
+
+import type { APIGatewayProxyResult } from 'aws-lambda';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, QueryCommand } from '@aws-sdk/lib-dynamodb';
+import { success } from '../shared/utils/response';
+import { withAuth, AuthenticatedEvent } from '../shared/middleware/auth';
+import { withErrorHandler } from '../shared/middleware/errorHandler';
+import { withRequestTransform } from '../shared/middleware/requestTransform';
+import { logger } from '../shared/utils/logger';
 
 const client = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(client);
 const TABLE_NAME = process.env.DYNAMODB_TABLE || 'handshake-table';
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
-export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
-  try {
-    const authHeader = event.headers.Authorization || event.headers.authorization;
-    if (!authHeader) {
-      return {
-        statusCode: 401,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Authorization required' })
-      };
+async function getPaymentMethodsHandler(
+  event: AuthenticatedEvent
+): Promise<APIGatewayProxyResult> {
+  const userId = event.auth.userId;
+  
+  logger.info('Get payment methods request', { userId });
+  
+  const result = await docClient.send(new QueryCommand({
+    TableName: TABLE_NAME,
+    KeyConditionExpression: 'PK = :pk AND begins_with(SK, :sk)',
+    ExpressionAttributeValues: {
+      ':pk': `USER#${userId}`,
+      ':sk': 'PAYMENT_METHOD#'
     }
+  }));
+  
+  logger.info('Payment methods retrieved successfully', { 
+    userId, 
+    count: result.Items?.length || 0 
+  });
+  
+  return success(result.Items || []);
+}
 
-    const token = authHeader.replace('Bearer ', '');
-    const decoded: any = jwt.verify(token, JWT_SECRET);
-
-    const result = await docClient.send(new QueryCommand({
-      TableName: TABLE_NAME,
-      KeyConditionExpression: 'PK = :pk AND begins_with(SK, :sk)',
-      ExpressionAttributeValues: {
-        ':pk': `USER#${decoded.userId}`,
-        ':sk': 'PAYMENT_METHOD#'
-      }
-    }));
-
-    return {
-      statusCode: 200,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(result.Items || [])
-    };
-  } catch (error) {
-    console.error('Error:', error);
-    return {
-      statusCode: 500,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: 'Internal server error' })
-    };
-  }
-};
+export const handler = withErrorHandler(
+  withRequestTransform(
+    withAuth(getPaymentMethodsHandler)
+  )
+);

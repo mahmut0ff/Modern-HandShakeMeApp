@@ -1,85 +1,78 @@
 // Toggle service status Lambda function
 
-import type { APIGatewayProxyResult } from 'aws-lambda';
-import { getPrismaClient } from '@/shared/db/client';
-import { success, notFound, forbidden } from '@/shared/utils/response';
-import { withAuth, AuthenticatedEvent } from '@/shared/middleware/auth';
-import { withErrorHandler } from '@/shared/middleware/errorHandler';
-import { logger } from '@/shared/utils/logger';
+import type { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import { verifyToken } from '../shared/services/token';
+import { successResponse, badRequestResponse, unauthorizedResponse, forbiddenResponse, notFoundResponse } from '../shared/utils/unified-response';
+import { logger } from '../shared/utils/logger';
+import { ServiceRepository } from '../shared/repositories/service.repository';
 
-async function toggleServiceStatusHandler(
-  event: AuthenticatedEvent
+export async function handler(
+  event: APIGatewayProxyEvent
 ): Promise<APIGatewayProxyResult> {
-  const userId = event.auth.userId;
-  const serviceId = event.pathParameters?.id;
-  
-  if (!serviceId) {
-    return notFound('Service ID is required');
-  }
-  
-  if (event.auth.role !== 'MASTER') {
-    return forbidden('Only masters can toggle service status');
-  }
-  
-  logger.info('Toggle service status request', { userId, serviceId });
-  
-  const prisma = getPrismaClient();
-  
-  // Get service and verify ownership
-  const service = await prisma.masterService.findUnique({
-    where: { id: parseInt(serviceId) },
-  });
-  
-  if (!service) {
-    return notFound('Service not found');
-  }
-  
-  if (service.masterId !== userId) {
-    return forbidden('You can only toggle your own services');
-  }
-  
-  // Toggle status
-  const updatedService = await prisma.masterService.update({
-    where: { id: parseInt(serviceId) },
-    data: {
-      isActive: !service.isActive,
-      updatedAt: new Date(),
-    },
-    include: {
-      category: {
-        select: {
-          id: true,
-          name: true,
-        },
+  try {
+    const token = event.headers.Authorization?.replace('Bearer ', '');
+    if (!token) {
+      return unauthorizedResponse('Missing authorization token');
+    }
+    
+    const decoded = verifyToken(token);
+    const serviceId = event.pathParameters?.id;
+    
+    if (!serviceId) {
+      return badRequestResponse('Service ID is required');
+    }
+    
+    logger.info('Toggle service status request', { userId: decoded.userId, serviceId });
+    
+    // Check if user is a master (from token)
+    if (decoded.role !== 'MASTER') {
+      return forbiddenResponse('Only masters can toggle service status');
+    }
+    
+    const serviceRepository = new ServiceRepository();
+    
+    // Check if service exists and belongs to the master
+    const service = await serviceRepository.findById(serviceId);
+    if (!service) {
+      return notFoundResponse('Service not found');
+    }
+    
+    if (service.masterId !== decoded.userId) {
+      return forbiddenResponse('You can only modify your own services');
+    }
+    
+    // Toggle the status
+    const updatedService = await serviceRepository.toggleStatus(serviceId);
+    
+    logger.info('Service status toggled successfully', { 
+      serviceId, 
+      userId: decoded.userId,
+      oldStatus: service.isActive,
+      newStatus: updatedService.isActive
+    });
+    
+    return successResponse(updatedService);
+  } catch (error: any) {
+    logger.error('Toggle service status error:', error);
+    
+    if (error.message === 'Invalid token') {
+      return unauthorizedResponse('Invalid or expired token');
+    }
+    
+    return {
+      statusCode: 500,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
       },
-    },
-  });
-  
-  logger.info('Service status toggled successfully', { 
-    userId, 
-    serviceId, 
-    newStatus: updatedService.isActive 
-  });
-  
-  // Format response
-  const response = {
-    id: updatedService.id,
-    master: updatedService.masterId,
-    name: updatedService.name,
-    description: updatedService.description,
-    category: updatedService.categoryId,
-    category_name: updatedService.category.name,
-    price_from: updatedService.priceFrom.toString(),
-    price_to: updatedService.priceTo?.toString(),
-    unit: updatedService.unit.toLowerCase(),
-    is_active: updatedService.isActive,
-    is_featured: updatedService.isFeatured || false,
-    order_num: updatedService.order_num || 0,
-    created_at: updatedService.createdAt.toISOString(),
-    updated_at: updatedService.updatedAt.toISOString(),
-  };
-  
-  return success(response);
+      body: JSON.stringify({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Internal server error',
+        },
+        timestamp: new Date().toISOString(),
+      }),
+    };
+  }
 }
-
-export const handler = withErrorHandler(withAuth(toggleServiceStatusHandler));

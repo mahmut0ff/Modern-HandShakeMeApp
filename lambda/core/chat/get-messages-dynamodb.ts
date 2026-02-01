@@ -1,43 +1,51 @@
+// Get messages from chat room
+
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { ChatRepository } from '../shared/repositories/chat.repository';
-import { verifyToken } from '../shared/services/token';
+import { withAuth } from '../shared/middleware/auth';
+import { withErrorHandler } from '../shared/middleware/errorHandler';
+import { success, badRequest, notFound, forbidden } from '../shared/utils/response';
+import { logger } from '../shared/utils/logger';
 
-export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
+async function getMessagesHandler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
+  const userId = (event.requestContext as any).authorizer?.userId;
+  
+  if (!userId) {
+    return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
+  }
+
+  const roomId = event.pathParameters?.roomId;
+  if (!roomId) {
+    return badRequest('Room ID is required');
+  }
+
   try {
-    const token = event.headers.Authorization?.replace('Bearer ', '');
-    if (!token) {
-      return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
-    }
-
-    const decoded = verifyToken(token);
-    const roomId = event.pathParameters?.roomId;
-
-    if (!roomId) {
-      return { statusCode: 400, body: JSON.stringify({ error: 'Room ID required' }) };
-    }
-
     const chatRepo = new ChatRepository();
     const room = await chatRepo.findRoomById(roomId);
 
     if (!room) {
-      return { statusCode: 404, body: JSON.stringify({ error: 'Room not found' }) };
+      return notFound('Room not found');
     }
 
-    if (!room.participants.includes(decoded.userId)) {
-      return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden' }) };
+    if (!room.participants.includes(userId)) {
+      return forbidden('You are not a participant in this room');
     }
 
-    const messages = await chatRepo.findMessages(roomId);
+    // Get pagination parameters
+    const limit = parseInt(event.queryStringParameters?.limit || '50');
+    const lastMessageId = event.queryStringParameters?.lastMessageId;
 
-    return {
-      statusCode: 200,
-      body: JSON.stringify(messages),
-    };
+    const messages = await chatRepo.findMessages(roomId, limit, lastMessageId);
+
+    logger.info('Messages retrieved', { roomId, userId, count: messages.length });
+    return success(messages);
   } catch (error: any) {
-    console.error('Get messages error:', error);
+    logger.error('Get messages error', error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: error.message }),
+      body: JSON.stringify({ error: 'Internal server error' }),
     };
   }
 }
+
+export const handler = withErrorHandler(withAuth(getMessagesHandler));

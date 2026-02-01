@@ -100,29 +100,35 @@ export default function ProfilePage() {
       route: '/(client)/edit-profile'
     },
     {
+      id: 'settings',
+      title: 'Настройки',
+      icon: 'settings',
+      route: '/(client)/settings'
+    },
+    {
       id: 'security',
       title: 'Безопасность',
       icon: 'lock-closed',
-      route: '/(client)/security'
+      route: '/(client)/settings/security'
     },
     {
       id: 'language',
       title: 'Язык',
       icon: 'language',
       subtitle: 'Русский',
-      route: '/(client)/language'
+      route: '/(client)/settings/language'
     },
     {
       id: 'help',
       title: 'Помощь и поддержка',
       icon: 'help-circle',
-      route: '/(client)/help'
+      route: '/(client)/settings/support'
     },
     {
       id: 'about',
       title: 'О приложении',
       icon: 'information-circle',
-      route: '/(client)/about'
+      route: '/(client)/settings/about'
     }
   ]
 

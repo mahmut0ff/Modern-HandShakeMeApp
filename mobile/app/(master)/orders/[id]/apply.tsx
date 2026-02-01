@@ -225,7 +225,7 @@ export default function ApplicationFormPage() {
               Советы для успешного отклика
             </Text>
           </View>
-          <View className="space-y-2">
+          <View className="flex flex-col gap-2">
             {[
               'Укажите реалистичную цену и сроки',
               'Опишите ваш опыт в подобных проектах',

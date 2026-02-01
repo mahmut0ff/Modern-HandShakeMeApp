@@ -1,0 +1,40 @@
+# =============================================================================
+# TERRAFORM VARIABLES FOR ENTERPRISE DEPLOYMENT
+# =============================================================================
+
+# Basic Configuration
+project_name = "handshake"
+environment  = "production"
+aws_region   = "us-east-1"
+
+# Domain Configuration
+domain_name = "handshakeme.kg"
+
+# Security
+redis_auth_token = "your-secure-redis-token-here"
+
+# Notification Emails
+alert_email              = "alerts@handshakeme.kg"
+disaster_recovery_email  = "emergency@handshakeme.kg"
+
+# Performance Optimization Features
+enable_redis                    = true
+enable_global_tables           = true
+enable_provisioned_concurrency = true
+enable_direct_lambda_access    = false
+enable_vpc                     = true
+enable_dynamodb_autoscaling    = false  # Use PAY_PER_REQUEST instead
+
+# Scaling Configuration
+lambda_memory_size = 3008  # Maximum memory for best performance
+lambda_timeout     = 3     # Short timeout for API endpoints
+
+# Multi-Region Setup
+replica_region = "us-west-2"
+
+# Telegram Bot (if using)
+telegram_bot_token    = "your-telegram-bot-token"
+telegram_bot_username = "handshakeme_bot"
+
+# Admin Configuration
+admin_user_ids = "admin1,admin2,admin3"

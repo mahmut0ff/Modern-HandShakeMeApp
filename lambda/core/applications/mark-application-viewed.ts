@@ -1,52 +1,90 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { PrismaClient } from '@/shared/db/mock-prisma';
-import { createResponse, createErrorResponse } from '@/shared/utils/response';
-import { requireAuth } from '@/shared/middleware/auth';
-import { CacheService } from '@/shared/services/cache';
+import { APIGatewayProxyResult } from 'aws-lambda';
+import { ApplicationRepository } from '../shared/repositories/application.repository';
+import { OrderRepository } from '../shared/repositories/order.repository';
+import { UserRepository } from '../shared/repositories/user.repository';
+import { NotificationService } from '../shared/services/notification';
+import { success, badRequest, notFound, forbidden } from '../shared/utils/response';
+import { withAuth, AuthenticatedEvent } from '../shared/middleware/auth';
+import { withErrorHandler } from '../shared/middleware/errorHandler';
+import { logger } from '../shared/utils/logger';
 
-const prisma = new PrismaClient();
-const cache = new CacheService();
-
-export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
-  try {
-    const user = await requireAuth()(event);
-    const applicationId = event.pathParameters?.id;
-    
-    if (!applicationId) {
-      return createErrorResponse(400, 'VALIDATION_ERROR', 'Application ID is required');
-    }
-
-    if (user.role !== 'CLIENT') {
-      return createErrorResponse(403, 'FORBIDDEN', 'Only clients can mark applications as viewed');
-    }
-
-    // Mock marking application as viewed
-    // In real implementation, this would:
-    // 1. Find application by ID
-    // 2. Check if user owns the order
-    // 3. Update viewed_at timestamp
-    // 4. Send notification to master (optional)
-
-    console.log(`Application ${applicationId} marked as viewed by user ${user.userId}`);
-
-    // Invalidate cache
-    await cache.invalidatePattern(`application:${applicationId}*`);
-    await cache.invalidatePattern(`order:*:applications*`);
-
-    return createResponse(200, {
-      message: 'Application marked as viewed',
-      viewed_at: new Date().toISOString()
-    });
-
-  } catch (error) {
-    console.error('Error marking application as viewed:', error);
-    
-    if (error.name === 'UnauthorizedError') {
-      return createErrorResponse(401, 'UNAUTHORIZED', error.message);
-    }
-
-    return createErrorResponse(500, 'INTERNAL_ERROR', 'Failed to mark application as viewed');
-  } finally {
-    await prisma.$disconnect();
+async function markApplicationViewedHandler(event: AuthenticatedEvent): Promise<APIGatewayProxyResult> {
+  const userId = event.auth.userId;
+  const applicationId = event.pathParameters?.id;
+  const orderId = event.queryStringParameters?.orderId;
+  
+  if (!applicationId) {
+    return badRequest('Application ID is required');
   }
-};
+  
+  if (!orderId) {
+    return badRequest('Order ID is required as query parameter');
+  }
+  
+  if (event.auth.role !== 'CLIENT') {
+    return forbidden('Only clients can mark applications as viewed');
+  }
+  
+  logger.info('Mark application viewed request', { userId, applicationId, orderId });
+  
+  const applicationRepo = new ApplicationRepository();
+  const orderRepo = new OrderRepository();
+  const userRepo = new UserRepository();
+  const notificationService = new NotificationService();
+  
+  // Get application
+  const application = await applicationRepo.findById(orderId, applicationId);
+  if (!application) {
+    return notFound('Application not found');
+  }
+  
+  // Get order to verify ownership
+  const order = await orderRepo.findById(orderId);
+  if (!order) {
+    return notFound('Order not found');
+  }
+  
+  // Verify user owns the order
+  if (order.clientId !== userId) {
+    return forbidden('You can only mark applications as viewed for your own orders');
+  }
+  
+  // Skip if already viewed
+  if (application.viewedAt) {
+    return success({
+      message: 'Application already marked as viewed',
+      viewedAt: application.viewedAt
+    });
+  }
+  
+  // Mark application as viewed
+  const updatedApplication = await applicationRepo.markViewed(orderId, applicationId);
+  
+  // Send notification to master
+  try {
+    const client = await userRepo.findById(userId);
+    await notificationService.notifyApplicationViewed(application.masterId, {
+      applicationId,
+      orderId,
+      orderTitle: order.title,
+      clientName: client?.name || `${client?.firstName} ${client?.lastName}`.trim(),
+    });
+  } catch (error) {
+    logger.error('Failed to send application viewed notification', error);
+    // Don't fail the request if notification fails
+  }
+  
+  logger.info('Application marked as viewed successfully', {
+    userId,
+    applicationId,
+    orderId,
+    viewedAt: updatedApplication.viewedAt,
+  });
+  
+  return success({
+    message: 'Application marked as viewed',
+    viewedAt: updatedApplication.viewedAt
+  });
+}
+
+export const handler = withErrorHandler(withAuth(markApplicationViewedHandler, { roles: ['CLIENT'] }));

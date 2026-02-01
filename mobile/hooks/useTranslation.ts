@@ -4,15 +4,15 @@
  */
 
 import { useState, useEffect } from 'react';
-import { t, getCurrentLanguage, changeLanguage, getAvailableLanguages } from '../i18n';
+import { t, getCurrentLocale, changeLocale, getAvailableLocales } from '../i18n';
 
 export const useTranslation = () => {
-  const [currentLanguage, setCurrentLanguage] = useState(getCurrentLanguage());
+  const [currentLanguage, setCurrentLanguage] = useState(getCurrentLocale());
 
   useEffect(() => {
     // Update when language changes
     const interval = setInterval(() => {
-      const lang = getCurrentLanguage();
+      const lang = getCurrentLocale();
       if (lang !== currentLanguage) {
         setCurrentLanguage(lang);
       }
@@ -22,7 +22,7 @@ export const useTranslation = () => {
   }, [currentLanguage]);
 
   const switchLanguage = async (language: string) => {
-    await changeLanguage(language);
+    await changeLocale(language);
     setCurrentLanguage(language);
   };
 
@@ -30,7 +30,7 @@ export const useTranslation = () => {
     t,
     currentLanguage,
     switchLanguage,
-    availableLanguages: getAvailableLanguages(),
+    availableLanguages: getAvailableLocales(),
   };
 };
 

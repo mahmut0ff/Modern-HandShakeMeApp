@@ -1,7 +1,7 @@
-// Get notification settings
+// Get notification settings with DynamoDB
 
 import type { APIGatewayProxyResult } from 'aws-lambda';
-import { getPrismaClient } from '@/shared/db/client';
+import { NotificationRepository } from '@/shared/repositories/notification.repository';
 import { success } from '@/shared/utils/response';
 import { withAuth, AuthenticatedEvent } from '@/shared/middleware/auth';
 import { withErrorHandler } from '@/shared/middleware/errorHandler';
@@ -15,30 +15,14 @@ async function getNotificationSettingsHandler(
   
   logger.info('Get notification settings request', { userId });
   
-  const prisma = getPrismaClient();
+  const notificationRepo = new NotificationRepository();
   
-  let settings = await prisma.notificationSettings.findUnique({
-    where: { userId },
-  });
+  let settings = await notificationRepo.getNotificationSettings(userId);
   
   // Create default settings if not exist
   if (!settings) {
-    settings = await prisma.notificationSettings.create({
-      data: {
-        userId,
-        emailNotifications: true,
-        pushNotifications: true,
-        smsNotifications: false,
-        newOrders: true,
-        newApplications: true,
-        applicationAccepted: true,
-        applicationRejected: true,
-        newMessages: true,
-        projectUpdates: true,
-        paymentReceived: true,
-        reviewReceived: true,
-      },
-    });
+    settings = await notificationRepo.createDefaultNotificationSettings(userId);
+    logger.info('Created default notification settings', { userId });
   }
   
   return success(settings);

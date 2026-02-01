@@ -27,5 +27,217 @@
   "confirm": "Confirm",
   "back": "Back",
   "next": "Next",
-  "submit": "Submit"
+  "submit": "Submit",
+  
+  "auth": {
+    "telegram_login": "Login with Telegram",
+    "enter_code": "Enter verification code",
+    "invalid_code": "Invalid verification code",
+    "code_expired": "Verification code expired",
+    "login_success": "Successfully logged in",
+    "logout_success": "Successfully logged out",
+    "registration_required": "Registration required",
+    "account_created": "Account created successfully"
+  },
+  
+  "orders": {
+    "title": "Title",
+    "description": "Description",
+    "budget": "Budget",
+    "deadline": "Deadline",
+    "category": "Category",
+    "skills_required": "Skills Required",
+    "location": "Location",
+    "remote_work": "Remote Work",
+    "urgent": "Urgent",
+    "fixed_price": "Fixed Price",
+    "hourly_rate": "Hourly Rate",
+    "order_created": "Order created successfully",
+    "order_updated": "Order updated successfully",
+    "order_deleted": "Order deleted successfully",
+    "no_orders": "No orders found",
+    "my_orders": "My Orders",
+    "active_orders": "Active Orders",
+    "completed_orders": "Completed Orders"
+  },
+  
+  "applications": {
+    "send_application": "Send Application",
+    "application_sent": "Application sent successfully",
+    "application_accepted": "Application accepted",
+    "application_rejected": "Application rejected",
+    "cover_letter": "Cover Letter",
+    "proposed_price": "Proposed Price",
+    "estimated_time": "Estimated Time",
+    "portfolio_items": "Portfolio Items",
+    "no_applications": "No applications found"
+  },
+  
+  "profile": {
+    "first_name": "First Name",
+    "last_name": "Last Name",
+    "email": "Email",
+    "phone": "Phone",
+    "bio": "Bio",
+    "skills": "Skills",
+    "experience": "Experience",
+    "hourly_rate": "Hourly Rate",
+    "availability": "Availability",
+    "location": "Location",
+    "languages": "Languages",
+    "portfolio": "Portfolio",
+    "reviews": "Reviews",
+    "rating": "Rating",
+    "profile_updated": "Profile updated successfully",
+    "avatar_uploaded": "Avatar uploaded successfully"
+  },
+  
+  "chat": {
+    "send_message": "Send Message",
+    "type_message": "Type a message...",
+    "online": "Online",
+    "offline": "Offline",
+    "typing": "typing...",
+    "file_sent": "File sent",
+    "image_sent": "Image sent",
+    "message_read": "Read",
+    "message_delivered": "Delivered",
+    "no_messages": "No messages yet"
+  },
+  
+  "payments": {
+    "add_card": "Add Card",
+    "card_number": "Card Number",
+    "expiry_date": "Expiry Date",
+    "cvv": "CVV",
+    "cardholder_name": "Cardholder Name",
+    "default_card": "Default Card",
+    "payment_successful": "Payment successful",
+    "payment_failed": "Payment failed",
+    "insufficient_funds": "Insufficient funds",
+    "card_added": "Card added successfully",
+    "card_deleted": "Card deleted successfully"
+  },
+  
+  "wallet": {
+    "balance": "Balance",
+    "deposit": "Deposit",
+    "withdraw": "Withdraw",
+    "transaction_history": "Transaction History",
+    "pending": "Pending",
+    "completed": "Completed",
+    "failed": "Failed",
+    "deposit_successful": "Deposit successful",
+    "withdrawal_requested": "Withdrawal requested",
+    "minimum_amount": "Minimum amount",
+    "maximum_amount": "Maximum amount"
+  },
+  
+  "reviews": {
+    "write_review": "Write Review",
+    "rating": "Rating",
+    "comment": "Comment",
+    "review_submitted": "Review submitted successfully",
+    "helpful": "Helpful",
+    "not_helpful": "Not Helpful",
+    "report_review": "Report Review",
+    "respond_to_review": "Respond to Review",
+    "no_reviews": "No reviews yet"
+  },
+  
+  "disputes": {
+    "create_dispute": "Create Dispute",
+    "dispute_reason": "Dispute Reason",
+    "evidence": "Evidence",
+    "dispute_created": "Dispute created successfully",
+    "dispute_resolved": "Dispute resolved",
+    "mediation_requested": "Mediation requested",
+    "accept_resolution": "Accept Resolution",
+    "escalate_dispute": "Escalate Dispute"
+  },
+  
+  "notifications": {
+    "mark_as_read": "Mark as Read",
+    "mark_all_read": "Mark All as Read",
+    "delete_notification": "Delete Notification",
+    "delete_all": "Delete All",
+    "no_notifications": "No notifications",
+    "push_notifications": "Push Notifications",
+    "email_notifications": "Email Notifications",
+    "sms_notifications": "SMS Notifications"
+  },
+  
+  "verification": {
+    "verify_account": "Verify Account",
+    "upload_documents": "Upload Documents",
+    "identity_document": "Identity Document",
+    "address_proof": "Address Proof",
+    "verification_pending": "Verification Pending",
+    "verification_approved": "Verification Approved",
+    "verification_rejected": "Verification Rejected",
+    "resubmit_documents": "Resubmit Documents"
+  },
+  
+  "instant_booking": {
+    "book_now": "Book Now",
+    "available_slots": "Available Slots",
+    "select_time": "Select Time",
+    "booking_confirmed": "Booking Confirmed",
+    "booking_cancelled": "Booking Cancelled",
+    "reschedule": "Reschedule",
+    "no_available_slots": "No available slots"
+  },
+  
+  "common": {
+    "yes": "Yes",
+    "no": "No",
+    "ok": "OK",
+    "cancel": "Cancel",
+    "close": "Close",
+    "open": "Open",
+    "view": "View",
+    "download": "Download",
+    "upload": "Upload",
+    "share": "Share",
+    "copy": "Copy",
+    "paste": "Paste",
+    "cut": "Cut",
+    "undo": "Undo",
+    "redo": "Redo",
+    "refresh": "Refresh",
+    "retry": "Retry",
+    "continue": "Continue",
+    "skip": "Skip",
+    "finish": "Finish",
+    "start": "Start",
+    "stop": "Stop",
+    "pause": "Pause",
+    "resume": "Resume",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "tomorrow": "Tomorrow",
+    "this_week": "This Week",
+    "last_week": "Last Week",
+    "next_week": "Next Week",
+    "this_month": "This Month",
+    "last_month": "Last Month",
+    "next_month": "Next Month"
+  },
+  
+  "errors": {
+    "network_error": "Network error. Please check your connection.",
+    "server_error": "Server error. Please try again later.",
+    "validation_error": "Please check your input and try again.",
+    "unauthorized": "You are not authorized to perform this action.",
+    "forbidden": "Access denied.",
+    "not_found": "The requested resource was not found.",
+    "timeout": "Request timeout. Please try again.",
+    "file_too_large": "File is too large. Maximum size is {{maxSize}}.",
+    "invalid_file_type": "Invalid file type. Allowed types: {{allowedTypes}}.",
+    "required_field": "This field is required.",
+    "invalid_email": "Please enter a valid email address.",
+    "invalid_phone": "Please enter a valid phone number.",
+    "password_too_short": "Password must be at least {{minLength}} characters long.",
+    "passwords_dont_match": "Passwords don't match."
+  }
 }

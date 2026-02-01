@@ -1,113 +1,101 @@
-// Get single review Lambda function
+import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import jwt from 'jsonwebtoken';
+import { success, error, notFound, badRequest, unauthorized } from '../shared/utils/response';
+import { ReviewRepository } from '../shared/repositories/review.repository';
+import { UserRepository } from '../shared/repositories/user.repository';
+import { OrderRepository } from '../shared/repositories/order.repository';
 
-import type { APIGatewayProxyResult } from 'aws-lambda';
-import { getPrismaClient } from '@/shared/db/client';
-import { success, notFound, badRequest } from '@/shared/utils/response';
-import { withAuth, AuthenticatedEvent } from '@/shared/middleware/auth';
-import { withErrorHandler } from '@/shared/middleware/errorHandler';
-import { withRequestTransform } from '@/shared/middleware/requestTransform';
-import { logger } from '@/shared/utils/logger';
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
-async function getReviewHandler(
-  event: AuthenticatedEvent
-): Promise<APIGatewayProxyResult> {
-  const userId = event.auth.userId;
-  const reviewId = event.pathParameters?.id;
-  
-  if (!reviewId) {
-    return badRequest('Review ID is required');
-  }
-  
-  logger.info('Get review', { userId, reviewId });
-  
-  const prisma = getPrismaClient();
-  
-  const review = await prisma.review.findUnique({
-    where: { id: parseInt(reviewId) },
-    include: {
-      client: {
-        include: {
-          user: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              avatar: true
-            }
-          }
-        }
-      },
-      master: {
-        include: {
-          user: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              avatar: true
-            }
-          }
-        }
-      },
-      order: {
-        select: {
-          id: true,
-          title: true
-        }
-      },
-      project: {
-        select: {
-          id: true
-        }
-      }
+export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
+  try {
+    // Get token from header
+    const authHeader = event.headers.Authorization || event.headers.authorization;
+    if (!authHeader) {
+      return unauthorized('Authorization header required');
     }
-  });
-  
-  if (!review) {
-    return notFound('Review not found');
-  }
-  
-  logger.info('Review retrieved', { reviewId });
-  
-  // Format response
-  const response = {
-    id: review.id,
-    client: review.isAnonymous ? null : {
-      id: review.client.user.id,
-      name: `${review.client.user.firstName} ${review.client.user.lastName}`,
-      avatar: review.client.user.avatar
-    },
-    clientName: review.isAnonymous ? 'Anonymous' : `${review.client.user.firstName} ${review.client.user.lastName}`,
-    clientAvatar: review.isAnonymous ? null : review.client.user.avatar,
-    master: {
-      id: review.master.user.id,
-      name: `${review.master.user.firstName} ${review.master.user.lastName}`,
-      avatar: review.master.user.avatar
-    },
-    masterName: `${review.master.user.firstName} ${review.master.user.lastName}`,
-    masterAvatar: review.master.user.avatar,
-    order: {
-      id: review.order.id,
-      title: review.order.title
-    },
-    orderId: review.orderId,
-    orderTitle: review.order.title,
-    project: review.project ? {
-      id: review.project.id
-    } : null,
-    projectId: review.projectId,
-    rating: review.rating,
-    comment: review.comment,
-    response: review.response,
-    isAnonymous: review.isAnonymous,
-    isVerified: review.isVerified,
-    helpfulCount: review.helpfulCount,
-    createdAt: review.createdAt,
-    updatedAt: review.updatedAt,
-    respondedAt: review.respondedAt
-  };
-  
-  return success(response);
-}
 
-export const handler = withErrorHandler(withRequestTransform(withAuth(getReviewHandler)));
+    const token = authHeader.replace('Bearer ', '');
+    
+    // Verify token
+    let decoded: any;
+    try {
+      decoded = jwt.verify(token, JWT_SECRET);
+    } catch (error) {
+      return unauthorized('Invalid or expired token');
+    }
+
+    const reviewId = event.pathParameters?.id;
+    
+    if (!reviewId) {
+      return badRequest('Review ID is required');
+    }
+    
+    const reviewRepo = new ReviewRepository();
+    const userRepo = new UserRepository();
+    const orderRepo = new OrderRepository();
+    
+    // Try to find review by querying through order GSI
+    const masterId = event.pathParameters?.masterId;
+    
+    if (!masterId) {
+      return badRequest('Master ID is required');
+    }
+    
+    const review = await reviewRepo.findById(masterId, reviewId);
+    
+    if (!review) {
+      return notFound('Review not found');
+    }
+    
+    // Get related data
+    const [client, master, order] = await Promise.all([
+      userRepo.findById(review.clientId),
+      userRepo.findById(masterId),
+      orderRepo.findById(review.orderId)
+    ]);
+    
+    // Format response
+    const response = {
+      id: review.id,
+      client: review.isAnonymous ? null : client ? {
+        id: client.id,
+        name: `${client.firstName || ''} ${client.lastName || ''}`.trim(),
+        avatar: client.avatar
+      } : null,
+      clientName: review.isAnonymous ? 'Anonymous' : client ? 
+        `${client.firstName || ''} ${client.lastName || ''}`.trim() : 'Unknown',
+      clientAvatar: review.isAnonymous ? null : client?.avatar,
+      master: master ? {
+        id: master.id,
+        name: `${master.firstName || ''} ${master.lastName || ''}`.trim(),
+        avatar: master.avatar
+      } : null,
+      masterName: master ? `${master.firstName || ''} ${master.lastName || ''}`.trim() : 'Unknown',
+      masterAvatar: master?.avatar,
+      order: order ? {
+        id: order.id,
+        title: order.title
+      } : null,
+      orderId: review.orderId,
+      orderTitle: order?.title,
+      rating: review.rating,
+      comment: review.comment,
+      response: review.response,
+      isAnonymous: review.isAnonymous,
+      isVerified: review.isVerified,
+      helpfulCount: review.helpfulCount,
+      tags: review.tags,
+      images: review.images,
+      createdAt: review.createdAt,
+      updatedAt: review.updatedAt,
+      respondedAt: review.responseAt
+    };
+    
+    return success(response);
+    
+  } catch (err) {
+    console.error('Get review error:', err);
+    return error('Failed to get review', 500);
+  }
+}

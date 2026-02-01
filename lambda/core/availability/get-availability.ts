@@ -1,11 +1,13 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
-import { createResponse, createErrorResponse } from '@/shared/utils/response';
-import { requireAuth } from '@/shared/middleware/auth';
-import { CacheService } from '@/shared/services/cache';
+import { createResponse, createErrorResponse } from '../shared/utils/response';
+import { requireAuth } from '../shared/middleware/auth';
+import { CacheService } from '../shared/services/cache';
+import { AvailabilityRepository } from '../shared/repositories/availability.repository';
+import { MasterProfileRepository } from '../shared/repositories/master-profile.repository';
 
-const prisma = new PrismaClient();
+const availabilityRepo = new AvailabilityRepository();
+const masterRepo = new MasterProfileRepository();
 const cache = new CacheService();
 
 // Query parameters validation schema
@@ -40,16 +42,13 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     }
 
     // Check if master exists
-    const master = await prisma.masterProfile.findUnique({
-      where: { id: targetMasterId },
-      select: { id: true, userId: true }
-    });
+    const master = await masterRepo.findByUserId(targetMasterId);
 
     if (!master) {
       return createErrorResponse(404, 'NOT_FOUND', 'Master not found');
     }
 
-    const isOwnAvailability = user?.userId === master.userId;
+    const isOwnAvailability = user?.userId === targetMasterId;
     const includeBooked = isOwnAvailability && validatedQuery.includeBooked === 'true';
 
     // Check cache first
@@ -61,9 +60,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     }
 
     // Get master availability settings
-    const availability = await prisma.masterAvailability.findUnique({
-      where: { masterId: targetMasterId }
-    });
+    const availability = await availabilityRepo.getMasterAvailability(targetMasterId);
 
     // Default working hours if not set
     const defaultWorkingHours = {
@@ -80,56 +77,27 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     const timezone = availability?.timezone || 'Asia/Bishkek';
 
     // Build date range for slots query
-    const startDate = validatedQuery.startDate ? new Date(validatedQuery.startDate) : new Date();
-    const endDate = validatedQuery.endDate ? new Date(validatedQuery.endDate) : 
-      new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days from now
+    const startDate = validatedQuery.startDate || new Date().toISOString().split('T')[0];
+    const endDate = validatedQuery.endDate || 
+      new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]; // 30 days from now
 
     // Get availability slots
-    const whereClause: any = {
-      masterId: targetMasterId,
-      date: {
-        gte: startDate,
-        lte: endDate
-      }
-    };
-
-    if (!includeBooked) {
-      whereClause.isBooked = false;
-    }
-
-    const slots = await prisma.availabilitySlot.findMany({
-      where: whereClause,
-      orderBy: [
-        { date: 'asc' },
-        { startTime: 'asc' }
-      ],
-      include: {
-        order: includeBooked ? {
-          select: {
-            id: true,
-            title: true,
-            status: true
-          }
-        } : false,
-        bookedByUser: includeBooked ? {
-          select: {
-            id: true,
-            email: true
-          }
-        } : false
-      }
+    const slots = await availabilityRepo.getMasterSlots(targetMasterId, {
+      startDate,
+      endDate,
+      includeBooked
     });
 
     // Format slots
     const formattedSlots = slots.map(slot => ({
-      id: slot.id,
-      date: slot.date.toISOString().split('T')[0],
+      id: slot.slotId,
+      date: slot.date,
       startTime: slot.startTime,
       endTime: slot.endTime,
       isBooked: slot.isBooked,
       ...(includeBooked && slot.isBooked && {
-        bookedBy: slot.bookedByUser?.email,
-        order: slot.order
+        bookedBy: slot.bookedBy,
+        orderId: slot.orderId
       })
     }));
 
@@ -144,8 +112,8 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       timezone,
       slots: formattedSlots,
       dateRange: {
-        startDate: startDate.toISOString().split('T')[0],
-        endDate: endDate.toISOString().split('T')[0]
+        startDate,
+        endDate
       },
       stats: {
         totalSlots,
@@ -172,7 +140,5 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     }
 
     return createErrorResponse(500, 'INTERNAL_ERROR', 'Failed to get availability');
-  } finally {
-    await prisma.$disconnect();
   }
 };

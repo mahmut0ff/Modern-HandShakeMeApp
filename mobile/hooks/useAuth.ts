@@ -24,9 +24,9 @@ export const useAuth = () => {
     accessToken,
     refreshToken,
     isAuthenticated,
-    isClient: user?.role === 'client',
-    isMaster: user?.role === 'master',
-    isAdmin: user?.role === 'admin',
+    isClient: user?.role === 'CLIENT',
+    isMaster: user?.role === 'MASTER',
+    isAdmin: user?.role === 'ADMIN',
     logout: handleLogout,
   };
 };

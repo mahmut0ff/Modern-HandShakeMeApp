@@ -4,11 +4,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { 
-  useCreateOrderMutation, 
+import {
+  useCreateOrderMutation,
   useGetCategoriesQuery,
   useGetCategorySkillsQuery,
-  useAddOrderFileMutation 
+  useAddOrderFileMutation,
+  Category,
+  Skill
 } from '../../services/orderApi';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { ErrorMessage } from '../../components/ErrorMessage';
@@ -59,17 +61,21 @@ export default function CreateOrderPage() {
   });
 
   // API queries and mutations
-  const { 
-    data: categories = [], 
-    isLoading: categoriesLoading 
+  const {
+    data: categoriesData,
+    isLoading: categoriesLoading
   } = useGetCategoriesQuery();
 
-  const { 
-    data: skills = [],
-    isLoading: skillsLoading 
+  const {
+    data: skillsData,
+    isLoading: skillsLoading
   } = useGetCategorySkillsQuery(formData.category, {
     skip: !formData.category
   });
+
+  // Handle both array and paginated responses
+  const categories = (categoriesData || []) as Category[];
+  const skills = (skillsData || []) as Skill[];
 
   const [createOrder, { isLoading: createLoading }] = useCreateOrderMutation();
   const [addOrderFile] = useAddOrderFileMutation();
@@ -136,7 +142,7 @@ export default function CreateOrderPage() {
 
       // Create order
       const result = await createOrder(orderData).unwrap();
-      
+
       // Upload files if any
       if (mediaFiles.length > 0) {
         for (const fileUri of mediaFiles) {
@@ -147,7 +153,7 @@ export default function CreateOrderPage() {
               type: 'image/jpeg',
               name: 'order-image.jpg',
             } as any);
-            
+
             await addOrderFile({ orderId: result.id, file: formData }).unwrap();
           } catch (fileError) {
             console.error('File upload error:', fileError);
@@ -162,7 +168,7 @@ export default function CreateOrderPage() {
     } catch (error: any) {
       console.error('Create order error:', error);
       Alert.alert(
-        'Ошибка', 
+        'Ошибка',
         error.data?.message || 'Не удалось создать заказ'
       );
     }
@@ -184,7 +190,7 @@ export default function CreateOrderPage() {
       <ScrollView className="flex-1 px-4">
         {/* Header */}
         <View className="flex-row items-center gap-4 mb-6">
-          <TouchableOpacity 
+          <TouchableOpacity
             onPress={() => router.back()}
             className="w-10 h-10 bg-white rounded-2xl items-center justify-center shadow-sm border border-gray-100"
           >
@@ -198,25 +204,22 @@ export default function CreateOrderPage() {
           {steps.map((s, idx) => (
             <View key={s.num} className="flex-row items-center">
               <View className="flex-col items-center">
-                <View className={`w-10 h-10 rounded-2xl items-center justify-center ${
-                  s.num <= step ? 'bg-[#0165FB] shadow-lg' : 'bg-gray-100'
-                }`}>
-                  <Ionicons 
-                    name={s.icon as any} 
-                    size={18} 
-                    color={s.num <= step ? 'white' : '#9CA3AF'} 
+                <View className={`w-10 h-10 rounded-2xl items-center justify-center ${s.num <= step ? 'bg-[#0165FB] shadow-lg' : 'bg-gray-100'
+                  }`}>
+                  <Ionicons
+                    name={s.icon as any}
+                    size={18}
+                    color={s.num <= step ? 'white' : '#9CA3AF'}
                   />
                 </View>
-                <Text className={`text-[10px] mt-1 font-medium ${
-                  s.num <= step ? 'text-[#0165FB]' : 'text-gray-400'
-                }`}>
+                <Text className={`text-[10px] mt-1 font-medium ${s.num <= step ? 'text-[#0165FB]' : 'text-gray-400'
+                  }`}>
                   {s.title}
                 </Text>
               </View>
               {idx < steps.length - 1 && (
-                <View className={`w-8 h-1 mx-1 rounded-full ${
-                  s.num < step ? 'bg-[#0165FB]' : 'bg-gray-200'
-                }`} />
+                <View className={`w-8 h-1 mx-1 rounded-full ${s.num < step ? 'bg-[#0165FB]' : 'bg-gray-200'
+                  }`} />
               )}
             </View>
           ))}
@@ -225,15 +228,15 @@ export default function CreateOrderPage() {
         {/* Form Card */}
         <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-6">
           {step === 1 && (
-            <View className="space-y-4">
-              <Text className="text-lg font-bold text-gray-900 flex-row items-center gap-2">
+            <View className="flex flex-col gap-4">
+              <View className="flex-row items-center gap-2">
                 <Ionicons name="document-text" size={20} color="#0165FB" />
-                Категория и описание
-              </Text>
-              
+                <Text className="text-lg font-bold text-gray-900">Категория и описание</Text>
+              </View>
+
               <View>
                 <Text className="text-sm font-medium text-gray-700 mb-2">Категория *</Text>
-                <TouchableOpacity 
+                <TouchableOpacity
                   onPress={() => {
                     // Show category picker modal or navigate to category selection
                     Alert.alert(
@@ -242,7 +245,7 @@ export default function CreateOrderPage() {
                       categories.map(cat => ({
                         text: cat.name,
                         onPress: () => setFormData({ ...formData, category: cat.id })
-                      })).concat([{ text: 'Отмена', onPress: () => {} }])
+                      })).concat([{ text: 'Отмена', onPress: () => { } }])
                     );
                   }}
                   className="w-full px-4 py-3 bg-gray-100 rounded-2xl flex-row items-center justify-between"
@@ -250,7 +253,7 @@ export default function CreateOrderPage() {
                   <View className="flex-row items-center gap-3">
                     <Ionicons name="grid" size={16} color="#9CA3AF" />
                     <Text className={formData.category ? 'text-gray-900' : 'text-gray-400'}>
-                      {formData.category 
+                      {formData.category
                         ? categories.find(c => c.id === formData.category)?.name || 'Выберите категорию'
                         : 'Выберите категорию'
                       }
@@ -282,15 +285,13 @@ export default function CreateOrderPage() {
                             });
                           }
                         }}
-                        className={`px-3 py-2 rounded-full border ${
-                          formData.required_skills.includes(skill.id)
+                        className={`px-3 py-2 rounded-full border ${formData.required_skills.includes(skill.id)
                             ? 'bg-blue-500 border-blue-500'
                             : 'bg-white border-gray-200'
-                        }`}
+                          }`}
                       >
-                        <Text className={`text-sm font-medium ${
-                          formData.required_skills.includes(skill.id) ? 'text-white' : 'text-gray-700'
-                        }`}>
+                        <Text className={`text-sm font-medium ${formData.required_skills.includes(skill.id) ? 'text-white' : 'text-gray-700'
+                          }`}>
                           {skill.name}
                         </Text>
                       </TouchableOpacity>
@@ -351,12 +352,12 @@ export default function CreateOrderPage() {
           )}
 
           {step === 2 && (
-            <View className="space-y-4">
-              <Text className="text-lg font-bold text-gray-900 flex-row items-center gap-2">
+            <View className="flex flex-col gap-4">
+              <View className="flex-row items-center gap-2">
                 <Ionicons name="location" size={20} color="#0165FB" />
-                Место и сроки
-              </Text>
-              
+                <Text className="text-lg font-bold text-gray-900">Место и сроки</Text>
+              </View>
+
               <View className="flex-row gap-3">
                 <View className="flex-1">
                   <Text className="text-sm font-medium text-gray-700 mb-2">Город *</Text>
@@ -389,13 +390,12 @@ export default function CreateOrderPage() {
                 />
               </View>
 
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={() => setFormData({ ...formData, hide_address: !formData.hide_address })}
                 className="flex-row items-center gap-3 p-3 bg-[#0165FB]/10 rounded-2xl"
               >
-                <View className={`w-5 h-5 rounded-lg border-2 items-center justify-center ${
-                  formData.hide_address ? 'bg-[#0165FB] border-[#0165FB]' : 'border-gray-300'
-                }`}>
+                <View className={`w-5 h-5 rounded-lg border-2 items-center justify-center ${formData.hide_address ? 'bg-[#0165FB] border-[#0165FB]' : 'border-gray-300'
+                  }`}>
                   {formData.hide_address && <Ionicons name="checkmark" size={12} color="white" />}
                 </View>
                 <Text className="text-sm text-gray-700">Скрыть адрес до выбора мастера</Text>
@@ -411,13 +411,12 @@ export default function CreateOrderPage() {
                 />
               </View>
 
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={() => setFormData({ ...formData, is_urgent: !formData.is_urgent })}
                 className="flex-row items-center gap-3 p-3 bg-red-50 rounded-2xl"
               >
-                <View className={`w-5 h-5 rounded-lg border-2 items-center justify-center ${
-                  formData.is_urgent ? 'bg-red-600 border-red-600' : 'border-gray-300'
-                }`}>
+                <View className={`w-5 h-5 rounded-lg border-2 items-center justify-center ${formData.is_urgent ? 'bg-red-600 border-red-600' : 'border-gray-300'
+                  }`}>
                   {formData.is_urgent && <Ionicons name="checkmark" size={12} color="white" />}
                 </View>
                 <View>
@@ -429,12 +428,12 @@ export default function CreateOrderPage() {
           )}
 
           {step === 3 && (
-            <View className="space-y-4">
-              <Text className="text-lg font-bold text-gray-900 flex-row items-center gap-2">
+            <View className="flex flex-col gap-4">
+              <View className="flex-row items-center gap-2">
                 <Ionicons name="home" size={20} color="#0165FB" />
-                Условия на объекте
-              </Text>
-              
+                <Text className="text-lg font-bold text-gray-900">Условия на объекте</Text>
+              </View>
+
               <View>
                 <Text className="text-sm font-medium text-gray-700 mb-3">Есть лифт?</Text>
                 <View className="flex-row gap-3">
@@ -444,16 +443,14 @@ export default function CreateOrderPage() {
                   ].map((option) => (
                     <TouchableOpacity
                       key={option.label}
-                      onPress={() => setFormData({...formData, has_elevator: option.value})}
-                      className={`flex-1 p-3 rounded-xl border ${
-                        formData.has_elevator === option.value
+                      onPress={() => setFormData({ ...formData, has_elevator: option.value })}
+                      className={`flex-1 p-3 rounded-xl border ${formData.has_elevator === option.value
                           ? 'bg-[#0165FB]/10 border-[#0165FB]'
                           : 'bg-gray-50 border-gray-200'
-                      }`}
+                        }`}
                     >
-                      <Text className={`text-center font-medium ${
-                        formData.has_elevator === option.value ? 'text-[#0165FB]' : 'text-gray-600'
-                      }`}>
+                      <Text className={`text-center font-medium ${formData.has_elevator === option.value ? 'text-[#0165FB]' : 'text-gray-600'
+                        }`}>
                         {option.label}
                       </Text>
                     </TouchableOpacity>
@@ -463,20 +460,18 @@ export default function CreateOrderPage() {
 
               <View>
                 <Text className="text-sm font-medium text-gray-700 mb-3">Материалы</Text>
-                <View className="space-y-2">
+                <View className="flex flex-col gap-2">
                   {MATERIAL_STATUS_OPTIONS.map((option) => (
                     <TouchableOpacity
                       key={option.value}
-                      onPress={() => setFormData({...formData, material_status: option.value})}
-                      className={`p-3 rounded-xl border ${
-                        formData.material_status === option.value
+                      onPress={() => setFormData({ ...formData, material_status: option.value })}
+                      className={`p-3 rounded-xl border ${formData.material_status === option.value
                           ? 'bg-[#0165FB]/10 border-[#0165FB]'
                           : 'bg-gray-50 border-gray-200'
-                      }`}
+                        }`}
                     >
-                      <Text className={`font-medium ${
-                        formData.material_status === option.value ? 'text-[#0165FB]' : 'text-gray-600'
-                      }`}>
+                      <Text className={`font-medium ${formData.material_status === option.value ? 'text-[#0165FB]' : 'text-gray-600'
+                        }`}>
                         {option.label}
                       </Text>
                     </TouchableOpacity>
@@ -500,15 +495,15 @@ export default function CreateOrderPage() {
           )}
 
           {step === 4 && (
-            <View className="space-y-4">
-              <Text className="text-lg font-bold text-gray-900 flex-row items-center gap-2">
+            <View className="flex flex-col gap-4">
+              <View className="flex-row items-center gap-2">
                 <Ionicons name="wallet" size={20} color="#0165FB" />
-                Бюджет
-              </Text>
-              
+                <Text className="text-lg font-bold text-gray-900">Бюджет</Text>
+              </View>
+
               <View>
                 <Text className="text-sm font-medium text-gray-700 mb-3">Тип бюджета</Text>
-                <View className="space-y-2">
+                <View className="flex flex-col gap-2">
                   {[
                     { value: 'fixed', label: 'Фиксированная сумма' },
                     { value: 'range', label: 'Диапазон цен' },
@@ -516,16 +511,14 @@ export default function CreateOrderPage() {
                   ].map((option) => (
                     <TouchableOpacity
                       key={option.value}
-                      onPress={() => setFormData({...formData, budget_type: option.value as any})}
-                      className={`p-3 rounded-xl border ${
-                        formData.budget_type === option.value
+                      onPress={() => setFormData({ ...formData, budget_type: option.value as any })}
+                      className={`p-3 rounded-xl border ${formData.budget_type === option.value
                           ? 'bg-[#0165FB]/10 border-[#0165FB]'
                           : 'bg-gray-50 border-gray-200'
-                      }`}
+                        }`}
                     >
-                      <Text className={`font-medium ${
-                        formData.budget_type === option.value ? 'text-[#0165FB]' : 'text-gray-600'
-                      }`}>
+                      <Text className={`font-medium ${formData.budget_type === option.value ? 'text-[#0165FB]' : 'text-gray-600'
+                        }`}>
                         {option.label}
                       </Text>
                     </TouchableOpacity>
@@ -538,7 +531,7 @@ export default function CreateOrderPage() {
                   <Text className="text-sm font-medium text-gray-700 mb-2">Сумма (сом)</Text>
                   <TextInput
                     value={formData.budget_min}
-                    onChangeText={(text) => setFormData({...formData, budget_min: text})}
+                    onChangeText={(text) => setFormData({ ...formData, budget_min: text })}
                     placeholder="10000"
                     className="w-full px-4 py-3 bg-gray-100 rounded-2xl text-gray-900"
                     keyboardType="numeric"
@@ -552,7 +545,7 @@ export default function CreateOrderPage() {
                     <Text className="text-sm font-medium text-gray-700 mb-2">От (сом)</Text>
                     <TextInput
                       value={formData.budget_min}
-                      onChangeText={(text) => setFormData({...formData, budget_min: text})}
+                      onChangeText={(text) => setFormData({ ...formData, budget_min: text })}
                       placeholder="5000"
                       className="w-full px-4 py-3 bg-gray-100 rounded-2xl text-gray-900"
                       keyboardType="numeric"
@@ -562,7 +555,7 @@ export default function CreateOrderPage() {
                     <Text className="text-sm font-medium text-gray-700 mb-2">До (сом)</Text>
                     <TextInput
                       value={formData.budget_max}
-                      onChangeText={(text) => setFormData({...formData, budget_max: text})}
+                      onChangeText={(text) => setFormData({ ...formData, budget_max: text })}
                       placeholder="15000"
                       className="w-full px-4 py-3 bg-gray-100 rounded-2xl text-gray-900"
                       keyboardType="numeric"
@@ -584,14 +577,13 @@ export default function CreateOrderPage() {
                 <Text className="font-medium text-gray-700">Назад</Text>
               </TouchableOpacity>
             ) : <View />}
-            
+
             {step < 4 ? (
               <TouchableOpacity
                 onPress={() => setStep(step + 1)}
                 disabled={step === 1 && (!formData.title || !formData.description || !formData.category)}
-                className={`flex-row items-center gap-2 px-5 py-2.5 bg-[#0165FB] rounded-2xl shadow-lg ${
-                  step === 1 && (!formData.title || !formData.description || !formData.category) ? 'opacity-50' : ''
-                }`}
+                className={`flex-row items-center gap-2 px-5 py-2.5 bg-[#0165FB] rounded-2xl shadow-lg ${step === 1 && (!formData.title || !formData.description || !formData.category) ? 'opacity-50' : ''
+                  }`}
               >
                 <Text className="font-semibold text-white">Далее</Text>
                 <Ionicons name="arrow-forward" size={16} color="white" />
@@ -600,9 +592,8 @@ export default function CreateOrderPage() {
               <TouchableOpacity
                 onPress={handleSubmit}
                 disabled={createLoading}
-                className={`flex-row items-center gap-2 px-5 py-2.5 bg-[#0165FB] rounded-2xl shadow-lg ${
-                  createLoading ? 'opacity-50' : ''
-                }`}
+                className={`flex-row items-center gap-2 px-5 py-2.5 bg-[#0165FB] rounded-2xl shadow-lg ${createLoading ? 'opacity-50' : ''
+                  }`}
               >
                 <Ionicons name="checkmark" size={16} color="white" />
                 <Text className="font-semibold text-white">

@@ -1,46 +1,46 @@
+// Send image message in chat
+
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import jwt from 'jsonwebtoken';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { ChatRepository } from '../shared/repositories/chat.repository';
+import { withAuth } from '../shared/middleware/auth';
+import { withErrorHandler } from '../shared/middleware/errorHandler';
+import { success, badRequest, notFound, forbidden } from '../shared/utils/response';
+import { logger } from '../shared/utils/logger';
 import { v4 as uuidv4 } from 'uuid';
 
 const s3Client = new S3Client({});
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 const BUCKET_NAME = process.env.S3_BUCKET || 'handshake-uploads';
 const chatRepository = new ChatRepository();
 
-export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+async function sendImageHandler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
+  const userId = (event.requestContext as any).authorizer?.userId;
+  
+  if (!userId) {
+    return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
+  }
+
+  const roomId = event.pathParameters?.id;
+  if (!roomId) {
+    return badRequest('Room ID is required');
+  }
+
+  const body = event.body;
+  const isBase64 = event.isBase64Encoded;
+  
+  if (!body) {
+    return badRequest('No image provided');
+  }
+
   try {
-    const authHeader = event.headers.Authorization || event.headers.authorization;
-    if (!authHeader) {
-      return {
-        statusCode: 401,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Authorization required' })
-      };
+    // Verify user is participant
+    const room = await chatRepository.findRoomById(roomId);
+    if (!room) {
+      return notFound('Room not found');
     }
-
-    const roomId = event.pathParameters?.id;
-    if (!roomId) {
-      return {
-        statusCode: 400,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Room ID required' })
-      };
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const decoded: any = jwt.verify(token, JWT_SECRET);
-
-    const body = event.body;
-    const isBase64 = event.isBase64Encoded;
     
-    if (!body) {
-      return {
-        statusCode: 400,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'No image provided' })
-      };
+    if (!room.participants.includes(userId)) {
+      return forbidden('You are not a participant in this room');
     }
 
     // Generate unique filename
@@ -63,30 +63,37 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     // Create message with image
     const message = await chatRepository.createMessage({
       roomId,
-      senderId: decoded.userId,
+      senderId: userId,
       type: 'IMAGE',
       content: imageUrl,
-      fileUrl: imageUrl
+      fileUrl: imageUrl,
+      fileName: `${fileId}.jpg`,
+      fileSize: buffer.length,
     });
 
-    return {
-      statusCode: 200,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        id: message.id,
-        room: roomId,
-        sender_id: decoded.userId,
-        message_type: 'image',
-        image_url: imageUrl,
-        created_at: message.createdAt
-      })
-    };
+    // Update room last message
+    await chatRepository.updateRoom(roomId, {
+      lastMessageAt: message.createdAt,
+      lastMessage: '[Image]',
+    });
+
+    logger.info('Image message sent', { messageId: message.id, roomId, userId });
+
+    return success({
+      id: message.id,
+      room: roomId,
+      sender_id: userId,
+      message_type: 'image',
+      image_url: imageUrl,
+      created_at: message.createdAt
+    });
   } catch (error) {
-    console.error('Error:', error);
+    logger.error('Send image error', error);
     return {
       statusCode: 500,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: 'Internal server error' })
+      body: JSON.stringify({ error: 'Internal server error' }),
     };
   }
-};
+}
+
+export const handler = withErrorHandler(withAuth(sendImageHandler));

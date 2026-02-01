@@ -1,45 +1,70 @@
-# Auth & User API Routes
+# Auth & User API Routes - TELEGRAM ONLY
 
-# POST /auth/login
-resource "aws_apigatewayv2_integration" "auth_login" {
+# REMOVED: POST /auth/login (phone-based)
+# REMOVED: POST /auth/register (phone-based)
+
+# GET /auth/telegram/code - Generate Telegram auth code
+resource "aws_apigatewayv2_integration" "auth_telegram_code" {
   api_id             = aws_apigatewayv2_api.main.id
   integration_type   = "AWS_PROXY"
-  integration_uri    = aws_lambda_function.auth_login.invoke_arn
+  integration_uri    = aws_lambda_function.auth_telegram_code.invoke_arn
   payload_format_version = "2.0"
 }
 
-resource "aws_apigatewayv2_route" "auth_login" {
+resource "aws_apigatewayv2_route" "auth_telegram_code" {
   api_id    = aws_apigatewayv2_api.main.id
-  route_key = "POST /auth/login"
-  target    = "integrations/${aws_apigatewayv2_integration.auth_login.id}"
+  route_key = "GET /auth/telegram/code"
+  target    = "integrations/${aws_apigatewayv2_integration.auth_telegram_code.id}"
 }
 
-resource "aws_lambda_permission" "auth_login" {
+resource "aws_lambda_permission" "auth_telegram_code" {
   statement_id  = "AllowAPIGatewayInvoke"
   action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.auth_login.function_name
+  function_name = aws_lambda_function.auth_telegram_code.function_name
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_apigatewayv2_api.main.execution_arn}/*/*"
 }
 
-# POST /auth/register
-resource "aws_apigatewayv2_integration" "auth_register" {
+# GET /auth/telegram/check - Check Telegram auth status
+resource "aws_apigatewayv2_integration" "auth_telegram_check" {
   api_id             = aws_apigatewayv2_api.main.id
   integration_type   = "AWS_PROXY"
-  integration_uri    = aws_lambda_function.auth_register.invoke_arn
+  integration_uri    = aws_lambda_function.auth_telegram_check.invoke_arn
   payload_format_version = "2.0"
 }
 
-resource "aws_apigatewayv2_route" "auth_register" {
+resource "aws_apigatewayv2_route" "auth_telegram_check" {
   api_id    = aws_apigatewayv2_api.main.id
-  route_key = "POST /auth/register"
-  target    = "integrations/${aws_apigatewayv2_integration.auth_register.id}"
+  route_key = "GET /auth/telegram/check"
+  target    = "integrations/${aws_apigatewayv2_integration.auth_telegram_check.id}"
 }
 
-resource "aws_lambda_permission" "auth_register" {
+resource "aws_lambda_permission" "auth_telegram_check" {
   statement_id  = "AllowAPIGatewayInvoke"
   action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.auth_register.function_name
+  function_name = aws_lambda_function.auth_telegram_check.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.main.execution_arn}/*/*"
+}
+
+# POST /auth/telegram/complete - Complete Telegram registration
+resource "aws_apigatewayv2_integration" "auth_telegram_complete" {
+  api_id             = aws_apigatewayv2_api.main.id
+  integration_type   = "AWS_PROXY"
+  integration_uri    = aws_lambda_function.auth_telegram_register.invoke_arn
+  payload_format_version = "2.0"
+}
+
+resource "aws_apigatewayv2_route" "auth_telegram_complete" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "POST /auth/telegram/complete"
+  target    = "integrations/${aws_apigatewayv2_integration.auth_telegram_complete.id}"
+}
+
+resource "aws_lambda_permission" "auth_telegram_complete" {
+  statement_id  = "AllowAPIGatewayInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.auth_telegram_register.function_name
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_apigatewayv2_api.main.execution_arn}/*/*"
 }

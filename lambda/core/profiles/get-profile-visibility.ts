@@ -1,92 +1,86 @@
 // Get profile visibility settings Lambda function
 
-import type { APIGatewayProxyResult } from 'aws-lambda';
-import { getPrismaClient } from '@/shared/db/client';
-import { success, forbidden } from '@/shared/utils/response';
-import { withAuth, AuthenticatedEvent } from '@/shared/middleware/auth';
-import { withErrorHandler } from '@/shared/middleware/errorHandler';
-import { logger } from '@/shared/utils/logger';
+import type { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import jwt from 'jsonwebtoken';
+import { MasterProfileRepository } from '../shared/repositories/master-profile.repository';
 
-async function getProfileVisibilityHandler(
-  event: AuthenticatedEvent
-): Promise<APIGatewayProxyResult> {
-  const userId = event.auth.userId;
-  
-  if (event.auth.role !== 'MASTER') {
-    return forbidden('Only masters can access profile visibility settings');
-  }
-  
-  logger.info('Get profile visibility request', { userId });
-  
-  const prisma = getPrismaClient();
-  
-  // Get master profile
-  const masterProfile = await prisma.masterProfile.findUnique({
-    where: { userId },
-    select: {
-      isProfilePublic: true,
-      showPhone: true,
-      showEmail: true,
-      showLocation: true,
-      showRating: true,
-      showReviews: true,
-      showPortfolio: true,
-      showServices: true,
-    },
-  });
-  
-  if (!masterProfile) {
-    // Create default profile with default visibility settings
-    const newProfile = await prisma.masterProfile.create({
-      data: {
-        userId,
-        isProfilePublic: true,
-        showPhone: true,
-        showEmail: false,
-        showLocation: true,
-        showRating: true,
-        showReviews: true,
-        showPortfolio: true,
-        showServices: true,
-      },
-      select: {
-        isProfilePublic: true,
-        showPhone: true,
-        showEmail: true,
-        showLocation: true,
-        showRating: true,
-        showReviews: true,
-        showPortfolio: true,
-        showServices: true,
-      },
-    });
-    
-    logger.info('Master profile created with default visibility', { userId });
-    
-    return success({
-      is_profile_public: newProfile.isProfilePublic,
-      show_phone: newProfile.showPhone,
-      show_email: newProfile.showEmail,
-      show_location: newProfile.showLocation,
-      show_rating: newProfile.showRating,
-      show_reviews: newProfile.showReviews,
-      show_portfolio: newProfile.showPortfolio,
-      show_services: newProfile.showServices,
-    });
-  }
-  
-  logger.info('Profile visibility retrieved successfully', { userId });
-  
-  return success({
-    is_profile_public: masterProfile.isProfilePublic,
-    show_phone: masterProfile.showPhone,
-    show_email: masterProfile.showEmail,
-    show_location: masterProfile.showLocation,
-    show_rating: masterProfile.showRating,
-    show_reviews: masterProfile.showReviews,
-    show_portfolio: masterProfile.showPortfolio,
-    show_services: masterProfile.showServices,
-  });
-}
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const masterProfileRepository = new MasterProfileRepository();
 
-export const handler = withErrorHandler(withAuth(getProfileVisibilityHandler));
+export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+  try {
+    // Get token from header
+    const authHeader = event.headers.Authorization || event.headers.authorization;
+    if (!authHeader) {
+      return {
+        statusCode: 401,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Authorization header required' })
+      };
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+    
+    // Verify token
+    let decoded: any;
+    try {
+      decoded = jwt.verify(token, JWT_SECRET);
+    } catch (error) {
+      return {
+        statusCode: 401,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Invalid or expired token' })
+      };
+    }
+
+    const userId = decoded.userId;
+    
+    if (decoded.role !== 'MASTER') {
+      return {
+        statusCode: 403,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Only masters can access profile visibility settings' })
+      };
+    }
+    
+    console.log('Get profile visibility request', { userId });
+    
+    // Get master profile
+    let masterProfile = await masterProfileRepository.findByUserId(userId);
+    
+    if (!masterProfile) {
+      // Create default profile with default visibility settings
+      masterProfile = await masterProfileRepository.create(userId, {
+        city: '',
+        isAvailable: true
+      });
+      
+      console.log('Master profile created with default visibility', { userId });
+    }
+    
+    console.log('Profile visibility retrieved successfully', { userId });
+    
+    // Return visibility settings (using defaults if not set)
+    return {
+      statusCode: 200,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        is_profile_public: true, // Default to public
+        show_phone: true,
+        show_email: false,
+        show_location: true,
+        show_rating: true,
+        show_reviews: true,
+        show_portfolio: true,
+        show_services: true,
+      })
+    };
+  } catch (error) {
+    console.error('Error getting profile visibility:', error);
+    return {
+      statusCode: 500,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ error: 'Internal server error' })
+    };
+  }
+};

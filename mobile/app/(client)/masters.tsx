@@ -97,7 +97,7 @@ export default function MasterSearchPage() {
     updateSearch,
     clearFilters,
     setCurrentPage,
-  } = useFilters<Master>(masters, {
+  } = useFilters<Master & SearchFilters>(masters, {
     pageSize: 10,
     searchFields: ['full_name', 'first_name', 'last_name', 'company_name', 'city'],
   });
@@ -131,7 +131,7 @@ export default function MasterSearchPage() {
             </View>
           )}
         </View>
-        
+
         <View className="flex-1 min-w-0">
           <Text className="font-semibold text-gray-900">
             {item.full_name || `${item.first_name || ''} ${item.last_name || ''}`}
@@ -148,7 +148,7 @@ export default function MasterSearchPage() {
             <Text className="text-sm text-gray-500">{item.completed_projects_count || 0} проектов</Text>
           </View>
         </View>
-        
+
         {item.hourly_rate && (
           <View className="items-end">
             <Text className="text-lg font-bold text-[#0165FB]">
@@ -172,9 +172,9 @@ export default function MasterSearchPage() {
                     <Ionicons name="play-circle" size={24} color="#6B7280" />
                   </View>
                 ) : (
-                  <Image 
-                    source={{ uri: portfolioItem.media[0].file_url || portfolioItem.media[0].file }} 
-                    className="w-full h-full" 
+                  <Image
+                    source={{ uri: portfolioItem.media[0].file_url || portfolioItem.media[0].file }}
+                    className="w-full h-full"
                   />
                 )
               ) : (
@@ -232,8 +232,8 @@ export default function MasterSearchPage() {
 
   return (
     <SafeAreaView className="flex-1 bg-[#F8F7FC]">
-      <ScrollView 
-        className="flex-1 px-4" 
+      <ScrollView
+        className="flex-1 px-4"
         contentContainerStyle={{ paddingBottom: 20, paddingTop: 8 }}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
@@ -244,14 +244,13 @@ export default function MasterSearchPage() {
           <Text className="text-2xl font-bold text-gray-900">Мастера</Text>
           <TouchableOpacity
             onPress={() => setShowFilters(!showFilters)}
-            className={`relative w-12 h-12 rounded-2xl items-center justify-center ${
-              showFilters ? 'bg-[#0165FB] shadow-lg' : 'bg-white border border-gray-100'
-            }`}
+            className={`relative w-12 h-12 rounded-2xl items-center justify-center ${showFilters ? 'bg-[#0165FB] shadow-lg' : 'bg-white border border-gray-100'
+              }`}
           >
-            <Ionicons 
-              name="options" 
-              size={20} 
-              color={showFilters ? 'white' : '#6B7280'} 
+            <Ionicons
+              name="options"
+              size={20}
+              color={showFilters ? 'white' : '#6B7280'}
             />
             {activeFiltersCount > 0 && (
               <View className="absolute -top-1 -right-1 w-5 h-5 bg-[#0165FB] rounded-full items-center justify-center">
@@ -294,7 +293,7 @@ export default function MasterSearchPage() {
                 />
               </View>
             </View>
-            
+
             <View className="flex-row flex-wrap gap-2 mb-4">
               {[
                 { key: 'has_transport', label: 'С транспортом', icon: 'car' },
@@ -304,7 +303,7 @@ export default function MasterSearchPage() {
                   key={item.key}
                   label={item.label}
                   selected={!!filters[item.key as keyof SearchFilters]}
-                  onPress={() => updateFilter(item.key as keyof Master, !filters[item.key as keyof SearchFilters] || undefined)}
+                  onPress={() => updateFilter(item.key as any, !filters[item.key as keyof SearchFilters] || undefined)}
                 />
               ))}
             </View>

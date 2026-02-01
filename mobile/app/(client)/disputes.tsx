@@ -223,10 +223,10 @@ export default function ClientDisputesPage() {
 
         {/* Help Section */}
         <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-6">
-          <Text className="font-semibold text-gray-900 mb-3 flex-row items-center gap-2">
+          <View className="flex-row items-center gap-2 mb-3">
             <Ionicons name="help-circle" size={20} color="#0165FB" />
-            Нужна помощь?
-          </Text>
+            <Text className="font-semibold text-gray-900">Нужна помощь?</Text>
+          </View>
           <Text className="text-gray-600 mb-4">
             Если у вас есть вопросы о процедуре рассмотрения споров, обратитесь в службу поддержки.
           </Text>

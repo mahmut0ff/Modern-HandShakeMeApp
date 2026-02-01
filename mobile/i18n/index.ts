@@ -1,94 +1,91 @@
-/**
- * i18n Configuration
- * Internationalization setup for the mobile app
- */
-
-import { I18n } from 'i18n-js';
-import * as Localization from 'expo-localization';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { I18n } from 'i18n-js'
+import * as Localization from 'expo-localization'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 
 // Import translations
-import ru from './locales/ru.json';
-import en from './locales/en.json';
-import ky from './locales/ky.json';
-
-// Storage key for language preference
-const LANGUAGE_KEY = 'app_language';
+import ru from './locales/ru.json'
+import en from './locales/en.json'
+import ky from './locales/ky.json'
 
 // Create i18n instance
 const i18n = new I18n({
   ru,
   en,
   ky,
-});
+})
 
 // Set default locale
-i18n.defaultLocale = 'ru';
-i18n.enableFallback = true;
+i18n.defaultLocale = 'ru'
+i18n.locale = 'ru'
+i18n.enableFallback = true
 
-// Initialize with device locale or saved preference
-export const initializeI18n = async (): Promise<string> => {
+// Storage key for saved locale
+const LOCALE_STORAGE_KEY = 'user_locale'
+
+/**
+ * Initialize i18n with saved or device locale
+ */
+export const initializeI18n = async (): Promise<void> => {
   try {
-    // Try to get saved language preference
-    const savedLanguage = await AsyncStorage.getItem(LANGUAGE_KEY);
+    // Try to get saved locale from storage
+    const savedLocale = await AsyncStorage.getItem(LOCALE_STORAGE_KEY)
     
-    if (savedLanguage) {
-      i18n.locale = savedLanguage;
-      return savedLanguage;
-    }
-
-    // Use device locale
-    const deviceLocale = Localization.locale || Localization.locales?.[0] || 'ru-RU';
-    const languageCode = typeof deviceLocale === 'string' 
-      ? deviceLocale.split('-')[0] 
-      : 'ru'; // Get language code (e.g., 'ru' from 'ru-RU')
-    
-    const supportedLocales = ['ru', 'en', 'ky'];
-    
-    if (supportedLocales.includes(languageCode)) {
-      i18n.locale = languageCode;
+    if (savedLocale && i18n.translations[savedLocale]) {
+      i18n.locale = savedLocale
     } else {
-      i18n.locale = 'ru'; // Default to Russian
+      // Use device locale as fallback
+      const deviceLocale = Localization.locale.split('-')[0] // Get language code only
+      
+      if (i18n.translations[deviceLocale]) {
+        i18n.locale = deviceLocale
+      } else {
+        i18n.locale = 'ru' // Default to Russian
+      }
     }
-
-    return i18n.locale;
+    
+    console.log('i18n initialized with locale:', i18n.locale)
   } catch (error) {
-    console.error('Error initializing i18n:', error);
-    i18n.locale = 'ru';
-    return 'ru';
+    console.error('Failed to initialize i18n:', error)
+    i18n.locale = 'ru' // Fallback to Russian
   }
-};
+}
 
-// Change language
-export const changeLanguage = async (language: string): Promise<void> => {
+/**
+ * Change app locale and save to storage
+ */
+export const changeLocale = async (locale: string): Promise<void> => {
   try {
-    i18n.locale = language;
-    await AsyncStorage.setItem(LANGUAGE_KEY, language);
+    if (i18n.translations[locale]) {
+      i18n.locale = locale
+      await AsyncStorage.setItem(LOCALE_STORAGE_KEY, locale)
+      console.log('Locale changed to:', locale)
+    } else {
+      console.warn('Locale not supported:', locale)
+    }
   } catch (error) {
-    console.error('Error changing language:', error);
+    console.error('Failed to change locale:', error)
   }
-};
+}
 
-// Get current language
-export const getCurrentLanguage = (): string => {
-  return i18n.locale;
-};
+/**
+ * Get current locale
+ */
+export const getCurrentLocale = (): string => {
+  return i18n.locale
+}
 
-// Get available languages
-export const getAvailableLanguages = () => [
-  { code: 'ru', name: 'Русский', nativeName: 'Русский' },
-  { code: 'en', name: 'English', nativeName: 'English' },
-  { code: 'ky', name: 'Kyrgyz', nativeName: 'Кыргызча' },
-];
+/**
+ * Get available locales
+ */
+export const getAvailableLocales = (): string[] => {
+  return Object.keys(i18n.translations)
+}
 
-// Translation function
-export const t = (key: string, options?: Record<string, any>): string => {
-  return i18n.t(key, options);
-};
+/**
+ * Translate function
+ */
+export const t = (key: string, options?: any): string => {
+  return i18n.t(key, options)
+}
 
-// Check if translation exists
-export const hasTranslation = (key: string): boolean => {
-  return i18n.translations[i18n.locale]?.[key] !== undefined;
-};
-
-export default i18n;
+export default i18n

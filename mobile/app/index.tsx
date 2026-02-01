@@ -1,8 +1,9 @@
 import { useEffect, useRef } from 'react'
-import { View, Text, TouchableOpacity, Animated, Easing, Image } from 'react-native'
+import { View, Text, TouchableOpacity, Animated, Easing } from 'react-native'
 import { Link, router } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { useAppSelector } from '../hooks/redux'
+import { getButtonAccessibility, getImageAccessibility, getHeaderAccessibility, accessibilityManager } from '../utils/accessibility'
 
 export default function WelcomePage() {
   const { isAuthenticated, user } = useAppSelector((state) => state.auth)
@@ -16,11 +17,15 @@ export default function WelcomePage() {
   useEffect(() => {
     // Redirect if authenticated
     if (isAuthenticated && user) {
-      if (user.role === 'master' || user.role === 'admin') {
+      // FIXED: Use uppercase role format to match Lambda
+      if (user.role === 'MASTER' || user.role === 'ADMIN') {
         router.replace('/(master)/dashboard')
       } else {
         router.replace('/(client)/dashboard')
       }
+    } else {
+      // Announce page for accessibility
+      accessibilityManager.announcePageChange('Добро пожаловать в HandShakeMe')
     }
   }, [isAuthenticated, user])
 
@@ -107,11 +112,10 @@ export default function WelcomePage() {
             ]
           }}
         >
-          <Image 
-            source={require('../assets/images/hand-phone.png')}
-            style={{ width: 300, height: 300 }}
-            resizeMode="contain"
-          />
+          <View className="w-72 h-72 items-center justify-center">
+            <Text className="text-8xl">🤝</Text>
+            <Text className="text-6xl mt-4">📱</Text>
+          </View>
         </Animated.View>
 
         {/* Content */}
@@ -123,7 +127,10 @@ export default function WelcomePage() {
         >
           {/* Title */}
           <View className="mb-8">
-            <Text className="text-white text-3xl font-bold text-center mb-3">
+            <Text 
+              className="text-white text-3xl font-bold text-center mb-3"
+              {...getHeaderAccessibility('Легче найти мастера с HandShakeMe', 1)}
+            >
               Легче найти мастера{'\n'}с HandShakeMe
             </Text>
             <Text className="text-white/70 text-center text-base leading-relaxed px-4">
@@ -143,6 +150,10 @@ export default function WelcomePage() {
                 shadowRadius: 12,
                 elevation: 8,
               }}
+              {...getButtonAccessibility(
+                'Начать работу с HandShakeMe',
+                'Нажмите, чтобы войти в приложение или зарегистрироваться'
+              )}
             >
               <Text className="text-[#0165FB] font-bold text-lg text-center">
                 Начать
@@ -154,7 +165,13 @@ export default function WelcomePage() {
           <View className="flex-row items-center justify-center gap-2">
             <Text className="text-white/60 text-sm">Нет аккаунта?</Text>
             <Link href="/(auth)/register" asChild>
-              <TouchableOpacity activeOpacity={0.7}>
+              <TouchableOpacity 
+                activeOpacity={0.7}
+                {...getButtonAccessibility(
+                  'Регистрация',
+                  'Нажмите, чтобы создать новый аккаунт'
+                )}
+              >
                 <Text className="text-white font-semibold text-sm underline">
                   Регистрация
                 </Text>

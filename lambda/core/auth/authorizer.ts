@@ -4,8 +4,8 @@ import type {
   APIGatewayTokenAuthorizerEvent,
   APIGatewayAuthorizerResult,
 } from 'aws-lambda';
-import { verifyAccessToken } from '@/shared/services/token';
-import { logger } from '@/shared/utils/logger';
+import { verifyToken } from '../shared/services/token';
+import { logger } from '../shared/utils/logger';
 
 export async function handler(
   event: APIGatewayTokenAuthorizerEvent
@@ -17,7 +17,7 @@ export async function handler(
     const token = event.authorizationToken.replace('Bearer ', '');
     
     // Verify token
-    const decoded = await verifyAccessToken(token);
+    const decoded = verifyToken(token);
     
     // Generate policy
     const policy: APIGatewayAuthorizerResult = {

@@ -1,37 +1,40 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { success } from '../shared/utils/response';
-import { withAuth } from '../shared/middleware/auth';
-import { withRequestTransform } from '../shared/middleware/requestTransform';
-import { getPrismaClient } from '../shared/utils/prisma';
+import { PaymentRepository } from '../shared/repositories/payment.repository';
 import { CacheService } from '../shared/services/cache';
+import { verifyToken } from '../shared/services/token';
 
+const paymentRepository = new PaymentRepository();
 const cache = new CacheService();
 
-async function listCardsHandler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
-  const prisma = getPrismaClient();
-  
+export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   try {
-    const user = (event as any).user;
+    const authHeader = event.headers.Authorization || event.headers.authorization;
+    if (!authHeader) {
+      return {
+        statusCode: 401,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Authorization required' })
+      };
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+    const decoded = verifyToken(token);
+    const userId = decoded.userId;
 
     // Check cache first
-    const cacheKey = `payment-cards:${user.userId}`;
+    const cacheKey = `payment-cards:${userId}`;
     const cachedCards = await cache.get(cacheKey);
     
     if (cachedCards) {
-      return success(cachedCards);
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cachedCards)
+      };
     }
 
     // Get user's payment cards
-    const paymentCards = await prisma.paymentCard.findMany({
-      where: {
-        userId: user.userId,
-        isActive: true
-      },
-      orderBy: [
-        { isDefault: 'desc' },
-        { createdAt: 'desc' }
-      ]
-    });
+    const paymentCards = await paymentRepository.findUserCards(userId);
 
     // Format response
     const formattedCards = paymentCards.map(card => ({
@@ -69,13 +72,35 @@ async function listCardsHandler(event: APIGatewayProxyEvent): Promise<APIGateway
     // Cache the response for 10 minutes
     await cache.set(cacheKey, response, 600);
 
-    return success(response);
+    return {
+      statusCode: 200,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(response)
+    };
 
   } catch (error) {
     console.error('Error listing payment cards:', error);
 
-    return success({ cards: [], stats: { total: 0, expired: 0, expiringThisMonth: 0, brands: {} } });
-  }
-}
+    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+      return {
+        statusCode: 401,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Invalid or expired token' })
+      };
+    }
 
-export const handler = withRequestTransform(withAuth(listCardsHandler));
+    return {
+      statusCode: 200,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        cards: [], 
+        stats: { 
+          total: 0, 
+          expired: 0, 
+          expiringThisMonth: 0, 
+          brands: {} 
+        } 
+      })
+    };
+  }
+};

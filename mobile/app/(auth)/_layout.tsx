@@ -7,7 +7,7 @@ export default function AuthLayout() {
 
   useEffect(() => {
     if (isAuthenticated && user) {
-      if (user.role === 'master' || user.role === 'admin') {
+      if (user.role === 'MASTER' || user.role === 'ADMIN') {
         router.replace('/(master)/dashboard')
       } else {
         router.replace('/(client)/dashboard')
@@ -19,6 +19,8 @@ export default function AuthLayout() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="login" />
       <Stack.Screen name="register" />
+      <Stack.Screen name="telegram-login" />
+      <Stack.Screen name="telegram-complete" />
     </Stack>
   )
 }

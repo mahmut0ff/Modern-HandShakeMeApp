@@ -27,5 +27,217 @@
   "confirm": "Подтвердить",
   "back": "Назад",
   "next": "Далее",
-  "submit": "Отправить"
+  "submit": "Отправить",
+  
+  "auth": {
+    "telegram_login": "Войти через Telegram",
+    "enter_code": "Введите код подтверждения",
+    "invalid_code": "Неверный код подтверждения",
+    "code_expired": "Код подтверждения истек",
+    "login_success": "Успешный вход в систему",
+    "logout_success": "Успешный выход из системы",
+    "registration_required": "Требуется регистрация",
+    "account_created": "Аккаунт успешно создан"
+  },
+  
+  "orders": {
+    "title": "Название",
+    "description": "Описание",
+    "budget": "Бюджет",
+    "deadline": "Срок выполнения",
+    "category": "Категория",
+    "skills_required": "Требуемые навыки",
+    "location": "Местоположение",
+    "remote_work": "Удаленная работа",
+    "urgent": "Срочно",
+    "fixed_price": "Фиксированная цена",
+    "hourly_rate": "Почасовая оплата",
+    "order_created": "Заказ успешно создан",
+    "order_updated": "Заказ успешно обновлен",
+    "order_deleted": "Заказ успешно удален",
+    "no_orders": "Заказы не найдены",
+    "my_orders": "Мои заказы",
+    "active_orders": "Активные заказы",
+    "completed_orders": "Завершенные заказы"
+  },
+  
+  "applications": {
+    "send_application": "Отправить отклик",
+    "application_sent": "Отклик успешно отправлен",
+    "application_accepted": "Отклик принят",
+    "application_rejected": "Отклик отклонен",
+    "cover_letter": "Сопроводительное письмо",
+    "proposed_price": "Предлагаемая цена",
+    "estimated_time": "Предполагаемое время",
+    "portfolio_items": "Примеры работ",
+    "no_applications": "Отклики не найдены"
+  },
+  
+  "profile": {
+    "first_name": "Имя",
+    "last_name": "Фамилия",
+    "email": "Электронная почта",
+    "phone": "Телефон",
+    "bio": "О себе",
+    "skills": "Навыки",
+    "experience": "Опыт работы",
+    "hourly_rate": "Почасовая ставка",
+    "availability": "Доступность",
+    "location": "Местоположение",
+    "languages": "Языки",
+    "portfolio": "Портфолио",
+    "reviews": "Отзывы",
+    "rating": "Рейтинг",
+    "profile_updated": "Профиль успешно обновлен",
+    "avatar_uploaded": "Аватар успешно загружен"
+  },
+  
+  "chat": {
+    "send_message": "Отправить сообщение",
+    "type_message": "Введите сообщение...",
+    "online": "В сети",
+    "offline": "Не в сети",
+    "typing": "печатает...",
+    "file_sent": "Файл отправлен",
+    "image_sent": "Изображение отправлено",
+    "message_read": "Прочитано",
+    "message_delivered": "Доставлено",
+    "no_messages": "Сообщений пока нет"
+  },
+  
+  "payments": {
+    "add_card": "Добавить карту",
+    "card_number": "Номер карты",
+    "expiry_date": "Срок действия",
+    "cvv": "CVV",
+    "cardholder_name": "Имя держателя карты",
+    "default_card": "Основная карта",
+    "payment_successful": "Платеж успешно выполнен",
+    "payment_failed": "Платеж не выполнен",
+    "insufficient_funds": "Недостаточно средств",
+    "card_added": "Карта успешно добавлена",
+    "card_deleted": "Карта успешно удалена"
+  },
+  
+  "wallet": {
+    "balance": "Баланс",
+    "deposit": "Пополнить",
+    "withdraw": "Вывести",
+    "transaction_history": "История транзакций",
+    "pending": "В обработке",
+    "completed": "Завершено",
+    "failed": "Не выполнено",
+    "deposit_successful": "Пополнение успешно выполнено",
+    "withdrawal_requested": "Запрос на вывод отправлен",
+    "minimum_amount": "Минимальная сумма",
+    "maximum_amount": "Максимальная сумма"
+  },
+  
+  "reviews": {
+    "write_review": "Написать отзыв",
+    "rating": "Оценка",
+    "comment": "Комментарий",
+    "review_submitted": "Отзыв успешно отправлен",
+    "helpful": "Полезно",
+    "not_helpful": "Не полезно",
+    "report_review": "Пожаловаться на отзыв",
+    "respond_to_review": "Ответить на отзыв",
+    "no_reviews": "Отзывов пока нет"
+  },
+  
+  "disputes": {
+    "create_dispute": "Создать спор",
+    "dispute_reason": "Причина спора",
+    "evidence": "Доказательства",
+    "dispute_created": "Спор успешно создан",
+    "dispute_resolved": "Спор разрешен",
+    "mediation_requested": "Запрошено посредничество",
+    "accept_resolution": "Принять решение",
+    "escalate_dispute": "Эскалировать спор"
+  },
+  
+  "notifications": {
+    "mark_as_read": "Отметить как прочитанное",
+    "mark_all_read": "Отметить все как прочитанные",
+    "delete_notification": "Удалить уведомление",
+    "delete_all": "Удалить все",
+    "no_notifications": "Нет уведомлений",
+    "push_notifications": "Push-уведомления",
+    "email_notifications": "Email-уведомления",
+    "sms_notifications": "SMS-уведомления"
+  },
+  
+  "verification": {
+    "verify_account": "Верифицировать аккаунт",
+    "upload_documents": "Загрузить документы",
+    "identity_document": "Документ, удостоверяющий личность",
+    "address_proof": "Подтверждение адреса",
+    "verification_pending": "Верификация в процессе",
+    "verification_approved": "Верификация одобрена",
+    "verification_rejected": "Верификация отклонена",
+    "resubmit_documents": "Повторно отправить документы"
+  },
+  
+  "instant_booking": {
+    "book_now": "Забронировать сейчас",
+    "available_slots": "Доступные слоты",
+    "select_time": "Выберите время",
+    "booking_confirmed": "Бронирование подтверждено",
+    "booking_cancelled": "Бронирование отменено",
+    "reschedule": "Перенести",
+    "no_available_slots": "Нет доступных слотов"
+  },
+  
+  "common": {
+    "yes": "Да",
+    "no": "Нет",
+    "ok": "ОК",
+    "cancel": "Отмена",
+    "close": "Закрыть",
+    "open": "Открыть",
+    "view": "Просмотр",
+    "download": "Скачать",
+    "upload": "Загрузить",
+    "share": "Поделиться",
+    "copy": "Копировать",
+    "paste": "Вставить",
+    "cut": "Вырезать",
+    "undo": "Отменить",
+    "redo": "Повторить",
+    "refresh": "Обновить",
+    "retry": "Повторить",
+    "continue": "Продолжить",
+    "skip": "Пропустить",
+    "finish": "Завершить",
+    "start": "Начать",
+    "stop": "Остановить",
+    "pause": "Пауза",
+    "resume": "Возобновить",
+    "today": "Сегодня",
+    "yesterday": "Вчера",
+    "tomorrow": "Завтра",
+    "this_week": "На этой неделе",
+    "last_week": "На прошлой неделе",
+    "next_week": "На следующей неделе",
+    "this_month": "В этом месяце",
+    "last_month": "В прошлом месяце",
+    "next_month": "В следующем месяце"
+  },
+  
+  "errors": {
+    "network_error": "Ошибка сети. Проверьте подключение к интернету.",
+    "server_error": "Ошибка сервера. Попробуйте позже.",
+    "validation_error": "Проверьте введенные данные и попробуйте снова.",
+    "unauthorized": "У вас нет прав для выполнения этого действия.",
+    "forbidden": "Доступ запрещен.",
+    "not_found": "Запрашиваемый ресурс не найден.",
+    "timeout": "Превышено время ожидания. Попробуйте снова.",
+    "file_too_large": "Файл слишком большой. Максимальный размер: {{maxSize}}.",
+    "invalid_file_type": "Недопустимый тип файла. Разрешенные типы: {{allowedTypes}}.",
+    "required_field": "Это поле обязательно для заполнения.",
+    "invalid_email": "Введите корректный адрес электронной почты.",
+    "invalid_phone": "Введите корректный номер телефона.",
+    "password_too_short": "Пароль должен содержать не менее {{minLength}} символов.",
+    "passwords_dont_match": "Пароли не совпадают."
+  }
 }

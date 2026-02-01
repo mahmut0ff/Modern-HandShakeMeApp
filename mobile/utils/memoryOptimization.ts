@@ -38,7 +38,9 @@ export class LRUCache<K, V> {
     // Remove oldest if over limit
     if (this.cache.size > this.maxSize) {
       const firstKey = this.cache.keys().next().value;
-      this.cache.delete(firstKey);
+      if (firstKey !== undefined) {
+        this.cache.delete(firstKey);
+      }
     }
   }
 
@@ -71,7 +73,7 @@ export const dataCache = new LRUCache<string, any>(100);
 export function cleanupCache(): void {
   imageCache.clear();
   dataCache.clear();
-  
+
   if (__DEV__) {
     console.log('🧹 Cache cleaned up');
   }

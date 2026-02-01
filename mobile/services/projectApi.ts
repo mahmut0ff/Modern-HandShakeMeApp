@@ -70,23 +70,29 @@ export interface ProjectFile {
 
 export interface ProjectMilestone {
   id: number;
+  projectId: number;
   title: string;
   description?: string;
-  due_date?: string;
-  status: 'pending' | 'in_progress' | 'completed';
-  progress: number;
-  created_at: string;
-  completed_at?: string;
+  amount: number;
+  dueDate?: string;
+  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+  orderNum?: number;
+  createdAt: string;
+  completedAt?: string;
 }
 
 export interface ProjectPayment {
   id: number;
-  amount: string;
-  payment_type: 'advance' | 'milestone' | 'final';
-  status: 'pending' | 'paid' | 'failed';
+  type: string;
+  amount: number;
+  currency: string;
+  status: 'PENDING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
   description?: string;
-  created_at: string;
-  paid_at?: string;
+  userId: number;
+  walletId: number;
+  projectId: number;
+  createdAt: string;
+  updatedAt?: string;
 }
 
 export interface ProjectUpdateData {
@@ -100,15 +106,18 @@ export interface ProjectUpdateData {
 export interface ProjectMilestoneCreateData {
   title: string;
   description?: string;
-  due_date?: string;
+  amount: number;
+  dueDate?: string;
+  orderNum?: number;
 }
 
 export interface ProjectMilestoneUpdateData {
   title?: string;
   description?: string;
-  due_date?: string;
-  status?: 'pending' | 'in_progress' | 'completed';
-  progress?: number;
+  amount?: number;
+  dueDate?: string;
+  status?: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+  orderNum?: number;
 }
 
 export const projectApi = api.injectEndpoints({
@@ -203,18 +212,18 @@ export const projectApi = api.injectEndpoints({
       invalidatesTags: ['Project'],
     }),
 
-    updateProjectMilestone: builder.mutation<ProjectMilestone, { id: number; data: ProjectMilestoneUpdateData }>({
-      query: ({ id, data }) => ({
-        url: `/projects/milestones/${id}`,
+    updateProjectMilestone: builder.mutation<ProjectMilestone, { id: number; projectId: number; data: ProjectMilestoneUpdateData }>({
+      query: ({ id, projectId, data }) => ({
+        url: `/projects/${projectId}/milestones/${id}`,
         method: 'PATCH',
         body: data,
       }),
       invalidatesTags: ['Project'],
     }),
 
-    deleteProjectMilestone: builder.mutation<void, number>({
-      query: (id) => ({
-        url: `/projects/milestones/${id}`,
+    deleteProjectMilestone: builder.mutation<void, { id: number; projectId: number }>({
+      query: ({ id, projectId }) => ({
+        url: `/projects/${projectId}/milestones/${id}`,
         method: 'DELETE',
       }),
       invalidatesTags: ['Project'],

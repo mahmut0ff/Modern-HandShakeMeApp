@@ -1,1 +1,1 @@
-export { OnboardingScreen } from './OnboardingScreen';
+export { InteractiveOnboardingScreen } from './InteractiveOnboardingScreen'

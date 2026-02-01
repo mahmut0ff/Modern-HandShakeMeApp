@@ -1,65 +1,68 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { success, notFound, badRequest, conflict } from '../shared/utils/response';
-import { withAuth } from '../shared/middleware/auth';
-import { withRequestTransform } from '../shared/middleware/requestTransform';
-import { getPrismaClient } from '../shared/utils/prisma';
+import { PaymentRepository } from '../shared/repositories/payment.repository';
+import { WalletRepository } from '../shared/repositories/wallet.repository';
+import { StripeService } from '../shared/services/stripe.service';
 import { CacheService } from '../shared/services/cache';
-import Stripe from 'stripe';
+import { verifyToken } from '../shared/services/token';
 
+const paymentRepository = new PaymentRepository();
+const walletRepository = new WalletRepository();
+const stripeService = new StripeService();
 const cache = new CacheService();
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2023-10-16'
-});
 
-async function deleteCardHandler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
-  const prisma = getPrismaClient();
-  
+export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   try {
-    const user = (event as any).user;
+    const authHeader = event.headers.Authorization || event.headers.authorization;
+    if (!authHeader) {
+      return {
+        statusCode: 401,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Authorization required' })
+      };
+    }
 
     const cardId = event.pathParameters?.id;
     if (!cardId) {
-      return badRequest('Card ID is required');
+      return {
+        statusCode: 400,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Card ID is required' })
+      };
     }
 
-    // Check if card exists and belongs to the user
-    const paymentCard = await prisma.paymentCard.findFirst({
-      where: {
-        id: cardId,
-        userId: user.userId,
-        isActive: true
-      }
-    });
+    const token = authHeader.replace('Bearer ', '');
+    const decoded = verifyToken(token);
+    const userId = decoded.userId;
 
-    if (!paymentCard) {
-      return notFound('Payment card not found or access denied');
+    // Check if card exists and belongs to the user
+    const paymentCard = await paymentRepository.findCardById(cardId, userId);
+    if (!paymentCard || !paymentCard.isActive) {
+      return {
+        statusCode: 404,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Payment card not found or access denied' })
+      };
     }
 
     // Check if this is the only card and there are pending transactions
-    const activeCardsCount = await prisma.paymentCard.count({
-      where: {
-        userId: user.userId,
-        isActive: true
-      }
-    });
-
+    const activeCardsCount = await paymentRepository.countUserCards(userId);
     if (activeCardsCount === 1) {
       // Check for pending transactions that might need this card
-      const pendingTransactions = await prisma.transaction.count({
-        where: {
-          userId: user.userId,
-          status: 'PENDING'
-        }
-      });
-
+      const pendingTransactions = await walletRepository.countPendingTransactions(userId);
       if (pendingTransactions > 0) {
-        return conflict('Cannot delete the only payment card while there are pending transactions');
+        return {
+          statusCode: 409,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            error: 'Cannot delete the only payment card while there are pending transactions' 
+          })
+        };
       }
     }
 
     // Detach payment method from Stripe customer
     try {
-      await stripe.paymentMethods.detach(paymentCard.stripeCardId);
+      await stripeService.detachPaymentMethod(paymentCard.stripeCardId);
     } catch (stripeError) {
       console.error('Error detaching payment method from Stripe:', stripeError);
       // Continue with deletion even if Stripe detach fails
@@ -67,49 +70,46 @@ async function deleteCardHandler(event: APIGatewayProxyEvent): Promise<APIGatewa
 
     // If this was the default card, set another card as default
     if (paymentCard.isDefault && activeCardsCount > 1) {
-      const nextCard = await prisma.paymentCard.findFirst({
-        where: {
-          userId: user.userId,
-          isActive: true,
-          id: { not: cardId }
-        },
-        orderBy: {
-          createdAt: 'desc'
-        }
-      });
-
+      const userCards = await paymentRepository.findUserCards(userId);
+      const nextCard = userCards.find(card => card.id !== cardId && card.isActive);
+      
       if (nextCard) {
-        await prisma.paymentCard.update({
-          where: { id: nextCard.id },
-          data: { isDefault: true }
-        });
+        await paymentRepository.setDefaultCard(nextCard.id, userId);
       }
     }
 
     // Soft delete the card
-    await prisma.paymentCard.update({
-      where: { id: cardId },
-      data: { 
-        isActive: false,
-        isDefault: false
-      }
-    });
+    await paymentRepository.deleteCard(cardId, userId);
 
     // Invalidate cache
-    await cache.invalidatePattern(`payment-cards:${user.userId}*`);
+    await cache.invalidatePattern(`payment-cards:${userId}*`);
 
-    console.log(`Payment card deleted: ${cardId} for user ${user.userId}`);
+    console.log(`Payment card deleted: ${cardId} for user ${userId}`);
 
-    return success({
-      message: 'Payment card deleted successfully',
-      cardId: cardId
-    });
+    return {
+      statusCode: 200,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: 'Payment card deleted successfully',
+        cardId: cardId
+      })
+    };
 
   } catch (error) {
     console.error('Error deleting payment card:', error);
 
-    return badRequest('Failed to delete payment card');
-  }
-}
+    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+      return {
+        statusCode: 401,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Invalid or expired token' })
+      };
+    }
 
-export const handler = withRequestTransform(withAuth(deleteCardHandler));
+    return {
+      statusCode: 500,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ error: 'Failed to delete payment card' })
+    };
+  }
+};

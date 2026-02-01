@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "ES2022",
-    "lib": ["ES2022"],
+    "target": "ES2020",
+    "module": "CommonJS",
+    "lib": ["ES2020"],
     "moduleResolution": "node",
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
@@ -10,28 +10,28 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "isolatedModules": true,
-    "noEmit": true,
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
-    "outDir": "./dist",
+    "isolatedModules": false,
+    "noEmit": false,
+    "declaration": false,
+    "sourceMap": false,
+    "outDir": "./build",
     "rootDir": "./",
     "baseUrl": ".",
     "paths": {
       "@/shared/*": ["core/shared/*"],
       "@/types/*": ["core/shared/types/*"]
     },
-    "types": ["node", "vitest/globals"]
+    "types": ["node", "@types/aws-lambda", "jest"]
   },
   "include": [
     "core/**/*",
-    "tests/**/*",
-    "vitest.config.ts"
+    "__tests__/**/*"
   ],
   "exclude": [
     "node_modules",
     "dist",
-    "terraform"
+    "build",
+    "terraform",
+    "scripts"
   ]
 }

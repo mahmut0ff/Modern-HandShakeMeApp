@@ -144,10 +144,10 @@ export default function CreateDisputePage() {
 
         {/* Select Project */}
         <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-4">
-          <Text className="text-lg font-bold text-gray-900 mb-4">
+          <View className="flex-row items-center gap-2 mb-4">
             <Ionicons name="folder" size={20} color="#0165FB" />
-            {' '}Выберите проект
-          </Text>
+            <Text className="text-lg font-bold text-gray-900">Выберите проект</Text>
+          </View>
           <FlatList
             data={projects}
             renderItem={renderProject}
@@ -159,11 +159,11 @@ export default function CreateDisputePage() {
 
         {/* Select Reason */}
         <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-4">
-          <Text className="text-lg font-bold text-gray-900 mb-4">
+          <View className="flex-row items-center gap-2 mb-4">
             <Ionicons name="list" size={20} color="#0165FB" />
-            {' '}Причина спора
-          </Text>
-          <View className="space-y-2">
+            <Text className="text-lg font-bold text-gray-900">Причина спора</Text>
+          </View>
+          <View className="flex flex-col gap-2">
             {disputeReasons.map((reason) => (
               <TouchableOpacity
                 key={reason}
@@ -206,10 +206,10 @@ export default function CreateDisputePage() {
 
         {/* Description */}
         <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-4">
-          <Text className="text-lg font-bold text-gray-900 mb-4">
+          <View className="flex-row items-center gap-2 mb-4">
             <Ionicons name="document-text" size={20} color="#0165FB" />
-            {' '}Описание проблемы
-          </Text>
+            <Text className="text-lg font-bold text-gray-900">Описание проблемы</Text>
+          </View>
           <TextInput
             value={description}
             onChangeText={setDescription}
@@ -223,10 +223,10 @@ export default function CreateDisputePage() {
 
         {/* Amount */}
         <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-6">
-          <Text className="text-lg font-bold text-gray-900 mb-4">
+          <View className="flex-row items-center gap-2 mb-4">
             <Ionicons name="card" size={20} color="#0165FB" />
-            {' '}Спорная сумма
-          </Text>
+            <Text className="text-lg font-bold text-gray-900">Спорная сумма</Text>
+          </View>
           <View className="flex-row items-center gap-3">
             <TextInput
               value={amount}

@@ -26,25 +26,25 @@ interface VerificationStep {
 }
 
 export default function MasterVerificationPage() {
-  const [selectedImages, setSelectedImages] = useState<{[key: string]: string}>({});
+  const [selectedImages, setSelectedImages] = useState<{ [key: string]: string }>({});
 
   // API queries
-  const { 
-    data: statusData, 
+  const {
+    data: statusData,
     isLoading: statusLoading,
     error: statusError,
-    refetch: refetchStatus 
+    refetch: refetchStatus
   } = useGetVerificationStatusQuery();
 
-  const { 
-    data: documentsData, 
+  const {
+    data: documentsData,
     isLoading: documentsLoading,
-    refetch: refetchDocuments 
+    refetch: refetchDocuments
   } = useGetVerificationDocumentsQuery();
 
-  const { 
-    data: requirementsData, 
-    isLoading: requirementsLoading 
+  const {
+    data: requirementsData,
+    isLoading: requirementsLoading
   } = useGetVerificationRequirementsQuery();
 
   // Mutations
@@ -52,8 +52,8 @@ export default function MasterVerificationPage() {
   const [submitForReview, { isLoading: submitLoading }] = useSubmitForReviewMutation();
   const [deleteDocument] = useDeleteVerificationDocumentMutation();
 
-  const documents = documentsData || [];
-  const requirements = requirementsData || [];
+  const documents: VerificationDocument[] = Array.isArray(documentsData) ? documentsData : [];
+  const requirements: VerificationRequirement[] = Array.isArray(requirementsData) ? requirementsData : [];
   const status = statusData;
 
   // Create verification steps from requirements and documents
@@ -164,7 +164,7 @@ export default function MasterVerificationPage() {
 
       refetchDocuments();
       refetchStatus();
-      
+
       Alert.alert('Успех', 'Документ загружен и отправлен на проверку');
     } catch (error: any) {
       console.error('Failed to upload document:', error);
@@ -186,7 +186,7 @@ export default function MasterVerificationPage() {
 
   const handleSubmitForReview = async () => {
     const requiredSteps = verificationSteps.filter(step => step.required);
-    const completedRequired = requiredSteps.filter(step => 
+    const completedRequired = requiredSteps.filter(step =>
       step.status === 'approved' || step.status === 'in_review'
     );
 
@@ -235,7 +235,7 @@ export default function MasterVerificationPage() {
       <ScrollView className="flex-1 px-4">
         {/* Header */}
         <View className="flex-row items-center gap-4 mb-6">
-          <TouchableOpacity 
+          <TouchableOpacity
             onPress={() => router.back()}
             className="w-10 h-10 bg-white rounded-2xl items-center justify-center shadow-sm border border-gray-100"
           >
@@ -262,7 +262,7 @@ export default function MasterVerificationPage() {
             <Text className="text-gray-500 text-center mb-4">
               Не удалось загрузить данные верификации
             </Text>
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={() => refetchStatus()}
               className="bg-[#0165FB] px-6 py-2 rounded-xl"
             >
@@ -273,32 +273,31 @@ export default function MasterVerificationPage() {
 
         {/* Overall Status */}
         {!statusLoading && !statusError && status && (
-          <View className={`rounded-3xl p-5 mb-6 ${
-            overallStatus === 'verified' ? 'bg-green-500' :
-            overallStatus === 'in_review' ? 'bg-orange-500' : 'bg-[#0165FB]'
-          }`}>
+          <View className={`rounded-3xl p-5 mb-6 ${overallStatus === 'verified' ? 'bg-green-500' :
+              overallStatus === 'in_review' ? 'bg-orange-500' : 'bg-[#0165FB]'
+            }`}>
             <View className="flex-row items-center gap-4">
               <View className="w-16 h-16 bg-white/20 rounded-full items-center justify-center">
-                <Ionicons 
+                <Ionicons
                   name={
                     overallStatus === 'verified' ? 'shield-checkmark' :
-                    overallStatus === 'in_review' ? 'shield-half' : 'shield'
-                  } 
-                  size={32} 
-                  color="white" 
+                      overallStatus === 'in_review' ? 'shield-half' : 'shield'
+                  }
+                  size={32}
+                  color="white"
                 />
               </View>
               <View className="flex-1">
                 <Text className="text-white text-xl font-bold">
                   {overallStatus === 'verified' ? 'Верифицирован' :
-                   overallStatus === 'in_review' ? 'На проверке' : 'Требуется верификация'}
+                    overallStatus === 'in_review' ? 'На проверке' : 'Требуется верификация'}
                 </Text>
                 <Text className="text-white/80 text-sm">
-                  {overallStatus === 'verified' 
+                  {overallStatus === 'verified'
                     ? 'Ваш аккаунт полностью верифицирован'
                     : overallStatus === 'in_review'
-                    ? 'Документы проверяются модераторами'
-                    : 'Пройдите верификацию для повышения доверия'
+                      ? 'Документы проверяются модераторами'
+                      : 'Пройдите верификацию для повышения доверия'
                   }
                 </Text>
                 <Text className="text-white/60 text-xs mt-1">
@@ -312,7 +311,7 @@ export default function MasterVerificationPage() {
         {/* Benefits */}
         <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-6">
           <Text className="text-lg font-bold text-gray-900 mb-4">Преимущества верификации</Text>
-          <View className="space-y-3">
+          <View className="flex flex-col gap-3">
             <View className="flex-row items-center gap-3">
               <View className="w-8 h-8 bg-green-100 rounded-full items-center justify-center">
                 <Ionicons name="checkmark" size={16} color="#059669" />
@@ -342,30 +341,29 @@ export default function MasterVerificationPage() {
 
         {/* Verification Steps */}
         {!statusLoading && !documentsLoading && !requirementsLoading && (
-          <View className="space-y-4 mb-6">
+          <View className="flex flex-col gap-4 mb-6">
             {verificationSteps.map((step) => {
               const statusStyle = getStatusColor(step.status);
               const hasImage = selectedImages[step.id] || step.document?.file_url;
-              
+
               return (
                 <View key={step.id} className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100">
                   <View className="flex-row items-start gap-4">
-                    <View className={`w-12 h-12 rounded-2xl items-center justify-center ${
-                      step.status === 'approved' ? 'bg-green-100' :
-                      step.status === 'in_review' ? 'bg-orange-100' :
-                      step.status === 'rejected' ? 'bg-red-100' : 'bg-gray-100'
-                    }`}>
-                      <Ionicons 
-                        name={step.icon as any} 
-                        size={24} 
+                    <View className={`w-12 h-12 rounded-2xl items-center justify-center ${step.status === 'approved' ? 'bg-green-100' :
+                        step.status === 'in_review' ? 'bg-orange-100' :
+                          step.status === 'rejected' ? 'bg-red-100' : 'bg-gray-100'
+                      }`}>
+                      <Ionicons
+                        name={step.icon as any}
+                        size={24}
                         color={
                           step.status === 'approved' ? '#059669' :
-                          step.status === 'in_review' ? '#F59E0B' :
-                          step.status === 'rejected' ? '#EF4444' : '#6B7280'
-                        } 
+                            step.status === 'in_review' ? '#F59E0B' :
+                              step.status === 'rejected' ? '#EF4444' : '#6B7280'
+                        }
                       />
                     </View>
-                    
+
                     <View className="flex-1">
                       <View className="flex-row items-center gap-2 mb-1">
                         <Text className="font-semibold text-gray-900">{step.title}</Text>
@@ -375,18 +373,20 @@ export default function MasterVerificationPage() {
                           </View>
                         )}
                       </View>
-                      
+
                       <Text className="text-sm text-gray-600 mb-3">{step.description}</Text>
-                      
+
                       {step.status === 'rejected' && step.document?.rejection_reason && (
                         <View className="bg-red-50 p-3 rounded-2xl mb-3">
-                          <Text className="text-sm text-red-700">
+                          <View className="flex-row items-center gap-1">
                             <Ionicons name="alert-circle" size={14} color="#EF4444" />
-                            {' '}Причина отклонения: {step.document.rejection_reason}
-                          </Text>
+                            <Text className="text-sm text-red-700">
+                              Причина отклонения: {step.document.rejection_reason}
+                            </Text>
+                          </View>
                         </View>
                       )}
-                      
+
                       <View className="flex-row items-center justify-between">
                         <View className={`px-3 py-1 rounded-full ${statusStyle.bg}`}>
                           <View className="flex-row items-center gap-1">
@@ -396,22 +396,21 @@ export default function MasterVerificationPage() {
                             </Text>
                           </View>
                         </View>
-                        
+
                         <View className="flex-row gap-2">
                           {step.status !== 'approved' && (
                             <TouchableOpacity
                               onPress={() => uploadDocument(step.id)}
                               disabled={uploadLoading}
-                              className={`px-4 py-2 rounded-xl ${
-                                uploadLoading ? 'bg-gray-400' : 'bg-[#0165FB]'
-                              }`}
+                              className={`px-4 py-2 rounded-xl ${uploadLoading ? 'bg-gray-400' : 'bg-[#0165FB]'
+                                }`}
                             >
                               <Text className="text-white text-sm font-medium">
                                 {uploadLoading ? 'Загрузка...' : hasImage ? 'Изменить' : 'Загрузить'}
                               </Text>
                             </TouchableOpacity>
                           )}
-                          
+
                           {step.document && (
                             <TouchableOpacity
                               onPress={() => handleDeleteDocument(step.document!.id)}
@@ -422,11 +421,11 @@ export default function MasterVerificationPage() {
                           )}
                         </View>
                       </View>
-                      
+
                       {hasImage && (
                         <View className="mt-3">
-                          <Image 
-                            source={{ uri: step.document?.file_url || selectedImages[step.id] }} 
+                          <Image
+                            source={{ uri: step.document?.file_url || selectedImages[step.id] }}
                             className="w-full h-32 rounded-2xl"
                             resizeMode="cover"
                           />
@@ -445,9 +444,8 @@ export default function MasterVerificationPage() {
           <TouchableOpacity
             onPress={handleSubmitForReview}
             disabled={submitLoading}
-            className={`py-4 rounded-2xl shadow-lg mb-6 ${
-              submitLoading ? 'bg-gray-400' : 'bg-[#0165FB]'
-            }`}
+            className={`py-4 rounded-2xl shadow-lg mb-6 ${submitLoading ? 'bg-gray-400' : 'bg-[#0165FB]'
+              }`}
           >
             <Text className="text-center font-semibold text-white text-lg">
               {submitLoading ? 'Отправка...' : 'Отправить на проверку'}
@@ -457,10 +455,10 @@ export default function MasterVerificationPage() {
 
         {/* Help */}
         <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-6">
-          <Text className="font-semibold text-gray-900 mb-3 flex-row items-center gap-2">
+          <View className="flex-row items-center gap-2 mb-3">
             <Ionicons name="help-circle" size={20} color="#0165FB" />
-            Нужна помощь?
-          </Text>
+            <Text className="font-semibold text-gray-900">Нужна помощь?</Text>
+          </View>
           <Text className="text-sm text-gray-600 mb-3">
             Если у вас возникли вопросы по верификации, обратитесь в службу поддержки.
           </Text>

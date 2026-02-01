@@ -222,20 +222,20 @@ export default function OrderDetailPage() {
 
         {/* Description */}
         <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-4">
-          <Text className="text-lg font-bold text-gray-900 mb-3 flex-row items-center gap-2">
+          <View className="flex-row items-center gap-2 mb-3">
             <Ionicons name="document-text" size={20} color="#0165FB" />
-            Описание
-          </Text>
+            <Text className="text-lg font-bold text-gray-900">Описание</Text>
+          </View>
           <Text className="text-gray-700">{order.description}</Text>
         </View>
 
         {/* Details */}
         <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-4">
-          <Text className="text-lg font-bold text-gray-900 mb-4 flex-row items-center gap-2">
+          <View className="flex-row items-center gap-2 mb-4">
             <Ionicons name="information-circle" size={20} color="#0165FB" />
-            Детали
-          </Text>
-          <View className="space-y-3">
+            <Text className="text-lg font-bold text-gray-900">Детали</Text>
+          </View>
+          <View className="flex flex-col gap-3">
             <View className="flex-row items-center gap-3 p-3 bg-gray-50 rounded-2xl">
               <View className="w-10 h-10 bg-[#0165FB]/10 rounded-xl items-center justify-center">
                 <Ionicons name="grid" size={20} color="#0165FB" />
@@ -312,11 +312,11 @@ export default function OrderDetailPage() {
 
         {/* Conditions */}
         <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-4">
-          <Text className="text-lg font-bold text-gray-900 mb-4 flex-row items-center gap-2">
+          <View className="flex-row items-center gap-2 mb-4">
             <Ionicons name="home" size={20} color="#0165FB" />
-            Условия на объекте
-          </Text>
-          <View className="space-y-2">
+            <Text className="text-lg font-bold text-gray-900">Условия на объекте</Text>
+          </View>
+          <View className="flex flex-col gap-2">
             {[
               { key: 'has_elevator', label: 'Лифт', icon: 'arrow-up' },
               { key: 'has_electricity', label: 'Электричество', icon: 'flash' },
@@ -361,10 +361,10 @@ export default function OrderDetailPage() {
         {/* Skills */}
         {order.skills_list && order.skills_list.length > 0 && (
           <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-4">
-            <Text className="text-lg font-bold text-gray-900 mb-3 flex-row items-center gap-2">
+            <View className="flex-row items-center gap-2 mb-3">
               <Ionicons name="star" size={20} color="#0165FB" />
-              Требуемые навыки
-            </Text>
+              <Text className="text-lg font-bold text-gray-900">Требуемые навыки</Text>
+            </View>
             <View className="flex-row flex-wrap gap-2">
               {order.skills_list.map(skill => (
                 <View key={skill.id} className="px-4 py-2 bg-[#0165FB]/10 rounded-full">
@@ -378,10 +378,10 @@ export default function OrderDetailPage() {
         {/* Files */}
         {order.files && order.files.length > 0 && (
           <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-4">
-            <Text className="text-lg font-bold text-gray-900 mb-3 flex-row items-center gap-2">
+            <View className="flex-row items-center gap-2 mb-3">
               <Ionicons name="image" size={20} color="#0165FB" />
-              Файлы
-            </Text>
+              <Text className="text-lg font-bold text-gray-900">Файлы</Text>
+            </View>
             <FlatList
               data={order.files}
               renderItem={renderFile}

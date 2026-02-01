@@ -264,7 +264,7 @@ export default function MasterDetailPage() {
         </View>
 
         {/* Tab Content */}
-        <View className="p-4 space-y-4 mt-4">
+        <View className="p-4 flex flex-col gap-4 mt-4">
           {activeTab === 'about' && (
             <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mt-4">
               <Text className="text-lg font-bold text-gray-900 mb-3">Описание</Text>
@@ -275,7 +275,7 @@ export default function MasterDetailPage() {
           )}
 
           {activeTab === 'portfolio' && (
-            <View className="space-y-4">
+            <View className="flex flex-col gap-4">
               {master.portfolio && master.portfolio.length > 0 ? (
                 master.portfolio.map((item) => (
                   <View key={item.id} className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100">
@@ -308,7 +308,7 @@ export default function MasterDetailPage() {
           )}
 
           {activeTab === 'reviews' && (
-            <View className="space-y-4">
+            <View className="flex flex-col gap-4">
               {master.reviews && master.reviews.length > 0 ? (
                 master.reviews.map((review) => (
                   <View key={review.id} className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100">

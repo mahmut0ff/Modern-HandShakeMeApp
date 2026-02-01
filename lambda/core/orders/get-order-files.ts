@@ -1,60 +1,56 @@
-// Get order files Lambda function
+import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import { OrderRepository } from '../shared/repositories/order.repository';
+import { OrderFileRepository } from '../shared/repositories/order-file.repository';
 
-import type { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { getPrismaClient } from '@/shared/db/client';
-import { success, notFound } from '@/shared/utils/response';
-import { withErrorHandler } from '@/shared/middleware/errorHandler';
-import { logger } from '@/shared/utils/logger';
+const orderRepository = new OrderRepository();
+const orderFileRepository = new OrderFileRepository();
 
-async function getOrderFilesHandler(
-  event: APIGatewayProxyEvent
-): Promise<APIGatewayProxyResult> {
-  const orderId = event.pathParameters?.id;
-  
-  if (!orderId) {
-    return notFound('Order ID is required');
+export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+  try {
+    const orderId = event.pathParameters?.id;
+    if (!orderId) {
+      return {
+        statusCode: 400,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Order ID is required' })
+      };
+    }
+
+    // Check if order exists
+    const order = await orderRepository.findById(orderId);
+    if (!order) {
+      return {
+        statusCode: 404,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Order not found' })
+      };
+    }
+
+    // Get order files
+    const files = await orderFileRepository.findByOrder(orderId);
+
+    // Format response
+    const response = files.map(file => ({
+      id: file.id,
+      file: file.fileName,
+      file_url: file.fileUrl,
+      file_type: file.fileType,
+      thumbnail: file.thumbnail,
+      order_num: file.orderNum,
+      created_at: file.createdAt,
+    }));
+
+    return {
+      statusCode: 200,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(response)
+    };
+  } catch (error) {
+    console.error('Error:', error);
+    return {
+      statusCode: 500,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ error: 'Internal server error' })
+    };
   }
-  
-  logger.info('Get order files request', { orderId });
-  
-  const prisma = getPrismaClient();
-  
-  // Check if order exists
-  const order = await prisma.order.findUnique({
-    where: { id: parseInt(orderId) },
-  });
-  
-  if (!order) {
-    return notFound('Order not found');
-  }
-  
-  // Get order files
-  const files = await prisma.orderFile.findMany({
-    where: {
-      orderId: parseInt(orderId),
-    },
-    orderBy: {
-      order_num: 'asc',
-    },
-  });
-  
-  logger.info('Order files retrieved successfully', { 
-    orderId, 
-    count: files.length 
-  });
-  
-  // Format response
-  const response = files.map(file => ({
-    id: file.id,
-    file: file.file,
-    file_url: file.file_url,
-    file_type: file.file_type,
-    thumbnail: file.thumbnail,
-    order_num: file.order_num,
-    created_at: file.createdAt.toISOString(),
-  }));
-  
-  return success(response);
-}
-
-export const handler = withErrorHandler(getOrderFilesHandler);
+};

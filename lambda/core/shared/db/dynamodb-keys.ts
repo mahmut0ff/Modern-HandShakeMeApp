@@ -65,6 +65,39 @@ export const Keys = {
     SK: `MSG#${messageId}`,
   }),
   
+  // Disputes
+  dispute: (disputeId: string) => ({
+    PK: `DISPUTE#${disputeId}`,
+    SK: 'DETAILS',
+  }),
+  
+  disputesByUser: (userId: string) => ({
+    GSI1PK: `USER#${userId}#DISPUTES`,
+  }),
+  
+  disputesByOrder: (orderId: string) => ({
+    GSI2PK: `ORDER#${orderId}#DISPUTES`,
+  }),
+  
+  disputesByStatus: (status: string) => ({
+    GSI3PK: `STATUS#${status}#DISPUTES`,
+  }),
+  
+  disputeEvidence: (disputeId: string, evidenceId: string) => ({
+    PK: `DISPUTE#${disputeId}`,
+    SK: `EVIDENCE#${evidenceId}`,
+  }),
+  
+  disputeMessage: (disputeId: string, timestamp: string, messageId: string) => ({
+    PK: `DISPUTE#${disputeId}`,
+    SK: `MESSAGE#${timestamp}#${messageId}`,
+  }),
+  
+  disputeTimeline: (disputeId: string, timestamp: string, timelineId: string) => ({
+    PK: `DISPUTE#${disputeId}`,
+    SK: `TIMELINE#${timestamp}#${timelineId}`,
+  }),
+  
   // Notification
   notification: (userId: string, notificationId: string) => ({
     PK: `USER#${userId}`,
@@ -77,15 +110,84 @@ export const Keys = {
     SK: `TXN#${transactionId}`,
   }),
   
+  // Wallet
+  wallet: (walletId: string) => ({
+    PK: `WALLET#${walletId}`,
+    SK: 'DETAILS',
+  }),
+  
+  // Verification
+  verification: (verificationId: string) => ({
+    PK: `VERIFICATION#${verificationId}`,
+    SK: 'DETAILS',
+  }),
+  
+  verificationByUser: (userId: string) => ({
+    GSI1PK: `USER#${userId}`,
+    GSI1SK: 'VERIFICATION',
+  }),
+  
   // Service
-  service: (masterId: string, serviceId: string) => ({
+  service: (serviceId: string) => ({
+    PK: `SERVICE#${serviceId}`,
+    SK: 'DETAILS',
+  }),
+  
+  servicesByMaster: (masterId: string) => ({
     PK: `USER#${masterId}`,
-    SK: `SERVICE#${serviceId}`,
+    SK: 'SERVICE#',
+  }),
+  
+  // Booking
+  booking: (bookingId: string) => ({
+    PK: `BOOKING#${bookingId}`,
+    SK: 'DETAILS',
+  }),
+  
+  bookingsByMaster: (masterId: string) => ({
+    GSI1PK: `MASTER#${masterId}#BOOKINGS`,
+  }),
+  
+  bookingsByClient: (clientId: string) => ({
+    GSI2PK: `CLIENT#${clientId}#BOOKINGS`,
   }),
   
   // Portfolio
   portfolio: (masterId: string, itemId: string) => ({
     PK: `USER#${masterId}`,
     SK: `PORTFOLIO#${itemId}`,
+  }),
+  
+  // Telegram Auth Session
+  telegramSession: (sessionId: string) => ({
+    PK: `TELEGRAM_SESSION#${sessionId}`,
+    SK: 'DETAILS',
+  }),
+  
+  // Token Blacklist
+  tokenBlacklist: (token: string) => ({
+    PK: `TOKEN_BLACKLIST#${token}`,
+    SK: 'DETAILS',
+  }),
+
+  // Payment Cards
+  paymentCard: (userId: string, cardId: string) => ({
+    PK: `USER#${userId}`,
+    SK: `CARD#${cardId}`,
+  }),
+
+  // Time Tracking
+  timeSession: (sessionId: string) => ({
+    PK: `SESSION#${sessionId}`,
+    SK: 'DETAILS',
+  }),
+
+  timeSessionsByMaster: (masterId: string) => ({
+    GSI1PK: `MASTER#${masterId}`,
+  }),
+
+  timeEntry: (sessionId: string, timestamp: string, entryId: string) => ({
+    PK: `SESSION#${sessionId}`,
+    SK: `ENTRY#${timestamp}#${entryId}`,
   }),
 };

@@ -24,7 +24,7 @@ export const RatingDistribution: React.FC<RatingDistributionProps> = ({
   stats,
   onRatingTap,
 }) => {
-  const { averageRating, totalReviews, distribution } = stats;
+  const { averageRating = 0, totalReviews = 0, distribution = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 } } = stats || {};
 
   const calculatePercentage = (count: number): number => {
     if (totalReviews === 0) return 0;
@@ -32,7 +32,7 @@ export const RatingDistribution: React.FC<RatingDistributionProps> = ({
   };
 
   const renderDistributionBar = (rating: number) => {
-    const count = distribution[rating as keyof typeof distribution];
+    const count = distribution?.[rating as keyof typeof distribution] ?? 0;
     const percentage = calculatePercentage(count);
 
     const BarComponent = onRatingTap ? TouchableOpacity : View;

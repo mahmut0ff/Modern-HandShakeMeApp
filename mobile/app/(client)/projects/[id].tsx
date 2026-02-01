@@ -65,7 +65,7 @@ export default function ProjectDetailPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [loading, setLoading] = useState(false);
 
-  // Mock data - replace with actual API calls
+  // TODO: Replace with actual API calls
   const project: Project = {
     id: Number(id),
     order_title: 'Ремонт ванной комнаты',
@@ -133,7 +133,8 @@ export default function ProjectDetailPage() {
   };
 
   const handleStartChat = () => {
-    router.push(`/(client)/chat/1`); // TODO: Use actual chat room ID
+    // Navigate to chat list - actual chat room should be created/found via API
+    router.push(`/(client)/chat`);
   };
 
   const handleCompleteProject = async () => {
@@ -173,7 +174,7 @@ export default function ProjectDetailPage() {
       <ScrollView className="flex-1 px-4" contentContainerStyle={{ paddingBottom: 20, paddingTop: 8 }}>
         {/* Header */}
         <View className="flex-row items-center gap-4 mb-4">
-          <TouchableOpacity 
+          <TouchableOpacity
             onPress={() => router.back()}
             className="w-10 h-10 bg-white rounded-2xl items-center justify-center shadow-sm border border-gray-100"
           >
@@ -201,15 +202,15 @@ export default function ProjectDetailPage() {
               <Text className="text-xs text-white/70">Выполнено</Text>
             </View>
           </View>
-          
+
           {/* Progress Bar */}
           <View className="w-full bg-white/20 rounded-full h-2 mb-2">
-            <View 
-              className="bg-white h-2 rounded-full" 
+            <View
+              className="bg-white h-2 rounded-full"
               style={{ width: `${project.progress}%` }}
             />
           </View>
-          
+
           {project.deadline && (
             <Text className="text-white/70 text-sm">
               Дедлайн: {new Date(project.deadline).toLocaleDateString('ru-RU')}
@@ -219,10 +220,10 @@ export default function ProjectDetailPage() {
 
         {/* Master Info */}
         <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-4">
-          <Text className="font-semibold text-gray-900 mb-3 flex-row items-center gap-2">
+          <View className="flex-row items-center gap-2 mb-3">
             <Ionicons name="person" size={20} color="#0165FB" />
-            Мастер
-          </Text>
+            <Text className="font-semibold text-gray-900">Мастер</Text>
+          </View>
           <View className="flex-row items-center gap-4">
             <TouchableOpacity
               onPress={() => router.push(`/(client)/masters/${project.master.id}`)}
@@ -238,8 +239,8 @@ export default function ProjectDetailPage() {
               <TouchableOpacity onPress={() => router.push(`/(client)/masters/${project.master.id}`)}>
                 <Text className="font-semibold text-gray-900">{project.master.name}</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
-                onPress={() => {/* TODO: Make phone call */}}
+              <TouchableOpacity
+                onPress={() => {/* TODO: Make phone call */ }}
                 className="flex-row items-center gap-1 mt-1"
               >
                 <Ionicons name="call" size={16} color="#0165FB" />
@@ -257,31 +258,30 @@ export default function ProjectDetailPage() {
 
         {/* Description */}
         <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-4">
-          <Text className="font-semibold text-gray-900 mb-3 flex-row items-center gap-2">
+          <View className="flex-row items-center gap-2 mb-3">
             <Ionicons name="document-text" size={20} color="#0165FB" />
-            Описание проекта
-          </Text>
+            <Text className="font-semibold text-gray-900">Описание проекта</Text>
+          </View>
           <Text className="text-gray-600">{project.description}</Text>
         </View>
 
         {/* Milestones */}
         <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-4">
           <View className="flex-row items-center justify-between mb-4">
-            <Text className="font-semibold text-gray-900 flex-row items-center gap-2">
+            <View className="flex-row items-center gap-2">
               <Ionicons name="checkmark-circle" size={20} color="#0165FB" />
-              Этапы работы
-            </Text>
+              <Text className="font-semibold text-gray-900">Этапы работы</Text>
+            </View>
             <Text className="text-sm text-gray-500">
               {completedMilestones} из {totalMilestones}
             </Text>
           </View>
-          
-          <View className="space-y-3">
+
+          <View className="flex flex-col gap-3">
             {project.milestones.map((milestone, index) => (
               <View key={milestone.id} className="flex-row items-start gap-3">
-                <View className={`w-6 h-6 rounded-full items-center justify-center mt-0.5 ${
-                  milestone.is_completed ? 'bg-green-500' : 'bg-gray-300'
-                }`}>
+                <View className={`w-6 h-6 rounded-full items-center justify-center mt-0.5 ${milestone.is_completed ? 'bg-green-500' : 'bg-gray-300'
+                  }`}>
                   {milestone.is_completed ? (
                     <Ionicons name="checkmark" size={16} color="white" />
                   ) : (
@@ -289,9 +289,8 @@ export default function ProjectDetailPage() {
                   )}
                 </View>
                 <View className="flex-1">
-                  <Text className={`font-medium ${
-                    milestone.is_completed ? 'text-gray-900' : 'text-gray-500'
-                  }`}>
+                  <Text className={`font-medium ${milestone.is_completed ? 'text-gray-900' : 'text-gray-500'
+                    }`}>
                     {milestone.title}
                   </Text>
                   <Text className="text-sm text-gray-500 mt-1">{milestone.description}</Text>
@@ -309,10 +308,10 @@ export default function ProjectDetailPage() {
         {/* Project Files */}
         {project.files.length > 0 && (
           <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-4">
-            <Text className="font-semibold text-gray-900 mb-4 flex-row items-center gap-2">
+            <View className="flex-row items-center gap-2 mb-4">
               <Ionicons name="image" size={20} color="#0165FB" />
-              Фото прогресса ({project.files.length})
-            </Text>
+              <Text className="font-semibold text-gray-900">Фото прогресса ({project.files.length})</Text>
+            </View>
             <View className="flex-row flex-wrap gap-2">
               {project.files.map(file => (
                 <TouchableOpacity
@@ -326,13 +325,12 @@ export default function ProjectDetailPage() {
                       <Ionicons name="document" size={32} color="#9CA3AF" />
                     </View>
                   )}
-                  <View className={`absolute top-1 right-1 w-5 h-5 rounded-full items-center justify-center ${
-                    file.uploaded_by === 'master' ? 'bg-blue-500' : 'bg-green-500'
-                  }`}>
-                    <Ionicons 
-                      name={file.uploaded_by === 'master' ? 'build' : 'person'} 
-                      size={12} 
-                      color="white" 
+                  <View className={`absolute top-1 right-1 w-5 h-5 rounded-full items-center justify-center ${file.uploaded_by === 'master' ? 'bg-blue-500' : 'bg-green-500'
+                    }`}>
+                    <Ionicons
+                      name={file.uploaded_by === 'master' ? 'build' : 'person'}
+                      size={12}
+                      color="white"
                     />
                   </View>
                 </TouchableOpacity>
@@ -342,21 +340,20 @@ export default function ProjectDetailPage() {
         )}
 
         {/* Actions */}
-        <View className="space-y-3 mb-6">
+        <View className="flex flex-col gap-3 mb-6">
           {project.status === 'in_progress' && (
             <TouchableOpacity
               onPress={handleCompleteProject}
               disabled={loading}
-              className={`py-4 rounded-2xl shadow-lg ${
-                loading ? 'bg-gray-400' : 'bg-green-500'
-              }`}
+              className={`py-4 rounded-2xl shadow-lg ${loading ? 'bg-gray-400' : 'bg-green-500'
+                }`}
             >
               <Text className="text-center font-semibold text-white text-lg">
                 {loading ? 'Обработка...' : 'Завершить проект'}
               </Text>
             </TouchableOpacity>
           )}
-          
+
           {project.status === 'completed' && (
             <TouchableOpacity
               onPress={handleLeaveReview}
@@ -367,7 +364,7 @@ export default function ProjectDetailPage() {
               </Text>
             </TouchableOpacity>
           )}
-          
+
           <TouchableOpacity
             onPress={handleStartChat}
             className="py-4 bg-white border border-gray-200 rounded-2xl shadow-sm"

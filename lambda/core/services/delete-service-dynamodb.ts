@@ -1,39 +1,68 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { ServiceRepository } from '../shared/repositories/service.repository';
 import { verifyToken } from '../shared/services/token';
+import { successResponse, badRequestResponse, unauthorizedResponse, notFoundResponse, forbiddenResponse } from '../shared/utils/unified-response';
+import { logger } from '../shared/utils/logger';
 
 export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
   try {
     const token = event.headers.Authorization?.replace('Bearer ', '');
     if (!token) {
-      return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
+      return unauthorizedResponse('Missing authorization token');
     }
 
     const decoded = verifyToken(token);
     const serviceId = event.pathParameters?.id;
 
     if (!serviceId) {
-      return { statusCode: 400, body: JSON.stringify({ error: 'Service ID required' }) };
+      return badRequestResponse('Service ID is required');
     }
 
     const serviceRepo = new ServiceRepository();
-    const service = await serviceRepo.findById(decoded.userId, serviceId);
-
+    
+    // Check if service exists and belongs to the master
+    const service = await serviceRepo.findById(serviceId);
     if (!service) {
-      return { statusCode: 404, body: JSON.stringify({ error: 'Service not found' }) };
+      return notFoundResponse('Service not found');
+    }
+    
+    if (service.masterId !== decoded.userId) {
+      return forbiddenResponse('You can only delete your own services');
     }
 
-    await serviceRepo.delete(decoded.userId, serviceId);
+    await serviceRepo.delete(serviceId);
+
+    logger.info('Service deleted successfully', { serviceId, masterId: decoded.userId });
 
     return {
       statusCode: 204,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      },
       body: '',
     };
   } catch (error: any) {
-    console.error('Delete service error:', error);
+    logger.error('Delete service error:', error);
+    
+    if (error.message === 'Invalid token') {
+      return unauthorizedResponse('Invalid or expired token');
+    }
+    
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: error.message }),
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      },
+      body: JSON.stringify({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Internal server error',
+        },
+        timestamp: new Date().toISOString(),
+      }),
     };
   }
 }

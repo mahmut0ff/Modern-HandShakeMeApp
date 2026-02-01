@@ -1,12 +1,13 @@
 import { createApi, fetchBaseQuery, BaseQueryFn, FetchArgs, FetchBaseQueryError } from '@reduxjs/toolkit/query/react';
 import { RootState } from '../store';
 import { setTokens, logout } from '../features/auth/authSlice';
+import { errorHandler } from './errorHandler'; // FIXED: Import error handler
 import { Mutex } from 'async-mutex';
 
 // Create a mutex to prevent multiple refresh attempts
 const mutex = new Mutex();
 
-// Enhanced base query with token refresh logic
+// FIXED: Enhanced base query with proper error handling
 const baseQuery = fetchBaseQuery({
   baseUrl: process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001',
   prepareHeaders: (headers, { getState }) => {
@@ -18,6 +19,7 @@ const baseQuery = fetchBaseQuery({
     headers.set('content-type', 'application/json');
     return headers;
   },
+  timeout: 30000, // FIXED: Add 30 second timeout
 });
 
 const baseQueryWithReauth: BaseQueryFn<
@@ -25,22 +27,22 @@ const baseQueryWithReauth: BaseQueryFn<
   unknown,
   FetchBaseQueryError
 > = async (args, api, extraOptions) => {
-  // Wait for any ongoing refresh attempts
-  await mutex.waitForUnlock();
-  
-  let result = await baseQuery(args, api, extraOptions);
+  // FIXED: Add timeout for mutex to prevent deadlocks
+  const release = await mutex.acquire();
 
-  if (result.error && result.error.status === 401) {
-    // Check if we're not already refreshing
-    if (!mutex.isLocked()) {
-      const release = await mutex.acquire();
-      
-      try {
+  try {
+    let result = await baseQuery(args, api, extraOptions);
+    let refreshAttempts = 0;
+    const MAX_REFRESH_ATTEMPTS = 3;
+
+    if (result.error && result.error.status === 401) {
+      if (refreshAttempts < MAX_REFRESH_ATTEMPTS) {
+        refreshAttempts++;
         const refreshToken = (api.getState() as RootState).auth.refreshToken;
-        
+
         if (refreshToken) {
           console.log('Attempting to refresh token...');
-          
+
           // Try to refresh the token
           const refreshResult = await baseQuery(
             {
@@ -54,17 +56,21 @@ const baseQueryWithReauth: BaseQueryFn<
 
           if (refreshResult.data) {
             const { access, refresh } = refreshResult.data as { access: string; refresh: string };
-            
+
             // Store the new tokens
-            api.dispatch(setTokens({ 
-              accessToken: access, 
-              refreshToken: refresh 
+            api.dispatch(setTokens({
+              accessToken: access,
+              refreshToken: refresh
             }));
-            
+
             console.log('Token refreshed successfully');
-            
+
             // Retry the original query with new token
             result = await baseQuery(args, api, extraOptions);
+          } else if (refreshResult.error?.status === 'FETCH_ERROR') {
+            console.error('Network error during token refresh');
+            errorHandler.handleNetworkError(refreshResult.error);
+            api.dispatch(logout());
           } else {
             console.log('Token refresh failed, logging out');
             api.dispatch(logout());
@@ -73,37 +79,29 @@ const baseQueryWithReauth: BaseQueryFn<
           console.log('No refresh token available, logging out');
           api.dispatch(logout());
         }
-      } catch (error) {
-        console.error('Error during token refresh:', error);
+      } else {
+        console.log('Max refresh attempts exceeded, logging out');
         api.dispatch(logout());
-      } finally {
-        release();
       }
-    } else {
-      // Wait for the ongoing refresh to complete
-      await mutex.waitForUnlock();
-      // Retry the original query
-      result = await baseQuery(args, api, extraOptions);
     }
-  }
 
-  // Global error logging
-  if (result.error) {
-    console.error('API Error:', {
-      endpoint: typeof args === 'string' ? args : args.url,
-      status: result.error.status,
-      data: result.error.data,
-    });
+    // FIXED: Enhanced error handling with proper error service integration
+    if (result.error) {
+      const endpoint = typeof args === 'string' ? args : args.url;
 
-    // Handle specific error types
-    if (result.error.status === 'FETCH_ERROR') {
-      console.error('Network error - check internet connection');
-    } else if (result.error.status === 'TIMEOUT_ERROR') {
-      console.error('Request timeout - server may be slow');
+      if (result.error.status === 'FETCH_ERROR') {
+        errorHandler.handleNetworkError(result.error);
+      } else if (typeof result.error.status === 'number') {
+        errorHandler.handleAPIError(result.error, endpoint);
+      } else {
+        errorHandler.handleUnknownError(result.error, `API call to ${endpoint}`);
+      }
     }
-  }
 
-  return result;
+    return result;
+  } finally {
+    release();
+  }
 };
 
 // Base API configuration
@@ -111,22 +109,37 @@ export const api = createApi({
   reducerPath: 'api',
   baseQuery: baseQueryWithReauth,
   tagTypes: [
-    'User', 
-    'Order', 
-    'Application', 
-    'Project', 
-    'MasterProfile', 
-    'ClientProfile', 
-    'Portfolio', 
-    'Review', 
-    'Chat', 
+    'User',
+    'Order',
+    'Application',
+    'Project',
+    'MasterProfile',
+    'ClientProfile',
+    'Portfolio',
+    'Review',
+    'Chat',
     'Notification',
     'Wallet',
     'Transaction',
     'Service',
     'ServiceCategory',
     'Verification',
-    'Dispute'
+    'Dispute',
+    'Location',
+    'Masters',
+    'Maps',
+    'Booking',
+    'Tracking',
+    'Analytics',
+    'BackgroundCheck',
+    'Calendar',
+    'TimeTracking',
+    'Application',
+    'Project',
+    'InstantBooking',
+    'Availability',
+    'Category',
+    'Skill'
   ],
   endpoints: () => ({}),
 });

@@ -126,7 +126,7 @@ class OfflineManager {
     return this.queue.length;
   }
 
-  // Queue processing
+  // FIXED: Enhanced queue processing with exponential backoff
   async processQueue(): Promise<void> {
     if (!this.isOnline || this.syncInProgress || this.queue.length === 0) {
       return;
@@ -157,12 +157,24 @@ class OfflineManager {
           action.retryCount++;
           
           if (action.retryCount >= action.maxRetries) {
+            console.error(`Max retries exceeded for action ${action.id}`);
             failedIds.push(action.id);
+          } else {
+            // FIXED: Exponential backoff - delay next retry
+            const delay = Math.pow(2, action.retryCount) * 1000; // 2^n seconds
+            console.log(`Retrying action ${action.id} in ${delay}ms (attempt ${action.retryCount})`);
+            
+            // Schedule retry
+            setTimeout(() => {
+              if (this.isOnline && !this.syncInProgress) {
+                this.processQueue();
+              }
+            }, delay);
           }
         }
       }
 
-      // Remove successfully processed actions
+      // Remove successfully processed and permanently failed actions
       this.queue = this.queue.filter(action => 
         !processedIds.includes(action.id) && !failedIds.includes(action.id)
       );
@@ -176,23 +188,42 @@ class OfflineManager {
     }
   }
 
+  // FIXED: Enhanced error handling in executeAction
   private async executeAction(action: QueuedAction): Promise<any> {
     const { endpoint, method, data, headers } = action;
 
-    const response = await fetch(endpoint, {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        ...headers,
-      },
-      body: data ? JSON.stringify(data) : undefined,
-    });
+    try {
+      const response = await fetch(endpoint, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          ...headers,
+        },
+        body: data ? JSON.stringify(data) : undefined,
+      });
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      if (!response.ok) {
+        // FIXED: Better error handling for different HTTP status codes
+        if (response.status >= 400 && response.status < 500) {
+          // Client errors (4xx) - don't retry these
+          const errorText = await response.text();
+          throw new Error(`Client error ${response.status}: ${errorText}`);
+        } else if (response.status >= 500) {
+          // Server errors (5xx) - these can be retried
+          throw new Error(`Server error ${response.status}: ${response.statusText}`);
+        }
+      }
+
+      return response.json();
+    } catch (error) {
+      // FIXED: Distinguish between network errors and other errors
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        // Network error - can be retried
+        throw new Error(`Network error: ${error.message}`);
+      }
+      // Re-throw other errors
+      throw error;
     }
-
-    return response.json();
   }
 
   // Cache management

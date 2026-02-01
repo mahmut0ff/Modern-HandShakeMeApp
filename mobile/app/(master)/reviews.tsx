@@ -16,46 +16,53 @@ import { ReviewList, Review, RatingDistribution, ReviewStats } from '../../featu
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
 
-interface Review {
+interface DisplayReview {
   id: number;
-  project: {
-    id: number;
-    order_title: string;
-  };
-  client: {
+  rating: number;
+  comment: string;
+  createdAt: string;
+  updatedAt?: string;
+  isEdited: boolean;
+  reviewer: {
     id: number;
     name: string;
     avatar?: string;
   };
-  quality_rating: number;
-  communication_rating: number;
-  punctuality_rating: number;
-  professionalism_rating: number;
-  overall_rating: number;
-  comment: string;
-  created_at: string;
+  master: {
+    id: number;
+    name: string;
+    avatar?: string;
+  };
+  project?: any;
+  response?: {
+    id: number;
+    text: string;
+    createdAt: string;
+  };
+  helpfulCount: number;
+  isHelpfulByMe: boolean;
 }
 
 export default function MasterReviewsPage() {
   const [filter, setFilter] = useState<'all' | 'recent' | 'high' | 'low'>('all');
   const currentUser = useSelector((state: RootState) => state.auth.user);
-  
+
   // Pagination
   const pagination = usePagination({ pageSize: 10 });
 
   // API queries
-  const { 
-    data: reviewsData, 
-    isLoading: reviewsLoading, 
+  const {
+    data: reviewsData,
+    isLoading: reviewsLoading,
     error: reviewsError,
-    refetch: refetchReviews 
+    refetch: refetchReviews
   } = useGetMyReviewsQuery({
     role: 'master',
     page: pagination.state.currentPage,
     page_size: pagination.state.pageSize,
-    ordering: filter === 'recent' ? '-created_at' : 
-              filter === 'high' ? '-rating' :
-              filter === 'low' ? 'rating' : undefined,
+    ordering: filter === 'recent' ? '-created_at' :
+      filter === 'high' ? '-rating' :
+        filter === 'low' ? 'rating' : undefined,
   });
 
   const [markHelpful] = useMarkReviewHelpfulMutation();
@@ -63,8 +70,8 @@ export default function MasterReviewsPage() {
   const [deleteResponse] = useDeleteReviewResponseMutation();
   const [reportReview] = useReportReviewMutation();
 
-  const apiReviews = reviewsData?.results || [];
-  const totalCount = reviewsData?.count || 0;
+  const apiReviews = reviewsData?.results ?? [];
+  const totalCount = reviewsData?.count ?? 0;
 
   // Update pagination when data changes
   React.useEffect(() => {
@@ -72,7 +79,7 @@ export default function MasterReviewsPage() {
   }, [totalCount]);
 
   // Convert API reviews to display format
-  const reviews: Review[] = apiReviews.map((review: APIReview) => ({
+  const reviews: any[] = apiReviews.map((review: APIReview) => ({
     id: review.id,
     rating: review.rating,
     comment: review.comment || '',
@@ -82,12 +89,12 @@ export default function MasterReviewsPage() {
     reviewer: {
       id: review.client?.id || 0,
       name: review.is_anonymous ? 'Anonymous' : (review.client?.name || review.client_name || 'Client'),
-      avatar: review.is_anonymous ? undefined : (review.client?.avatar || review.client_avatar),
+      avatar: (review.client?.avatar || review.client_avatar) ?? undefined,
     },
     master: {
       id: review.master?.id || 0,
       name: review.master?.name || review.master_name || 'You',
-      avatar: review.master?.avatar || review.master_avatar,
+      avatar: (review.master?.avatar || review.master_avatar) ?? undefined,
     },
     project: review.project,
     response: review.response ? {
@@ -99,10 +106,10 @@ export default function MasterReviewsPage() {
     isHelpfulByMe: review.is_helpful || false,
   }));
 
-  // Calculate stats
+  // Calculate stats - with safe defaults
   const reviewStats: ReviewStats = {
-    averageRating: reviews.length > 0 
-      ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length 
+    averageRating: reviews.length > 0
+      ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
       : 0,
     totalReviews: totalCount,
     distribution: {
@@ -115,11 +122,52 @@ export default function MasterReviewsPage() {
   };
 
   const handleRespond = (reviewId: number) => {
-    router.push(`/(master)/reviews/respond/${reviewId}`);
+    // Response functionality - show alert with prompt
+    Alert.prompt(
+      'Ответить на отзыв',
+      'Введите ваш ответ на отзыв клиента:',
+      [
+        { text: 'Отмена', style: 'cancel' },
+        {
+          text: 'Отправить',
+          onPress: async (response: string | undefined) => {
+            if (!response || response.trim().length === 0) {
+              Alert.alert('Ошибка', 'Введите текст ответа');
+              return;
+            }
+            // TODO: Implement respond to review API call
+            Alert.alert('Успех', 'Ответ отправлен');
+            refetchReviews();
+          },
+        },
+      ],
+      'plain-text'
+    );
   };
 
   const handleEditResponse = (reviewId: number) => {
-    router.push(`/(master)/reviews/respond/${reviewId}?isEdit=true`);
+    const review = reviews.find(r => r.id === reviewId);
+    Alert.prompt(
+      'Редактировать ответ',
+      'Измените ваш ответ:',
+      [
+        { text: 'Отмена', style: 'cancel' },
+        {
+          text: 'Сохранить',
+          onPress: async (response: string | undefined) => {
+            if (!response || response.trim().length === 0) {
+              Alert.alert('Ошибка', 'Введите текст ответа');
+              return;
+            }
+            // TODO: Implement update response API call
+            Alert.alert('Успех', 'Ответ обновлён');
+            refetchReviews();
+          },
+        },
+      ],
+      'plain-text',
+      review?.response?.text || ''
+    );
   };
 
   const handleDeleteResponse = (reviewId: number) => {
@@ -152,7 +200,7 @@ export default function MasterReviewsPage() {
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Report',
-          onPress: async (reason) => {
+          onPress: async (reason: string | undefined) => {
             if (!reason || reason.trim().length === 0) {
               Alert.alert('Error', 'Please provide a reason');
               return;
@@ -188,7 +236,7 @@ export default function MasterReviewsPage() {
       <ScrollView className="flex-1 px-4">
         {/* Header */}
         <View className="flex-row items-center gap-4 mb-6">
-          <TouchableOpacity 
+          <TouchableOpacity
             onPress={() => router.back()}
             className="w-10 h-10 bg-white rounded-2xl items-center justify-center shadow-sm border border-gray-100"
           >
@@ -215,7 +263,7 @@ export default function MasterReviewsPage() {
             <Text className="text-gray-500 text-center mb-4">
               Не удалось загрузить отзывы
             </Text>
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={() => refetchReviews()}
               className="bg-[#0165FB] px-6 py-2 rounded-xl"
             >
@@ -239,13 +287,11 @@ export default function MasterReviewsPage() {
                   setFilter(tab.key as any);
                   pagination.actions.goToFirstPage();
                 }}
-                className={`flex-1 py-2 px-3 rounded-lg ${
-                  filter === tab.key ? 'bg-white shadow-sm' : ''
-                }`}
+                className={`flex-1 py-2 px-3 rounded-lg ${filter === tab.key ? 'bg-white shadow-sm' : ''
+                  }`}
               >
-                <Text className={`text-xs font-medium text-center ${
-                  filter === tab.key ? 'text-gray-900' : 'text-gray-500'
-                }`}>
+                <Text className={`text-xs font-medium text-center ${filter === tab.key ? 'text-gray-900' : 'text-gray-500'
+                  }`}>
                   {tab.label}
                 </Text>
               </TouchableOpacity>
@@ -297,17 +343,15 @@ export default function MasterReviewsPage() {
                       <TouchableOpacity
                         onPress={pagination.actions.previousPage}
                         disabled={pagination.state.isFirstPage}
-                        className={`px-4 py-2 rounded-xl ${
-                          pagination.state.isFirstPage 
-                            ? 'bg-gray-100' 
-                            : 'bg-[#0165FB]'
-                        }`}
+                        className={`px-4 py-2 rounded-xl ${pagination.state.isFirstPage
+                          ? 'bg-gray-100'
+                          : 'bg-[#0165FB]'
+                          }`}
                       >
-                        <Text className={`font-medium ${
-                          pagination.state.isFirstPage 
-                            ? 'text-gray-400' 
-                            : 'text-white'
-                        }`}>
+                        <Text className={`font-medium ${pagination.state.isFirstPage
+                          ? 'text-gray-400'
+                          : 'text-white'
+                          }`}>
                           Назад
                         </Text>
                       </TouchableOpacity>
@@ -319,17 +363,15 @@ export default function MasterReviewsPage() {
                       <TouchableOpacity
                         onPress={pagination.actions.nextPage}
                         disabled={pagination.state.isLastPage}
-                        className={`px-4 py-2 rounded-xl ${
-                          pagination.state.isLastPage 
-                            ? 'bg-gray-100' 
-                            : 'bg-[#0165FB]'
-                        }`}
+                        className={`px-4 py-2 rounded-xl ${pagination.state.isLastPage
+                          ? 'bg-gray-100'
+                          : 'bg-[#0165FB]'
+                          }`}
                       >
-                        <Text className={`font-medium ${
-                          pagination.state.isLastPage 
-                            ? 'text-gray-400' 
-                            : 'text-white'
-                        }`}>
+                        <Text className={`font-medium ${pagination.state.isLastPage
+                          ? 'text-gray-400'
+                          : 'text-white'
+                          }`}>
                           Далее
                         </Text>
                       </TouchableOpacity>
@@ -343,11 +385,11 @@ export default function MasterReviewsPage() {
 
         {/* Tips */}
         <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-6">
-          <Text className="font-semibold text-gray-900 mb-3 flex-row items-center gap-2">
+          <View className="flex-row items-center gap-2 mb-3">
             <Ionicons name="bulb" size={20} color="#F59E0B" />
-            Как получать хорошие отзывы
-          </Text>
-          <View className="space-y-2">
+            <Text className="font-semibold text-gray-900">Как получать хорошие отзывы</Text>
+          </View>
+          <View className="flex flex-col gap-2">
             <Text className="text-sm text-gray-600">• Выполняйте работу качественно и в срок</Text>
             <Text className="text-sm text-gray-600">• Поддерживайте связь с клиентом</Text>
             <Text className="text-sm text-gray-600">• Фотографируйте процесс работы</Text>

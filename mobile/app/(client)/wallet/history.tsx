@@ -21,7 +21,7 @@ export default function ClientWalletHistoryPage() {
   const [filter, setFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('all');
 
-  // Mock data - replace with actual API calls
+  // TODO: Replace with actual API calls
   const transactions: Transaction[] = [
     {
       id: 1,
@@ -82,12 +82,12 @@ export default function ClientWalletHistoryPage() {
 
   const filteredTransactions = transactions.filter(transaction => {
     const matchesType = filter === 'all' || transaction.type === filter;
-    
+
     let matchesDate = true;
     if (dateFilter !== 'all') {
       const transactionDate = new Date(transaction.created_at);
       const now = new Date();
-      
+
       switch (dateFilter) {
         case 'today':
           matchesDate = transactionDate.toDateString() === now.toDateString();
@@ -102,7 +102,7 @@ export default function ClientWalletHistoryPage() {
           break;
       }
     }
-    
+
     return matchesType && matchesDate;
   });
 
@@ -137,9 +137,9 @@ export default function ClientWalletHistoryPage() {
   const renderTransaction = ({ item }: { item: Transaction }) => {
     const icon = getTransactionIcon(item.type);
     const statusBadge = getStatusBadge(item.status);
-    
+
     return (
-      <TouchableOpacity 
+      <TouchableOpacity
         onPress={() => {
           if (item.project_id) {
             router.push(`/(client)/projects/${item.project_id}`);
@@ -151,7 +151,7 @@ export default function ClientWalletHistoryPage() {
           <View className={`w-12 h-12 rounded-2xl items-center justify-center ${icon.bg}`}>
             <Ionicons name={icon.name as any} size={20} color={icon.color} />
           </View>
-          
+
           <View className="flex-1">
             <Text className="font-semibold text-gray-900" numberOfLines={1}>
               {item.description}
@@ -168,10 +168,9 @@ export default function ClientWalletHistoryPage() {
               </Text>
             </View>
           </View>
-          
-          <Text className={`font-bold text-lg ${
-            item.amount.startsWith('+') ? 'text-green-600' : 'text-red-600'
-          }`}>
+
+          <Text className={`font-bold text-lg ${item.amount.startsWith('+') ? 'text-green-600' : 'text-red-600'
+            }`}>
             {item.amount} {item.currency}
           </Text>
         </View>
@@ -184,7 +183,7 @@ export default function ClientWalletHistoryPage() {
       <ScrollView className="flex-1 px-4">
         {/* Header */}
         <View className="flex-row items-center gap-4 mb-6">
-          <TouchableOpacity 
+          <TouchableOpacity
             onPress={() => router.back()}
             className="w-10 h-10 bg-white rounded-2xl items-center justify-center shadow-sm border border-gray-100"
           >
@@ -197,7 +196,7 @@ export default function ClientWalletHistoryPage() {
         <View className="bg-[#0165FB] rounded-3xl p-5 mb-6">
           <Text className="text-white/80 text-sm mb-2">Всего операций</Text>
           <Text className="text-white text-3xl font-bold mb-4">{transactions.length}</Text>
-          
+
           <View className="flex-row justify-between">
             <View>
               <Text className="text-white/80 text-sm">Потрачено</Text>
@@ -234,15 +233,13 @@ export default function ClientWalletHistoryPage() {
                 <TouchableOpacity
                   key={tab.key}
                   onPress={() => setFilter(tab.key)}
-                  className={`px-4 py-2 rounded-full ${
-                    filter === tab.key 
-                      ? 'bg-[#0165FB]' 
+                  className={`px-4 py-2 rounded-full ${filter === tab.key
+                      ? 'bg-[#0165FB]'
                       : 'bg-white border border-gray-200'
-                  }`}
+                    }`}
                 >
-                  <Text className={`font-medium ${
-                    filter === tab.key ? 'text-white' : 'text-gray-600'
-                  }`}>
+                  <Text className={`font-medium ${filter === tab.key ? 'text-white' : 'text-gray-600'
+                    }`}>
                     {tab.label}
                   </Text>
                 </TouchableOpacity>
@@ -264,15 +261,13 @@ export default function ClientWalletHistoryPage() {
                 <TouchableOpacity
                   key={tab.key}
                   onPress={() => setDateFilter(tab.key)}
-                  className={`px-4 py-2 rounded-full ${
-                    dateFilter === tab.key 
-                      ? 'bg-[#0165FB]' 
+                  className={`px-4 py-2 rounded-full ${dateFilter === tab.key
+                      ? 'bg-[#0165FB]'
                       : 'bg-white border border-gray-200'
-                  }`}
+                    }`}
                 >
-                  <Text className={`font-medium ${
-                    dateFilter === tab.key ? 'text-white' : 'text-gray-600'
-                  }`}>
+                  <Text className={`font-medium ${dateFilter === tab.key ? 'text-white' : 'text-gray-600'
+                    }`}>
                     {tab.label}
                   </Text>
                 </TouchableOpacity>

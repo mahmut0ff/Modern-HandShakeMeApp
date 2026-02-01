@@ -56,7 +56,7 @@ export const DisputeActions: React.FC<DisputeActionsProps> = ({
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Reject',
-          onPress: (reason) => {
+          onPress: (reason?: string) => {
             if (reason && reason.trim().length > 0 && onRejectResolution) {
               onRejectResolution();
             }
@@ -75,7 +75,7 @@ export const DisputeActions: React.FC<DisputeActionsProps> = ({
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Escalate',
-          onPress: (reason) => {
+          onPress: (reason?: string) => {
             if (reason && reason.trim().length > 0 && onEscalate) {
               onEscalate();
             }

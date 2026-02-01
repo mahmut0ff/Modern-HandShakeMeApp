@@ -1,154 +1,104 @@
+// Close dispute
+
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import jwt from 'jsonwebtoken';
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, GetCommand, UpdateCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
+import { z } from 'zod';
+import { DisputesRepository } from '../shared/repositories/disputes.repository';
+import { withAuth } from '../shared/middleware/auth';
+import { withErrorHandler } from '../shared/middleware/errorHandler';
+import { success, badRequest, notFound, forbidden } from '../shared/utils/response';
+import { validate } from '../shared/utils/validation';
+import { logger } from '../shared/utils/logger';
 
-const dynamoClient = new DynamoDBClient({});
-const docClient = DynamoDBDocumentClient.from(dynamoClient);
-const TABLE_NAME = process.env.DYNAMODB_TABLE || 'handshake-table';
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const disputesRepository = new DisputesRepository();
 
-interface JWTPayload {
-  userId: string;
-  role: string;
-}
+// Validation schema
+const closeDisputeSchema = z.object({
+  resolution: z.string().max(1000, 'Resolution too long').optional(),
+  resolutionType: z.enum(['AUTOMATIC', 'MEDIATED', 'ADMIN_DECISION', 'MUTUAL_AGREEMENT']).optional()
+});
 
-export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+async function closeDisputeHandler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
+  const userId = (event.requestContext as any).authorizer?.userId;
+  const userRole = (event.requestContext as any).authorizer?.role;
+  
+  if (!userId) {
+    return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
+  }
+
+  const disputeId = event.pathParameters?.id;
+  if (!disputeId) {
+    return badRequest('Dispute ID is required');
+  }
+
   try {
-    // Verify JWT token
-    const token = event.headers.Authorization?.replace('Bearer ', '') || '';
-    const decoded = jwt.verify(token, JWT_SECRET) as JWTPayload;
-
-    const disputeId = event.pathParameters?.id;
-    if (!disputeId) {
-      return {
-        statusCode: 400,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Dispute ID is required' }),
-      };
-    }
-
-    // Parse request body
     const body = JSON.parse(event.body || '{}');
-    const { resolution, resolution_type } = body;
+    const data = validate(closeDisputeSchema, body);
 
     // Get dispute
-    const disputeResult = await docClient.send(
-      new GetCommand({
-        TableName: TABLE_NAME,
-        Key: {
-          PK: `DISPUTE#${disputeId}`,
-          SK: `DISPUTE#${disputeId}`,
-        },
-      })
-    );
-
-    if (!disputeResult.Item) {
-      return {
-        statusCode: 404,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Dispute not found' }),
-      };
+    const dispute = await disputesRepository.findDisputeById(disputeId);
+    if (!dispute) {
+      return notFound('Dispute not found');
     }
 
-    const dispute = disputeResult.Item;
-
     // Verify user has permission (admin or involved party)
-    if (
-      dispute.initiatorId !== decoded.userId &&
-      dispute.respondentId !== decoded.userId &&
-      decoded.role !== 'admin'
-    ) {
-      return {
-        statusCode: 403,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Access denied' }),
-      };
+    const canClose = 
+      userRole === 'ADMIN' ||
+      dispute.clientId === userId ||
+      dispute.masterId === userId;
+      
+    if (!canClose) {
+      return forbidden('Access denied');
     }
 
     // Check if dispute can be closed
-    if (dispute.status === 'closed') {
-      return {
-        statusCode: 400,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Dispute is already closed' }),
-      };
+    if (dispute.status === 'CLOSED') {
+      return badRequest('Dispute is already closed');
     }
 
-    const now = new Date().toISOString();
-
-    // Update dispute status
-    await docClient.send(
-      new UpdateCommand({
-        TableName: TABLE_NAME,
-        Key: {
-          PK: `DISPUTE#${disputeId}`,
-          SK: `DISPUTE#${disputeId}`,
-        },
-        UpdateExpression:
-          'SET #status = :status, #resolution = :resolution, #resolutionType = :resolutionType, #closedAt = :closedAt, #updatedAt = :updatedAt',
-        ExpressionAttributeNames: {
-          '#status': 'status',
-          '#resolution': 'resolution',
-          '#resolutionType': 'resolutionType',
-          '#closedAt': 'closedAt',
-          '#updatedAt': 'updatedAt',
-        },
-        ExpressionAttributeValues: {
-          ':status': 'closed',
-          ':resolution': resolution || 'Dispute closed',
-          ':resolutionType': resolution_type || 'no_action',
-          ':closedAt': now,
-          ':updatedAt': now,
-        },
-      })
+    // Update dispute status to closed
+    const updatedDispute = await disputesRepository.updateDisputeStatus(
+      disputeId,
+      {
+        status: 'CLOSED',
+        resolution: data.resolution,
+        resolutionType: data.resolutionType,
+      },
+      userId
     );
 
     // Add timeline entry
-    await docClient.send(
-      new PutCommand({
-        TableName: TABLE_NAME,
-        Item: {
-          PK: `DISPUTE#${disputeId}`,
-          SK: `TIMELINE#${Date.now()}`,
-          action: 'DISPUTE_CLOSED',
-          description: resolution || 'Dispute closed',
-          userId: decoded.userId,
-          createdAt: now,
-        },
-      })
-    );
+    await disputesRepository.addTimelineEntry(disputeId, {
+      action: 'DISPUTE_CLOSED',
+      description: data.resolution || 'Dispute closed',
+      userId,
+    });
 
-    return {
-      statusCode: 200,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-      },
-      body: JSON.stringify({
-        id: disputeId,
-        status: 'closed',
-        resolution,
-        resolution_type,
-        closed_at: now,
-        updated_at: now,
-      }),
-    };
+    // TODO: Send notifications to involved parties
+    // await notificationService.sendNotification({...});
+
+    logger.info('Dispute closed successfully', { disputeId, userId });
+
+    return success({
+      id: disputeId,
+      status: 'CLOSED',
+      resolution: data.resolution,
+      resolutionType: data.resolutionType,
+      closedAt: updatedDispute.closedAt,
+      updatedAt: updatedDispute.updatedAt,
+    });
+
   } catch (error: any) {
-    console.error('Error closing dispute:', error);
-
-    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
-      return {
-        statusCode: 401,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Unauthorized' }),
-      };
+    logger.error('Error closing dispute', error);
+    
+    if (error.name === 'ZodError') {
+      return badRequest(error.errors[0].message);
     }
-
+    
     return {
       statusCode: 500,
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ error: 'Failed to close dispute' }),
     };
   }
-};
+}
+
+export const handler = withErrorHandler(withAuth(closeDisputeHandler));

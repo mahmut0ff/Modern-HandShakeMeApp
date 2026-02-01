@@ -182,11 +182,11 @@ export default function MasterPortfolioPage() {
 
         {/* Tips Card */}
         <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-6">
-          <Text className="font-semibold text-gray-900 mb-3 flex-row items-center gap-2">
+          <View className="flex-row items-center gap-2 mb-3">
             <Ionicons name="bulb" size={20} color="#F59E0B" />
-            Советы по портфолио
-          </Text>
-          <View className="space-y-2">
+            <Text className="font-semibold text-gray-900">Советы по портфолио</Text>
+          </View>
+          <View className="flex flex-col gap-2">
             <Text className="text-sm text-gray-600">• Добавляйте фото "до" и "после"</Text>
             <Text className="text-sm text-gray-600">• Описывайте процесс работы</Text>
             <Text className="text-sm text-gray-600">• Указывайте использованные материалы</Text>

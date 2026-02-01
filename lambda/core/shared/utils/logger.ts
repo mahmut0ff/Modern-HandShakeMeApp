@@ -1,58 +1,63 @@
-// Structured logging utility with correlation IDs
-
-interface LogContext {
-  correlationId?: string;
-  userId?: string;
-  requestId?: string;
-  [key: string]: unknown;
+export interface LogContext {
+  [key: string]: any;
 }
 
 class Logger {
-  private context: LogContext = {};
+  private logLevel: string;
 
-  setContext(context: LogContext): void {
-    this.context = { ...this.context, ...context };
+  constructor() {
+    this.logLevel = process.env.LOG_LEVEL || 'info';
   }
 
-  clearContext(): void {
-    this.context = {};
+  private shouldLog(level: string): boolean {
+    const levels = ['debug', 'info', 'warn', 'error'];
+    const currentLevelIndex = levels.indexOf(this.logLevel);
+    const messageLevelIndex = levels.indexOf(level);
+    return messageLevelIndex >= currentLevelIndex;
   }
 
-  private log(level: string, message: string, data?: unknown): void {
+  private formatMessage(level: string, message: string, context?: LogContext): string {
+    const timestamp = new Date().toISOString();
     const logEntry = {
-      level,
+      timestamp,
+      level: level.toUpperCase(),
       message,
-      timestamp: new Date().toISOString(),
-      ...this.context,
-      ...(data && { data }),
+      ...(context && { context })
     };
-
-    console.log(JSON.stringify(logEntry));
+    return JSON.stringify(logEntry);
   }
 
-  info(message: string, data?: unknown): void {
-    this.log('INFO', message, data);
+  debug(message: string, context?: LogContext): void {
+    if (this.shouldLog('debug')) {
+      console.log(this.formatMessage('debug', message, context));
+    }
   }
 
-  warn(message: string, data?: unknown): void {
-    this.log('WARN', message, data);
+  info(message: string, context?: LogContext): void {
+    if (this.shouldLog('info')) {
+      console.log(this.formatMessage('info', message, context));
+    }
   }
 
-  error(message: string, error?: Error | unknown, data?: unknown): void {
-    const errorData = error instanceof Error
-      ? {
-          name: error.name,
-          message: error.message,
-          stack: error.stack,
-        }
-      : error;
-
-    this.log('ERROR', message, { ...data, error: errorData });
+  warn(message: string, context?: LogContext): void {
+    if (this.shouldLog('warn')) {
+      console.warn(this.formatMessage('warn', message, context));
+    }
   }
 
-  debug(message: string, data?: unknown): void {
-    if (process.env.LOG_LEVEL === 'debug') {
-      this.log('DEBUG', message, data);
+  error(message: string, error?: Error | any, context?: LogContext): void {
+    if (this.shouldLog('error')) {
+      const errorContext = {
+        ...context,
+        ...(error && {
+          error: {
+            message: error.message || error,
+            stack: error.stack,
+            name: error.name
+          }
+        })
+      };
+      console.error(this.formatMessage('error', message, errorContext));
     }
   }
 }

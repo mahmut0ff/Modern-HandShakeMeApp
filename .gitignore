@@ -1,9 +1,16 @@
 # Dependencies
 node_modules/
+*/node_modules/
 
-# Environment variables (keep .env for deployment)
+# Environment variables - CRITICAL: Never commit secrets!
+.env
+.env.*
+!.env.example
 .env.local
 .env.*.local
+.env.test
+.env.development
+.env.production
 
 # IDE
 .vscode/
@@ -32,6 +39,31 @@ temp/
 # Build outputs
 dist/
 build/
+*/dist/
+*/build/
+
+# Coverage and test reports
+coverage/
+*/coverage/
+.nyc_output/
+*.lcov
+
+# Mobile specific
+mobile/.expo/
+mobile/test_output.txt
+mobile/android/app/build/
+mobile/ios/build/
+mobile/android/.gradle/
+
+# Lambda specific
+lambda/dist/
+lambda/build/
+lambda/.env.local
+
+# Admin Panel
+admin-panel/node_modules/
+admin-panel/dist/
+admin-panel/.vite/
 
 # AWS
 .aws/
@@ -43,3 +75,28 @@ build/
 *.tfstate.backup
 .terraform.lock.hcl
 tfplan
+
+# Test files and directories (production exclusion)
+**/__tests__/
+**/*.test.*
+**/*.spec.*
+**/test/
+**/tests/
+e2e/
+jest.config.*
+vitest.config.*
+.detoxrc.*
+
+# Development and debug files
+debug-*.js
+diagnose.js
+test-*.js
+test-*.ts
+simple-*.js
+simple-*.ts
+mock*.ts
+*mock*.ts
+
+# Development configuration files
+.eslintrc.*
+.prettierrc.*

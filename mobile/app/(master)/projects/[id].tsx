@@ -123,7 +123,8 @@ export default function MasterProjectDetailPage() {
   };
 
   const handleStartChat = () => {
-    router.push(`/(master)/chat/${project.client.id}`);
+    // Navigate to chat list - actual chat room should be created/found via API
+    router.push(`/(master)/chat`);
   };
 
   const handleRequestPayment = async () => {
@@ -230,10 +231,10 @@ export default function MasterProjectDetailPage() {
 
         {/* Client Info */}
         <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-4">
-          <Text className="font-semibold text-gray-900 mb-3 flex-row items-center gap-2">
+          <View className="flex-row items-center gap-2 mb-3">
             <Ionicons name="person" size={20} color="#0165FB" />
-            Клиент
-          </Text>
+            <Text className="font-semibold text-gray-900">Клиент</Text>
+          </View>
           <View className="flex-row items-center gap-4">
             <TouchableOpacity
               onPress={() => router.push(`/(master)/clients/${project.client.id}`)}
@@ -268,26 +269,26 @@ export default function MasterProjectDetailPage() {
 
         {/* Description */}
         <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-4">
-          <Text className="font-semibold text-gray-900 mb-3 flex-row items-center gap-2">
+          <View className="flex-row items-center gap-2 mb-3">
             <Ionicons name="document-text" size={20} color="#0165FB" />
-            Описание проекта
-          </Text>
+            <Text className="font-semibold text-gray-900">Описание проекта</Text>
+          </View>
           <Text className="text-gray-600">{project.description}</Text>
         </View>
 
         {/* Milestones */}
         <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-4">
           <View className="flex-row items-center justify-between mb-4">
-            <Text className="font-semibold text-gray-900 flex-row items-center gap-2">
+            <View className="flex-row items-center gap-2">
               <Ionicons name="checkmark-circle" size={20} color="#0165FB" />
-              Этапы работы
-            </Text>
+              <Text className="font-semibold text-gray-900">Этапы работы</Text>
+            </View>
             <Text className="text-sm text-gray-500">
               {completedMilestones} из {totalMilestones}
             </Text>
           </View>
           
-          <View className="space-y-3">
+          <View className="flex flex-col gap-3">
             {project.milestones.map((milestone, index) => (
               <View key={milestone.id} className="flex-row items-start gap-3">
                 <View className={`w-6 h-6 rounded-full items-center justify-center mt-0.5 ${
@@ -320,10 +321,10 @@ export default function MasterProjectDetailPage() {
         {/* Project Files */}
         {project.files.length > 0 && (
           <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-4">
-            <Text className="font-semibold text-gray-900 mb-4 flex-row items-center gap-2">
+            <View className="flex-row items-center gap-2 mb-4">
               <Ionicons name="image" size={20} color="#0165FB" />
-              Фото прогресса ({project.files.length})
-            </Text>
+              <Text className="font-semibold text-gray-900">Фото прогресса ({project.files.length})</Text>
+            </View>
             <View className="flex-row flex-wrap gap-2">
               {project.files.map(file => (
                 <TouchableOpacity
@@ -353,7 +354,7 @@ export default function MasterProjectDetailPage() {
         )}
 
         {/* Actions */}
-        <View className="space-y-3 mb-6">
+        <View className="flex flex-col gap-3 mb-6">
           {project.status === 'in_progress' && (
             <>
               <TouchableOpacity

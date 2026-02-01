@@ -1,171 +1,103 @@
+// Send message in dispute
+
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import jwt from 'jsonwebtoken';
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
-import { v4 as uuidv4 } from 'uuid';
+import { z } from 'zod';
+import { DisputesRepository } from '../shared/repositories/disputes.repository';
+import { withAuth } from '../shared/middleware/auth';
+import { withErrorHandler } from '../shared/middleware/errorHandler';
+import { success, badRequest, notFound, forbidden } from '../shared/utils/response';
+import { validate } from '../shared/utils/validation';
+import { logger } from '../shared/utils/logger';
+import { SendDisputeMessageRequest } from '../shared/types/disputes';
 
-const dynamoClient = new DynamoDBClient({});
-const docClient = DynamoDBDocumentClient.from(dynamoClient);
-const TABLE_NAME = process.env.DYNAMODB_TABLE || 'handshake-table';
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const disputesRepository = new DisputesRepository();
 
-interface JWTPayload {
-  userId: string;
-  role: string;
-  firstName?: string;
-  lastName?: string;
-  avatar?: string;
-}
+// Validation schema
+const sendMessageSchema = z.object({
+  message: z.string().min(1, 'Message is required').max(2000, 'Message too long'),
+  messageType: z.enum(['TEXT', 'SYSTEM', 'NOTIFICATION']).default('TEXT'),
+  isInternal: z.boolean().default(false)
+});
 
-export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+async function sendDisputeMessageHandler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
+  const userId = (event.requestContext as any).authorizer?.userId;
+  const userRole = (event.requestContext as any).authorizer?.role;
+  
+  if (!userId) {
+    return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
+  }
+
+  const disputeId = event.pathParameters?.id;
+  if (!disputeId) {
+    return badRequest('Dispute ID is required');
+  }
+
   try {
-    // Verify JWT token
-    const token = event.headers.Authorization?.replace('Bearer ', '') || '';
-    const decoded = jwt.verify(token, JWT_SECRET) as JWTPayload;
-
-    const disputeId = event.pathParameters?.id;
-    if (!disputeId) {
-      return {
-        statusCode: 400,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Dispute ID is required' }),
-      };
-    }
-
-    // Parse request body
     const body = JSON.parse(event.body || '{}');
-    const { message, message_type = 'text', is_internal = false } = body;
-
-    if (!message || message.trim().length === 0) {
-      return {
-        statusCode: 400,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Message is required' }),
-      };
-    }
+    const data = validate(sendMessageSchema, body);
 
     // Get dispute to verify access
-    const disputeResult = await docClient.send(
-      new GetCommand({
-        TableName: TABLE_NAME,
-        Key: {
-          PK: `DISPUTE#${disputeId}`,
-          SK: `DISPUTE#${disputeId}`,
-        },
-      })
-    );
-
-    if (!disputeResult.Item) {
-      return {
-        statusCode: 404,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Dispute not found' }),
-      };
+    const dispute = await disputesRepository.findDisputeById(disputeId);
+    if (!dispute) {
+      return notFound('Dispute not found');
     }
-
-    const dispute = disputeResult.Item;
 
     // Verify user has access
     const isInvolved =
-      dispute.initiatorId === decoded.userId ||
-      dispute.respondentId === decoded.userId ||
-      decoded.role === 'admin';
+      dispute.clientId === userId ||
+      dispute.masterId === userId ||
+      userRole === 'ADMIN';
 
     if (!isInvolved) {
-      return {
-        statusCode: 403,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Access denied' }),
-      };
+      return forbidden('Access denied');
     }
 
     // Check if dispute is closed
-    if (dispute.status === 'closed') {
-      return {
-        statusCode: 400,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Cannot send message to closed dispute' }),
-      };
+    if (dispute.status === 'CLOSED') {
+      return badRequest('Cannot send message to closed dispute');
     }
 
-    const messageId = uuidv4();
-    const now = new Date().toISOString();
-
-    // Create message
-    await docClient.send(
-      new PutCommand({
-        TableName: TABLE_NAME,
-        Item: {
-          PK: `DISPUTE#${disputeId}`,
-          SK: `MESSAGE#${now}#${messageId}`,
-          senderId: decoded.userId,
-          senderName: `${decoded.firstName || ''} ${decoded.lastName || ''}`.trim(),
-          senderAvatar: decoded.avatar || null,
-          senderRole: decoded.role,
-          message: message.trim(),
-          messageType: message_type,
-          isInternal: is_internal,
-          createdAt: now,
-        },
-      })
-    );
-
-    // Update dispute messages count
-    await docClient.send(
-      new UpdateCommand({
-        TableName: TABLE_NAME,
-        Key: {
-          PK: `DISPUTE#${disputeId}`,
-          SK: `DISPUTE#${disputeId}`,
-        },
-        UpdateExpression:
-          'SET messagesCount = if_not_exists(messagesCount, :zero) + :inc, updatedAt = :now',
-        ExpressionAttributeValues: {
-          ':zero': 0,
-          ':inc': 1,
-          ':now': now,
-        },
-      })
-    );
+    // Send message
+    const message = await disputesRepository.sendMessage(disputeId, data, userId);
 
     // TODO: Send notification to other party
+    // const otherPartyId = dispute.clientId === userId ? dispute.masterId : dispute.clientId;
+    // await notificationService.sendNotification({...});
 
-    return {
-      statusCode: 201,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
+    logger.info('Dispute message sent successfully', { 
+      disputeId, 
+      messageId: message.id, 
+      senderId: userId 
+    });
+
+    return success({
+      id: message.id,
+      dispute: disputeId,
+      sender: {
+        id: userId,
+        firstName: 'User', // TODO: Get from user service
+        lastName: 'Name',
+        avatar: undefined,
+        role: userRole,
       },
-      body: JSON.stringify({
-        id: messageId,
-        dispute: disputeId,
-        sender: {
-          id: decoded.userId,
-          name: `${decoded.firstName || ''} ${decoded.lastName || ''}`.trim(),
-          avatar: decoded.avatar || null,
-          role: decoded.role,
-        },
-        message: message.trim(),
-        message_type,
-        is_internal,
-        created_at: now,
-      }),
-    };
+      message: message.message,
+      messageType: message.messageType,
+      isInternal: message.isInternal,
+      createdAt: message.createdAt,
+    }, { statusCode: 201 });
+
   } catch (error: any) {
-    console.error('Error sending dispute message:', error);
-
-    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
-      return {
-        statusCode: 401,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Unauthorized' }),
-      };
+    logger.error('Error sending dispute message', error);
+    
+    if (error.name === 'ZodError') {
+      return badRequest(error.errors[0].message);
     }
-
+    
     return {
       statusCode: 500,
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ error: 'Failed to send message' }),
     };
   }
-};
+}
+
+export const handler = withErrorHandler(withAuth(sendDisputeMessageHandler));

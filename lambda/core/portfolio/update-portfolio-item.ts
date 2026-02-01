@@ -1,14 +1,17 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { z } from 'zod';
-import { success, badRequest, notFound, forbidden } from '../shared/utils/response';
-import { withAuth } from '../shared/middleware/auth';
-import { withRequestTransform } from '../shared/middleware/requestTransform';
-import { getPrismaClient } from '../shared/utils/prisma';
-import { CacheService } from '../shared/services/cache';
+import { PortfolioRepository } from '../shared/repositories/portfolio.repository';
+import { CategoryService } from '../shared/services/category.service';
+import { UserService } from '../shared/services/user.service';
 import { S3Service } from '../shared/services/s3';
+import { CacheService } from '../shared/services/cache';
+import { verifyToken } from '../shared/services/token';
 
-const cache = new CacheService();
+const portfolioRepository = new PortfolioRepository();
+const categoryService = new CategoryService();
+const userService = new UserService();
 const s3Service = new S3Service();
+const cache = new CacheService();
 
 // Validation schema for updates
 const updatePortfolioItemSchema = z.object({
@@ -24,50 +27,80 @@ const updatePortfolioItemSchema = z.object({
   isPublic: z.boolean().optional()
 });
 
-async function updatePortfolioItemHandler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
-  const prisma = getPrismaClient();
-  
+export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   try {
-    const user = (event as any).user;
-    
-    if (user.role !== 'MASTER') {
-      return forbidden('Only masters can update portfolio items');
+    const authHeader = event.headers.Authorization || event.headers.authorization;
+    if (!authHeader) {
+      return {
+        statusCode: 401,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Authorization required' })
+      };
     }
 
     const itemId = event.pathParameters?.id;
     if (!itemId) {
-      return badRequest('Portfolio item ID is required');
+      return {
+        statusCode: 400,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Portfolio item ID is required' })
+      };
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+    const decoded = verifyToken(token);
+    const userId = decoded.userId;
+
+    // Get user information
+    const user = await userService.findUserById(userId);
+    if (!user) {
+      return {
+        statusCode: 404,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'User not found' })
+      };
+    }
+    
+    if (user.role !== 'MASTER') {
+      return {
+        statusCode: 403,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Only masters can update portfolio items' })
+      };
     }
 
     const body = JSON.parse(event.body || '{}');
     const validatedData = updatePortfolioItemSchema.parse(body);
 
     // Check if portfolio item exists and belongs to the master
-    const existingItem = await prisma.portfolioItem.findFirst({
-      where: {
-        id: itemId,
-        masterId: user.userId
-      }
-    });
-
+    const existingItem = await portfolioRepository.findItemById(itemId, userId);
     if (!existingItem) {
-      return notFound('Portfolio item not found or access denied');
+      return {
+        statusCode: 404,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Portfolio item not found or access denied' })
+      };
     }
 
     // Validate category if provided
     if (validatedData.categoryId) {
-      const category = await prisma.category.findUnique({
-        where: { id: validatedData.categoryId }
-      });
-
-      if (!category) {
-        return badRequest('Category not found');
+      const isValidCategory = await categoryService.validateCategory(validatedData.categoryId);
+      if (!isValidCategory) {
+        return {
+          statusCode: 400,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ error: 'Category not found or inactive' })
+        };
       }
     }
 
     // Validate client rating consistency
     if (validatedData.clientRating && !validatedData.clientReview && !existingItem.clientReview) {
-      return badRequest('Client review is required when rating is provided');
+      return {
+        statusCode: 400,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Client review is required when rating is provided' })
+      };
     }
 
     // Process and validate images if provided
@@ -77,69 +110,94 @@ async function updatePortfolioItemHandler(event: APIGatewayProxyEvent): Promise<
       for (const imageUrl of validatedData.images) {
         const isValidImage = await s3Service.validateImageUrl(imageUrl);
         if (!isValidImage) {
-          return badRequest(`Invalid image URL: ${imageUrl}`);
+          return {
+            statusCode: 400,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ error: `Invalid image URL: ${imageUrl}` })
+          };
         }
         processedImages.push(imageUrl);
       }
     }
 
+    // Prepare update data
+    const updateData: any = {};
+    if (validatedData.title !== undefined) updateData.title = validatedData.title;
+    if (validatedData.description !== undefined) updateData.description = validatedData.description;
+    if (processedImages !== undefined) updateData.images = processedImages;
+    if (validatedData.skills !== undefined) updateData.skills = validatedData.skills;
+    if (validatedData.cost !== undefined) updateData.cost = validatedData.cost;
+    if (validatedData.durationDays !== undefined) updateData.durationDays = validatedData.durationDays;
+    if (validatedData.categoryId !== undefined) updateData.categoryId = validatedData.categoryId;
+    if (validatedData.clientReview !== undefined) updateData.clientReview = validatedData.clientReview;
+    if (validatedData.clientRating !== undefined) updateData.clientRating = validatedData.clientRating;
+    if (validatedData.isPublic !== undefined) updateData.isPublic = validatedData.isPublic;
+
     // Update the portfolio item
-    const updatedItem = await prisma.portfolioItem.update({
-      where: { id: itemId },
-      data: {
-        ...(validatedData.title && { title: validatedData.title }),
-        ...(validatedData.description && { description: validatedData.description }),
-        ...(processedImages && { images: processedImages }),
-        ...(validatedData.skills && { skills: validatedData.skills }),
-        ...(validatedData.cost !== undefined && { cost: validatedData.cost }),
-        ...(validatedData.durationDays !== undefined && { durationDays: validatedData.durationDays }),
-        ...(validatedData.categoryId && { categoryId: validatedData.categoryId }),
-        ...(validatedData.clientReview !== undefined && { clientReview: validatedData.clientReview }),
-        ...(validatedData.clientRating !== undefined && { clientRating: validatedData.clientRating }),
-        ...(validatedData.isPublic !== undefined && { isPublic: validatedData.isPublic })
-      },
-      include: {
-        category: {
-          select: {
-            id: true,
-            name: true
-          }
-        }
-      }
-    });
+    const updatedItem = await portfolioRepository.updateItem(itemId, userId, updateData);
+
+    // Get category details if available
+    let category = null;
+    if (updatedItem.categoryId) {
+      category = await categoryService.findCategoryById(updatedItem.categoryId);
+    }
 
     // Invalidate cache
-    await cache.invalidatePattern(`portfolio:${user.userId}*`);
-    await cache.invalidatePattern(`master:profile:${user.userId}*`);
+    await cache.invalidatePattern(`portfolio:${userId}*`);
+    await cache.invalidatePattern(`master:profile:${userId}*`);
 
-    console.log(`Portfolio item updated: ${itemId} by master ${user.userId}`);
+    console.log(`Portfolio item updated: ${itemId} by master ${userId}`);
 
-    return success({
-      id: updatedItem.id,
-      title: updatedItem.title,
-      description: updatedItem.description,
-      images: updatedItem.images,
-      skills: updatedItem.skills,
-      cost: updatedItem.cost ? Number(updatedItem.cost) : null,
-      durationDays: updatedItem.durationDays,
-      clientReview: updatedItem.clientReview,
-      clientRating: updatedItem.clientRating,
-      category: updatedItem.category,
-      isPublic: updatedItem.isPublic,
-      viewsCount: updatedItem.viewsCount,
-      createdAt: updatedItem.createdAt,
-      updatedAt: updatedItem.updatedAt
-    });
+    return {
+      statusCode: 200,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: updatedItem.id,
+        title: updatedItem.title,
+        description: updatedItem.description,
+        images: updatedItem.images,
+        skills: updatedItem.skills,
+        cost: updatedItem.cost,
+        durationDays: updatedItem.durationDays,
+        clientReview: updatedItem.clientReview,
+        clientRating: updatedItem.clientRating,
+        category: category ? {
+          id: category.id,
+          name: category.name
+        } : null,
+        isPublic: updatedItem.isPublic,
+        viewsCount: updatedItem.viewsCount,
+        createdAt: updatedItem.createdAt,
+        updatedAt: updatedItem.updatedAt
+      })
+    };
 
   } catch (error) {
     console.error('Error updating portfolio item:', error);
     
     if (error instanceof z.ZodError) {
-      return badRequest(error.errors[0].message);
+      return {
+        statusCode: 400,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          error: 'Validation error',
+          details: error.errors 
+        })
+      };
     }
 
-    return badRequest('Failed to update portfolio item');
-  }
-}
+    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+      return {
+        statusCode: 401,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Invalid or expired token' })
+      };
+    }
 
-export const handler = withRequestTransform(withAuth(updatePortfolioItemHandler));
+    return {
+      statusCode: 500,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ error: 'Failed to update portfolio item' })
+    };
+  }
+};
