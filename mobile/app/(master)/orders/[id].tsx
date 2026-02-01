@@ -1,127 +1,19 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Image, FlatList, Alert } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Image, FlatList, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-
-interface Order {
-  id: number;
-  client: {
-    id: number;
-    name: string;
-    avatar: string | null;
-    rating: string;
-    phone?: string | null;
-  };
-  category_name: string;
-  title: string;
-  description: string;
-  city: string;
-  address?: string;
-  budget_display?: string;
-  start_date: string | null;
-  end_date: string | null;
-  is_urgent?: boolean;
-  work_volume?: string;
-  floor?: number;
-  has_elevator?: boolean;
-  material_status?: string;
-  has_electricity?: boolean;
-  has_water?: boolean;
-  can_store_tools?: boolean;
-  has_parking?: boolean;
-  required_experience?: string | number;
-  need_team?: boolean;
-  additional_requirements?: string;
-  status: 'draft' | 'active' | 'in_progress' | 'completed' | 'cancelled';
-  applications_count: number;
-  views_count: number;
-  skills_list?: { id: number; name: string }[];
-  files?: OrderFile[];
-  created_at: string;
-}
-
-interface OrderFile {
-  id: number;
-  file: string;
-  file_type: 'photo' | 'video' | 'document';
-  thumbnail?: string;
-}
-
-const statusLabels: Record<string, string> = {
-  draft: 'Черновик',
-  active: 'Активный',
-  in_progress: 'В работе',
-  completed: 'Завершён',
-  cancelled: 'Отменён',
-};
-
-const statusColors: Record<string, string> = {
-  draft: 'bg-gray-100 text-gray-700',
-  active: 'bg-[#0165FB]/10 text-[#0165FB]',
-  in_progress: 'bg-orange-100 text-orange-700',
-  completed: 'bg-green-100 text-green-700',
-  cancelled: 'bg-red-100 text-red-700',
-};
+import { useGetOrderQuery } from '../../../services/orderApi';
+import { useCreateApplicationMutation } from '../../../services/applicationApi';
 
 export default function MasterOrderDetailPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const [loading, setLoading] = useState(false);
-
-  // Mock data - replace with actual API calls
-  const order: Order = {
-    id: Number(id),
-    client: {
-      id: 1,
-      name: 'Анна Петрова',
-      avatar: null,
-      rating: '4.5',
-      phone: '+996700123456'
-    },
-    category_name: 'Ремонт и отделка',
-    title: 'Ремонт ванной комнаты',
-    description: 'Требуется полный ремонт ванной комнаты площадью 6 кв.м. Включает демонтаж старой плитки, выравнивание стен, укладку новой плитки, замену сантехники.',
-    city: 'Бишкек',
-    address: 'ул. Примерная, д. 15, кв. 45',
-    budget_display: '25,000 - 35,000 сом',
-    start_date: '2024-02-01',
-    end_date: '2024-02-15',
-    is_urgent: false,
-    work_volume: '6 кв.м',
-    floor: 5,
-    has_elevator: true,
-    material_status: 'client_provides',
-    has_electricity: true,
-    has_water: true,
-    can_store_tools: false,
-    has_parking: true,
-    required_experience: '3-5',
-    need_team: false,
-    additional_requirements: 'Работы только в будние дни с 9:00 до 18:00',
-    status: 'active',
-    applications_count: 8,
-    views_count: 45,
-    skills_list: [
-      { id: 1, name: 'Плиточные работы' },
-      { id: 2, name: 'Сантехника' },
-      { id: 3, name: 'Электрика' }
-    ],
-    files: [
-      {
-        id: 1,
-        file: 'https://example.com/photo1.jpg',
-        file_type: 'photo'
-      },
-      {
-        id: 2,
-        file: 'https://example.com/photo2.jpg',
-        file_type: 'photo'
-      }
-    ],
-    created_at: '2024-01-15T10:30:00Z'
-  };
+  const { data: order, isLoading, error } = useGetOrderQuery(Number(id));
+  const [createApplication, { isLoading: isApplying }] = useCreateApplicationMutation();
 
   const handleApply = async () => {
+    if (!order) return;
+    
     Alert.alert(
       'Откликнуться на заказ',
       'Вы уверены, что хотите откликнуться на этот заказ?',
@@ -130,16 +22,16 @@ export default function MasterOrderDetailPage() {
         {
           text: 'Откликнуться',
           onPress: async () => {
-            setLoading(true);
             try {
-              // TODO: Implement API call
-              await new Promise(resolve => setTimeout(resolve, 2000));
+              await createApplication({
+                order: order.id,
+                proposed_price: Number(order.budget_min || 0),
+                message: 'Здравствуйте! Готов выполнить ваш заказ качественно и в срок.',
+              }).unwrap();
               Alert.alert('Успех', 'Ваш отклик отправлен!');
               router.back();
-            } catch (error) {
-              Alert.alert('Ошибка', 'Не удалось отправить отклик');
-            } finally {
-              setLoading(false);
+            } catch (error: any) {
+              Alert.alert('Ошибка', error?.data?.message || 'Не удалось отправить отклик');
             }
           }
         }
@@ -147,10 +39,39 @@ export default function MasterOrderDetailPage() {
     );
   };
 
-  const renderFile = ({ item }: { item: OrderFile }) => (
+  if (isLoading) {
+    return (
+      <SafeAreaView className="flex-1 bg-[#F8F7FC]">
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator size="large" color="#0165FB" />
+          <Text className="text-gray-500 mt-4">Загрузка заказа...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (error || !order) {
+    return (
+      <SafeAreaView className="flex-1 bg-[#F8F7FC]">
+        <View className="flex-1 items-center justify-center px-4">
+          <Ionicons name="alert-circle" size={64} color="#EF4444" />
+          <Text className="text-xl font-bold text-gray-900 mt-4">Заказ не найден</Text>
+          <Text className="text-gray-500 mt-2 text-center">Возможно, заказ был удалён или у вас нет доступа</Text>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            className="mt-6 px-6 py-3 bg-[#0165FB] rounded-2xl"
+          >
+            <Text className="text-white font-semibold">Назад</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const renderFile = ({ item }: { item: typeof order.files[0] }) => (
     <TouchableOpacity className="w-24 h-24 rounded-2xl overflow-hidden bg-gray-100 mr-2">
       {item.file_type === 'photo' ? (
-        <Image source={{ uri: item.file }} className="w-full h-full" />
+        <Image source={{ uri: item.file_url || item.file }} className="w-full h-full" />
       ) : (
         <View className="w-full h-full items-center justify-center">
           <Ionicons name="document" size={32} color="#9CA3AF" />
@@ -158,6 +79,22 @@ export default function MasterOrderDetailPage() {
       )}
     </TouchableOpacity>
   );
+
+  const statusLabels: Record<string, string> = {
+    draft: 'Черновик',
+    active: 'Активный',
+    in_progress: 'В работе',
+    completed: 'Завершён',
+    cancelled: 'Отменён',
+  };
+
+  const statusColors: Record<string, string> = {
+    draft: 'bg-gray-100 text-gray-700',
+    active: 'bg-[#0165FB]/10 text-[#0165FB]',
+    in_progress: 'bg-orange-100 text-orange-700',
+    completed: 'bg-green-100 text-green-700',
+    cancelled: 'bg-red-100 text-red-700',
+  };
 
   // Условия на объекте в 3 колонки
   const conditions = [
@@ -223,20 +160,20 @@ export default function MasterOrderDetailPage() {
           </View>
           <View className="flex-row items-center gap-4">
             <View className="w-16 h-16 bg-[#0165FB] rounded-full items-center justify-center overflow-hidden">
-              {order.client.avatar ? (
+              {order.client?.avatar ? (
                 <Image source={{ uri: order.client.avatar }} className="w-full h-full" />
               ) : (
                 <Ionicons name="person" size={32} color="white" />
               )}
             </View>
             <View className="flex-1">
-              <Text className="font-semibold text-gray-900">{order.client.name}</Text>
+              <Text className="font-semibold text-gray-900">{order.client?.name || order.client_name}</Text>
               <View className="flex-row items-center gap-1 mt-1">
                 <Ionicons name="star" size={14} color="#F59E0B" />
-                <Text className="text-sm text-gray-600">{order.client.rating}</Text>
+                <Text className="text-sm text-gray-600">{order.client?.rating || order.client_rating}</Text>
               </View>
-              {order.client.phone && (
-                <Text className="text-sm text-gray-500 mt-1">{order.client.phone}</Text>
+              {(order.client?.phone || order.client_phone) && (
+                <Text className="text-sm text-gray-500 mt-1">{order.client?.phone || order.client_phone}</Text>
               )}
             </View>
             <TouchableOpacity
@@ -439,18 +376,26 @@ export default function MasterOrderDetailPage() {
         )}
 
         {/* Apply Button */}
-        {order.status === 'active' && (
+        {order.status === 'active' && !order.has_applied && (
           <TouchableOpacity
             onPress={handleApply}
-            disabled={loading}
+            disabled={isApplying}
             className={`py-4 rounded-2xl shadow-lg mb-6 ${
-              loading ? 'bg-gray-400' : 'bg-[#0165FB]'
+              isApplying ? 'bg-gray-400' : 'bg-[#0165FB]'
             }`}
           >
             <Text className="text-center font-semibold text-white text-lg">
-              {loading ? 'Отправка...' : 'Откликнуться на заказ'}
+              {isApplying ? 'Отправка...' : 'Откликнуться на заказ'}
             </Text>
           </TouchableOpacity>
+        )}
+        
+        {order.has_applied && (
+          <View className="py-4 rounded-2xl bg-green-100 mb-6">
+            <Text className="text-center font-semibold text-green-700 text-lg">
+              Вы уже откликнулись на этот заказ
+            </Text>
+          </View>
         )}
       </ScrollView>
     </SafeAreaView>

@@ -1,10 +1,25 @@
-import { View, Text, TouchableOpacity, ScrollView } from 'react-native'
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native'
 import { StatusBar } from 'expo-status-bar'
 import { Ionicons } from '@expo/vector-icons'
+import { router } from 'expo-router'
 import { useAuth } from '../../hooks/useAuth'
+import { useGetClientDashboardStatsQuery } from '../../services/profileApi'
+import { useGetCategoriesQuery } from '../../services/orderApi'
+import { LoadingSpinner } from '../../components/LoadingSpinner'
 
 export default function ClientDashboard() {
   const { user, logout } = useAuth()
+  const { data: stats, isLoading: statsLoading } = useGetClientDashboardStatsQuery()
+  const { data: categoriesData, isLoading: categoriesLoading } = useGetCategoriesQuery()
+
+  // Get top 4 categories
+  const categories = Array.isArray(categoriesData) 
+    ? categoriesData.slice(0, 4) 
+    : []
+
+  if (statsLoading || categoriesLoading) {
+    return <LoadingSpinner fullScreen />
+  }
 
   return (
     <View className="flex-1 bg-[#F8F7FC]">
@@ -47,18 +62,18 @@ export default function ClientDashboard() {
             </Text>
             
             <View className="flex-row flex-wrap gap-3">
-              {[
-                { name: 'Ремонт', icon: 'hammer-outline', color: 'bg-blue-500' },
-                { name: 'Уборка', icon: 'home-outline', color: 'bg-green-500' },
-                { name: 'Доставка', icon: 'car-outline', color: 'bg-orange-500' },
-                { name: 'Красота', icon: 'cut-outline', color: 'bg-pink-500' },
-              ].map((category, index) => (
+              {categories.map((category) => (
                 <TouchableOpacity
-                  key={index}
+                  key={category.id}
+                  onPress={() => router.push(`/(client)/orders?category=${category.id}`)}
                   className="flex-1 min-w-[45%] bg-white p-4 rounded-2xl shadow-sm items-center"
                 >
-                  <View className={`w-12 h-12 ${category.color} rounded-full items-center justify-center mb-2`}>
-                    <Ionicons name={category.icon as any} size={24} color="white" />
+                  <View className="w-12 h-12 bg-blue-500 rounded-full items-center justify-center mb-2">
+                    <Ionicons 
+                      name={(category.icon || 'briefcase-outline') as any} 
+                      size={24} 
+                      color="white" 
+                    />
                   </View>
                   <Text className="font-medium text-gray-900">{category.name}</Text>
                 </TouchableOpacity>
@@ -72,22 +87,55 @@ export default function ClientDashboard() {
               <Text className="text-lg font-semibold text-gray-900">
                 Мои заказы
               </Text>
-              <TouchableOpacity>
+              <TouchableOpacity onPress={() => router.push('/(client)/orders')}>
                 <Text className="text-blue-500 font-medium">Все</Text>
               </TouchableOpacity>
             </View>
             
-            <View className="items-center py-8">
-              <View className="w-16 h-16 bg-gray-100 rounded-full items-center justify-center mb-4">
-                <Ionicons name="document-outline" size={32} color="#9CA3AF" />
+            {stats && (stats.active_orders > 0 || stats.completed_orders > 0) ? (
+              <View className="space-y-3">
+                <View className="flex-row items-center justify-between p-3 bg-blue-50 rounded-xl">
+                  <View className="flex-row items-center gap-3">
+                    <View className="w-10 h-10 bg-blue-500 rounded-full items-center justify-center">
+                      <Ionicons name="time" size={20} color="white" />
+                    </View>
+                    <View>
+                      <Text className="font-semibold text-gray-900">Активные</Text>
+                      <Text className="text-sm text-gray-600">{stats.active_orders} заказов</Text>
+                    </View>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+                </View>
+                
+                <View className="flex-row items-center justify-between p-3 bg-green-50 rounded-xl">
+                  <View className="flex-row items-center gap-3">
+                    <View className="w-10 h-10 bg-green-500 rounded-full items-center justify-center">
+                      <Ionicons name="checkmark-circle" size={20} color="white" />
+                    </View>
+                    <View>
+                      <Text className="font-semibold text-gray-900">Завершённые</Text>
+                      <Text className="text-sm text-gray-600">{stats.completed_orders} заказов</Text>
+                    </View>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+                </View>
               </View>
-              <Text className="text-gray-500 text-center">
-                У вас пока нет заказов
-              </Text>
-              <TouchableOpacity className="mt-4 bg-blue-500 px-6 py-3 rounded-xl">
-                <Text className="text-white font-semibold">Создать заказ</Text>
-              </TouchableOpacity>
-            </View>
+            ) : (
+              <View className="items-center py-8">
+                <View className="w-16 h-16 bg-gray-100 rounded-full items-center justify-center mb-4">
+                  <Ionicons name="document-outline" size={32} color="#9CA3AF" />
+                </View>
+                <Text className="text-gray-500 text-center">
+                  У вас пока нет заказов
+                </Text>
+                <TouchableOpacity 
+                  onPress={() => router.push('/(client)/create-order')}
+                  className="mt-4 bg-blue-500 px-6 py-3 rounded-xl"
+                >
+                  <Text className="text-white font-semibold">Создать заказ</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
 
           {/* Quick Actions */}

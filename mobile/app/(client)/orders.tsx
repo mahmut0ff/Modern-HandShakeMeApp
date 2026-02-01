@@ -8,6 +8,7 @@ import { LoadingSpinner } from '../../components/LoadingSpinner'
 import { ErrorMessage } from '../../components/ErrorMessage'
 import { EmptyState } from '../../components/EmptyState'
 import { formatCurrency, formatDate } from '../../utils/format'
+import type { Order } from '../../types/api'
 
 export default function OrdersPage() {
   const [activeTab, setActiveTab] = useState<'active' | 'completed' | 'draft'>('active')
@@ -21,7 +22,9 @@ export default function OrdersPage() {
   } = useGetMyOrdersQuery({ status: activeTab })
 
   // Handle both array and paginated responses
-  const orders = (ordersData || []) as any[];
+  const orders: Order[] = Array.isArray(ordersData) 
+    ? ordersData 
+    : (ordersData?.results || []);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -64,10 +67,11 @@ export default function OrdersPage() {
 
   const getOrderCounts = () => {
     // This would ideally come from separate API calls or be cached
+    const allOrders = orders || [];
     return {
-      active: (orders || []).filter((o: any) => o.status === 'active').length,
-      completed: (orders || []).filter((o: any) => o.status === 'completed').length,
-      draft: (orders || []).filter((o: any) => o.status === 'draft').length,
+      active: allOrders.filter((o: Order) => o.status === 'active').length,
+      completed: allOrders.filter((o: Order) => o.status === 'completed').length,
+      draft: allOrders.filter((o: Order) => o.status === 'draft').length,
     }
   }
 
@@ -181,7 +185,7 @@ export default function OrdersPage() {
           />
         ) : (
           <View className="flex flex-col gap-3">
-            {(filteredOrders || []).map((order: any) => (
+            {filteredOrders.map((order: Order) => (
               <TouchableOpacity
                 key={order.id}
                 onPress={() => router.push(`/(client)/orders/${order.id}`)}

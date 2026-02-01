@@ -3,11 +3,12 @@ import { View, Text, ScrollView, TouchableOpacity, TextInput, RefreshControl } f
 import { router } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { Ionicons } from '@expo/vector-icons'
-import { useGetOrdersQuery, useGetCategoriesQuery, type Category } from '../../services/orderApi'
+import { useGetOrdersQuery, useGetCategoriesQuery } from '../../services/orderApi'
 import { LoadingSpinner } from '../../components/LoadingSpinner'
 import { ErrorMessage } from '../../components/ErrorMessage'
 import { EmptyState } from '../../components/EmptyState'
 import { formatCurrency, formatDate, formatRelativeTime } from '../../utils/format'
+import type { Order, Category } from '../../types/api'
 
 export default function MasterOrdersPage() {
   const [searchQuery, setSearchQuery] = useState('')
@@ -40,7 +41,7 @@ export default function MasterOrdersPage() {
     isLoading: categoriesLoading
   } = useGetCategoriesQuery()
 
-  const orders = ordersData?.results || []
+  const orders: Order[] = ordersData?.results || []
   const categories: Category[] = Array.isArray(categoriesData) ? categoriesData : [];
 
   // Build categories list with "All" option
@@ -145,7 +146,7 @@ export default function MasterOrdersPage() {
           />
         ) : (
           <View className="flex flex-col gap-4">
-            {orders.map(order => (
+            {orders.map((order: Order) => (
               <TouchableOpacity
                 key={order.id}
                 onPress={() => router.push(`/(master)/orders/${order.id}`)}

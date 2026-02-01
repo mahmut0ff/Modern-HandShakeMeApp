@@ -1,81 +1,14 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, FlatList, Alert, Image } from 'react-native';
+import React from 'react';
+import { View, Text, ScrollView, TouchableOpacity, FlatList, Alert, Image, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-
-interface Application {
-  id: number;
-  master: {
-    id: number;
-    name: string;
-    avatar?: string;
-    rating: string;
-    completed_projects: number;
-    is_verified: boolean;
-  };
-  proposed_price: string;
-  proposed_duration_days: number;
-  cover_letter: string;
-  status: 'pending' | 'accepted' | 'rejected';
-  created_at: string;
-}
+import { useGetOrderApplicationsQuery, useRespondToApplicationMutation } from '../../../../services/applicationApi';
 
 export default function ApplicationsPage() {
   const { id: orderId } = useLocalSearchParams<{ id: string }>();
-  const [loading, setLoading] = useState(false);
-
-  // Mock data - replace with actual API calls
-  const applications: Application[] = [
-    {
-      id: 1,
-      master: {
-        id: 1,
-        name: 'Иван Петров',
-        avatar: undefined,
-        rating: '4.8',
-        completed_projects: 45,
-        is_verified: true
-      },
-      proposed_price: '28000',
-      proposed_duration_days: 7,
-      cover_letter: 'Здравствуйте! Имею большой опыт в ремонте ванных комнат. Выполню работу качественно и в срок. Все материалы закуплю сам, предоставлю гарантию на работы.',
-      status: 'pending',
-      created_at: '2024-01-15T10:30:00Z'
-    },
-    {
-      id: 2,
-      master: {
-        id: 2,
-        name: 'Алексей Сидоров',
-        avatar: undefined,
-        rating: '4.6',
-        completed_projects: 32,
-        is_verified: false
-      },
-      proposed_price: '25000',
-      proposed_duration_days: 10,
-      cover_letter: 'Добрый день! Профессионально занимаюсь ремонтом ванных комнат уже 5 лет. Могу предоставить примеры работ.',
-      status: 'pending',
-      created_at: '2024-01-15T09:15:00Z'
-    },
-    {
-      id: 3,
-      master: {
-        id: 3,
-        name: 'Мария Козлова',
-        avatar: undefined,
-        rating: '4.9',
-        completed_projects: 67,
-        is_verified: true
-      },
-      proposed_price: '32000',
-      proposed_duration_days: 5,
-      cover_letter: 'Здравствуйте! Специализируюсь на быстром и качественном ремонте. Работаю с командой профессионалов.',
-      status: 'accepted',
-      created_at: '2024-01-14T16:45:00Z'
-    }
-  ];
+  const { data: applications = [], isLoading } = useGetOrderApplicationsQuery(Number(orderId));
+  const [respondToApplication, { isLoading: isResponding }] = useRespondToApplicationMutation();
 
   const handleAcceptApplication = async (applicationId: number) => {
     Alert.alert(
@@ -86,15 +19,14 @@ export default function ApplicationsPage() {
         {
           text: 'Принять',
           onPress: async () => {
-            setLoading(true);
             try {
-              // TODO: Implement API call
-              await new Promise(resolve => setTimeout(resolve, 2000));
+              await respondToApplication({
+                id: applicationId,
+                data: { status: 'accepted' }
+              }).unwrap();
               Alert.alert('Успех', 'Отклик принят! Проект создан.');
-            } catch (error) {
-              Alert.alert('Ошибка', 'Не удалось принять отклик');
-            } finally {
-              setLoading(false);
+            } catch (error: any) {
+              Alert.alert('Ошибка', error?.data?.message || 'Не удалось принять отклик');
             }
           }
         }
@@ -112,14 +44,13 @@ export default function ApplicationsPage() {
           text: 'Отклонить',
           style: 'destructive',
           onPress: async () => {
-            setLoading(true);
             try {
-              // TODO: Implement API call
-              await new Promise(resolve => setTimeout(resolve, 1000));
-            } catch (error) {
-              Alert.alert('Ошибка', 'Не удалось отклонить отклик');
-            } finally {
-              setLoading(false);
+              await respondToApplication({
+                id: applicationId,
+                data: { status: 'rejected' }
+              }).unwrap();
+            } catch (error: any) {
+              Alert.alert('Ошибка', error?.data?.message || 'Не удалось отклонить отклик');
             }
           }
         }
@@ -138,42 +69,49 @@ export default function ApplicationsPage() {
     }
   };
 
-  const renderApplication = ({ item }: { item: Application }) => {
+  if (isLoading) {
+    return (
+      <SafeAreaView className="flex-1 bg-[#F8F7FC]">
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator size="large" color="#0165FB" />
+          <Text className="text-gray-500 mt-4">Загрузка откликов...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const renderApplication = ({ item }: { item: typeof applications[0] }) => {
     const statusBadge = getStatusBadge(item.status);
+    const masterName = item.master?.name || item.master_name;
+    const masterAvatar = item.master?.avatar || item.master_avatar;
+    const masterRating = item.master?.rating || item.master_rating;
     
     return (
       <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-3">
         {/* Master Info */}
         <View className="flex-row items-start gap-4 mb-4">
           <TouchableOpacity
-            onPress={() => router.push(`/(client)/masters/${item.master.id}`)}
+            onPress={() => router.push(`/(client)/masters/${item.master?.id || item.master}`)}
             className="relative"
           >
             <View className="w-16 h-16 bg-[#0165FB] rounded-full items-center justify-center overflow-hidden">
-              {item.master.avatar ? (
-                <Image source={{ uri: item.master.avatar }} className="w-full h-full" />
+              {masterAvatar ? (
+                <Image source={{ uri: masterAvatar }} className="w-full h-full" />
               ) : (
                 <Ionicons name="person" size={32} color="white" />
               )}
             </View>
-            {item.master.is_verified && (
-              <View className="absolute -bottom-1 -right-1 w-6 h-6 bg-white rounded-full items-center justify-center shadow">
-                <Ionicons name="checkmark-circle" size={20} color="#0165FB" />
-              </View>
-            )}
           </TouchableOpacity>
           
           <View className="flex-1">
-            <TouchableOpacity onPress={() => router.push(`/(client)/masters/${item.master.id}`)}>
-              <Text className="font-semibold text-gray-900">{item.master.name}</Text>
+            <TouchableOpacity onPress={() => router.push(`/(client)/masters/${item.master?.id || item.master}`)}>
+              <Text className="font-semibold text-gray-900">{masterName}</Text>
             </TouchableOpacity>
             <View className="flex-row items-center gap-3 mt-1">
               <View className="flex-row items-center gap-1">
                 <Ionicons name="star" size={14} color="#F59E0B" />
-                <Text className="text-sm font-medium">{item.master.rating}</Text>
+                <Text className="text-sm font-medium">{masterRating}</Text>
               </View>
-              <Text className="text-gray-300">•</Text>
-              <Text className="text-sm text-gray-500">{item.master.completed_projects} проектов</Text>
             </View>
           </View>
           
@@ -189,17 +127,19 @@ export default function ApplicationsPage() {
               <Ionicons name="card" size={16} color="#059669" />
               <Text className="font-bold text-green-600 text-lg">{item.proposed_price} сом</Text>
             </View>
-            <View className="flex-row items-center gap-1">
-              <Ionicons name="calendar" size={16} color="#6B7280" />
-              <Text className="text-gray-600">{item.proposed_duration_days} дней</Text>
-            </View>
+            {item.estimated_duration && (
+              <View className="flex-row items-center gap-1">
+                <Ionicons name="calendar" size={16} color="#6B7280" />
+                <Text className="text-gray-600">{item.estimated_duration}</Text>
+              </View>
+            )}
           </View>
         </View>
 
         {/* Cover Letter */}
         <View className="mb-4">
           <Text className="text-sm font-medium text-gray-700 mb-2">Сообщение:</Text>
-          <Text className="text-gray-600 text-sm leading-5">{item.cover_letter}</Text>
+          <Text className="text-gray-600 text-sm leading-5">{item.message}</Text>
         </View>
 
         {/* Actions */}
@@ -207,18 +147,18 @@ export default function ApplicationsPage() {
           <View className="flex-row gap-3">
             <TouchableOpacity
               onPress={() => handleRejectApplication(item.id)}
-              disabled={loading}
+              disabled={isResponding}
               className="flex-1 py-3 bg-red-50 border border-red-200 rounded-2xl"
             >
               <Text className="text-center font-medium text-red-600">Отклонить</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => handleAcceptApplication(item.id)}
-              disabled={loading}
+              disabled={isResponding}
               className="flex-1 py-3 bg-[#0165FB] rounded-2xl shadow-lg"
             >
               <Text className="text-center font-medium text-white">
-                {loading ? 'Обработка...' : 'Принять'}
+                {isResponding ? 'Обработка...' : 'Принять'}
               </Text>
             </TouchableOpacity>
           </View>

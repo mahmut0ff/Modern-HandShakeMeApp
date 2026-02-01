@@ -1,5 +1,7 @@
 import { api } from './api';
 import { Review } from './reviewApi';
+import { normalizeMasterProfile } from '../utils/normalizers';
+import type { ClientDashboardStats, MasterDashboardStats } from '../types/api';
 
 export interface MasterProfile {
   id: number;
@@ -168,6 +170,17 @@ export interface PortfolioItemUpdateData {
 
 export const profileApi = api.injectEndpoints({
   endpoints: (builder) => ({
+    // Dashboard stats
+    getClientDashboardStats: builder.query<ClientDashboardStats, void>({
+      query: () => '/clients/me/dashboard-stats',
+      providesTags: ['ClientProfile'],
+    }),
+
+    getMasterDashboardStats: builder.query<MasterDashboardStats, void>({
+      query: () => '/masters/me/dashboard-stats',
+      providesTags: ['MasterProfile'],
+    }),
+
     // Master profiles
     getMasterProfile: builder.query<MasterProfile, number>({
       query: (id) => `/masters/${id}`,
@@ -203,6 +216,19 @@ export const profileApi = api.injectEndpoints({
         url: '/masters',
         params,
       }),
+      transformResponse: (response: any) => {
+        // Handle both array and paginated responses
+        if (Array.isArray(response)) {
+          return {
+            results: response.map(normalizeMasterProfile),
+            count: response.length,
+          };
+        }
+        return {
+          results: (response.results || []).map(normalizeMasterProfile),
+          count: response.count || 0,
+        };
+      },
       providesTags: ['MasterProfile'],
     }),
 
@@ -284,6 +310,8 @@ export const profileApi = api.injectEndpoints({
 });
 
 export const {
+  useGetClientDashboardStatsQuery,
+  useGetMasterDashboardStatsQuery,
   useGetMasterProfileQuery,
   useGetMyMasterProfileQuery,
   useUpdateMasterProfileMutation,

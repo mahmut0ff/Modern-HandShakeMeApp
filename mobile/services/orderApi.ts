@@ -1,4 +1,6 @@
 import { api } from './api';
+import type { Order, Category, Skill, PaginatedResponse, OrderQueryParams } from '../types/api';
+import { normalizeOrder, normalizePaginatedResponse } from '../utils/normalizers';
 
 export interface Category {
   id: number;

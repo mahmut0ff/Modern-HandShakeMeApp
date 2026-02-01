@@ -1,108 +1,24 @@
 import React, { useState } from 'react'
-import { View, Text, ScrollView, TouchableOpacity, Image, Linking } from 'react-native'
+import { View, Text, ScrollView, TouchableOpacity, Image, Linking, ActivityIndicator } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { router, useLocalSearchParams } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
-
-interface Master {
-  id: number
-  full_name: string
-  first_name: string
-  last_name: string
-  company_name?: string
-  avatar?: string
-  city?: string
-  rating?: string
-  completed_projects_count: number
-  hourly_rate?: string
-  experience_years: number
-  is_verified: boolean
-  has_transport: boolean
-  has_tools: boolean
-  description?: string
-  phone?: string
-  portfolio?: PortfolioItem[]
-  reviews?: Review[]
-}
-
-interface PortfolioItem {
-  id: number
-  title: string
-  description?: string
-  after_image?: string
-  before_image?: string
-  media?: { id: number; media_type: string; file_url: string }[]
-}
-
-interface Review {
-  id: number
-  rating: number
-  comment: string
-  client_name: string
-  created_at: string
-}
+import { useGetMasterProfileQuery } from '../../../services/profileApi'
 
 export default function MasterDetailPage() {
   const { id } = useLocalSearchParams()
   const [activeTab, setActiveTab] = useState<'about' | 'portfolio' | 'reviews'>('about')
-
-  // Mock data - replace with actual API call
-  const master: Master = {
-    id: Number(id),
-    full_name: 'Иван Петров',
-    first_name: 'Иван',
-    last_name: 'Петров',
-    company_name: 'Ремонт Плюс',
-    city: 'Бишкек',
-    rating: '4.8',
-    completed_projects_count: 45,
-    hourly_rate: '1500',
-    experience_years: 8,
-    is_verified: true,
-    has_transport: true,
-    has_tools: true,
-    description: 'Профессиональный мастер с 8-летним опытом работы. Специализируюсь на ремонте квартир, домов и офисов. Качественно выполняю все виды отделочных работ.',
-    phone: '+996550308078',
-    portfolio: [
-      {
-        id: 1,
-        title: 'Ремонт ванной комнаты',
-        description: 'Полный ремонт ванной комнаты с заменой сантехники',
-        after_image: 'https://example.com/image1.jpg'
-      },
-      {
-        id: 2,
-        title: 'Кухня под ключ',
-        description: 'Ремонт кухни с установкой мебели',
-        after_image: 'https://example.com/image2.jpg'
-      }
-    ],
-    reviews: [
-      {
-        id: 1,
-        rating: 5,
-        comment: 'Отличная работа! Все сделано качественно и в срок.',
-        client_name: 'Анна К.',
-        created_at: '2024-01-15T10:30:00Z'
-      },
-      {
-        id: 2,
-        rating: 4,
-        comment: 'Хороший мастер, рекомендую.',
-        client_name: 'Петр С.',
-        created_at: '2024-01-10T14:20:00Z'
-      }
-    ]
-  }
+  const { data: master, isLoading, error } = useGetMasterProfileQuery(Number(id))
 
   const handleCall = () => {
-    if (master.phone) {
-      Linking.openURL(`tel:${master.phone}`)
+    const phone = master?.user?.phone || master?.user_phone;
+    if (phone) {
+      Linking.openURL(`tel:${phone}`)
     }
   }
 
   const handleMessage = () => {
-    router.push(`/(client)/chat/${master.id}`)
+    router.push(`/(client)/chat/${master?.id}`)
   }
 
   const renderStars = (rating: number) => {
@@ -115,6 +31,39 @@ export default function MasterDetailPage() {
       />
     ))
   }
+
+  if (isLoading) {
+    return (
+      <SafeAreaView className="flex-1 bg-[#F8F7FC]">
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator size="large" color="#0165FB" />
+          <Text className="text-gray-500 mt-4">Загрузка профиля...</Text>
+        </View>
+      </SafeAreaView>
+    )
+  }
+
+  if (error || !master) {
+    return (
+      <SafeAreaView className="flex-1 bg-[#F8F7FC]">
+        <View className="flex-1 items-center justify-center px-4">
+          <Ionicons name="alert-circle" size={64} color="#EF4444" />
+          <Text className="text-xl font-bold text-gray-900 mt-4">Мастер не найден</Text>
+          <Text className="text-gray-500 mt-2 text-center">Возможно, профиль был удалён</Text>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            className="mt-6 px-6 py-3 bg-[#0165FB] rounded-2xl"
+          >
+            <Text className="text-white font-semibold">Назад</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    )
+  }
+
+  const fullName = master.user?.full_name || master.user_full_name || 
+                   `${master.user?.first_name || master.user_first_name || ''} ${master.user?.last_name || master.user_last_name || ''}`.trim();
+  const avatar = master.user?.avatar || master.user_avatar;
 
   return (
     <SafeAreaView className="flex-1 bg-[#F8F7FC]">
@@ -137,8 +86,8 @@ export default function MasterDetailPage() {
           <View className="flex-row items-start gap-4 mb-4">
             <View className="relative">
               <View className="w-20 h-20 bg-[#0165FB] rounded-full items-center justify-center overflow-hidden">
-                {master.avatar ? (
-                  <Image source={{ uri: master.avatar }} className="w-full h-full" />
+                {avatar ? (
+                  <Image source={{ uri: avatar }} className="w-full h-full" />
                 ) : (
                   <Ionicons name="person" size={40} color="white" />
                 )}
@@ -152,18 +101,15 @@ export default function MasterDetailPage() {
             
             <View className="flex-1">
               <Text className="text-xl font-bold text-gray-900 mb-1">
-                {master.full_name}
+                {fullName}
               </Text>
-              {master.company_name && (
-                <Text className="text-gray-600 mb-2">{master.company_name}</Text>
-              )}
               <View className="flex-row items-center gap-2 mb-2">
                 <View className="flex-row items-center gap-1">
                   <Ionicons name="star" size={16} color="#F59E0B" />
                   <Text className="font-semibold">{master.rating}</Text>
                 </View>
                 <Text className="text-gray-400">•</Text>
-                <Text className="text-gray-600">{master.completed_projects_count} проектов</Text>
+                <Text className="text-gray-600">{master.completed_orders || 0} проектов</Text>
               </View>
               {master.city && (
                 <View className="flex-row items-center gap-1">
@@ -189,26 +135,10 @@ export default function MasterDetailPage() {
               <View className="flex-row items-center gap-1">
                 <Ionicons name="time" size={12} color="#059669" />
                 <Text className="text-xs font-medium text-green-700">
-                  {master.experience_years} лет опыта
+                  {master.experience_years || 0} лет опыта
                 </Text>
               </View>
             </View>
-            {master.has_transport && (
-              <View className="px-3 py-1 bg-blue-100 rounded-full">
-                <View className="flex-row items-center gap-1">
-                  <Ionicons name="car" size={12} color="#2563EB" />
-                  <Text className="text-xs font-medium text-blue-700">Транспорт</Text>
-                </View>
-              </View>
-            )}
-            {master.has_tools && (
-              <View className="px-3 py-1 bg-purple-100 rounded-full">
-                <View className="flex-row items-center gap-1">
-                  <Ionicons name="build" size={12} color="#7C3AED" />
-                  <Text className="text-xs font-medium text-purple-700">Инструменты</Text>
-                </View>
-              </View>
-            )}
           </View>
 
           {/* Action Buttons */}
@@ -269,33 +199,36 @@ export default function MasterDetailPage() {
             <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mt-4">
               <Text className="text-lg font-bold text-gray-900 mb-3">Описание</Text>
               <Text className="text-gray-700 leading-relaxed">
-                {master.description || 'Описание не указано'}
+                {master.bio || 'Описание не указано'}
               </Text>
             </View>
           )}
 
           {activeTab === 'portfolio' && (
             <View className="flex flex-col gap-4">
-              {master.portfolio && master.portfolio.length > 0 ? (
-                master.portfolio.map((item) => (
-                  <View key={item.id} className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100">
-                    <Text className="text-lg font-semibold text-gray-900 mb-2">
-                      {item.title}
-                    </Text>
-                    {item.description && (
-                      <Text className="text-gray-600 mb-3">{item.description}</Text>
-                    )}
-                    {item.after_image && (
-                      <View className="w-full h-48 bg-gray-100 rounded-2xl overflow-hidden">
-                        <Image 
-                          source={{ uri: item.after_image }} 
-                          className="w-full h-full"
-                          resizeMode="cover"
-                        />
-                      </View>
-                    )}
-                  </View>
-                ))
+              {master.portfolio_items && master.portfolio_items.length > 0 ? (
+                master.portfolio_items.map((item) => {
+                  const firstImage = item.images?.[0];
+                  return (
+                    <View key={item.id} className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100">
+                      <Text className="text-lg font-semibold text-gray-900 mb-2">
+                        {item.title}
+                      </Text>
+                      {item.description && (
+                        <Text className="text-gray-600 mb-3">{item.description}</Text>
+                      )}
+                      {firstImage && (
+                        <View className="w-full h-48 bg-gray-100 rounded-2xl overflow-hidden">
+                          <Image 
+                            source={{ uri: firstImage.image_url || firstImage.image }} 
+                            className="w-full h-full"
+                            resizeMode="cover"
+                          />
+                        </View>
+                      )}
+                    </View>
+                  );
+                })
               ) : (
                 <View className="bg-white rounded-3xl p-8 items-center shadow-sm border border-gray-100">
                   <View className="w-16 h-16 bg-gray-100 rounded-full items-center justify-center mb-4">
