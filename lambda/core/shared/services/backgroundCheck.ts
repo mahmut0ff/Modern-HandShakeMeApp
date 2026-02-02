@@ -125,7 +125,7 @@ export class BackgroundCheckService {
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
+        const errorData = await response.json().catch(() => ({})) as { message?: string };
         throw new Error(`Background check submission failed: ${response.status} - ${errorData.message || response.statusText}`);
       }
 
@@ -162,7 +162,7 @@ export class BackgroundCheckService {
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
+        const errorData = await response.json().catch(() => ({})) as { message?: string };
         throw new Error(`Status check failed: ${response.status} - ${errorData.message || response.statusText}`);
       }
 
@@ -207,7 +207,7 @@ export class BackgroundCheckService {
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
+        const errorData = await response.json().catch(() => ({})) as { message?: string };
         throw new Error(`Dispute submission failed: ${response.status} - ${errorData.message || response.statusText}`);
       }
 

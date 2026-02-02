@@ -21,6 +21,20 @@ provider "aws" {
   }
 }
 
+# Secondary region provider for disaster recovery
+provider "aws" {
+  alias  = "us_west_2"
+  region = "us-west-2"
+
+  default_tags {
+    tags = {
+      Project     = var.project_name
+      Environment = var.environment
+      ManagedBy   = "Terraform"
+    }
+  }
+}
+
 locals {
   name_prefix = "${var.project_name}-${var.environment}"
   common_tags = {

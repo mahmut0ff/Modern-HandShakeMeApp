@@ -42,7 +42,7 @@ async function telegramBotSetupHandler(event: APIGatewayProxyEvent): Promise<API
       });
       
       if (!webhookResponse.ok) {
-        const error = await webhookResponse.json();
+        const error: any = await webhookResponse.json();
         throw new Error(`Failed to set webhook: ${error.description}`);
       }
       
@@ -68,7 +68,7 @@ async function telegramBotSetupHandler(event: APIGatewayProxyEvent): Promise<API
       });
       
       if (!commandsResponse.ok) {
-        const error = await commandsResponse.json();
+        const error: any = await commandsResponse.json();
         throw new Error(`Failed to set commands: ${error.description}`);
       }
       
@@ -86,15 +86,15 @@ async function telegramBotSetupHandler(event: APIGatewayProxyEvent): Promise<API
       const infoResponse = await fetch(`https://api.telegram.org/bot${botToken}/getMe`);
       
       if (!infoResponse.ok) {
-        const error = await infoResponse.json();
+        const error: any = await infoResponse.json();
         throw new Error(`Failed to get bot info: ${error.description}`);
       }
       
-      const botInfo = await infoResponse.json();
+      const botInfo: any = await infoResponse.json();
       
       // Get webhook info
       const webhookInfoResponse = await fetch(`https://api.telegram.org/bot${botToken}/getWebhookInfo`);
-      const webhookInfo = webhookInfoResponse.ok ? await webhookInfoResponse.json() : null;
+      const webhookInfo: any = webhookInfoResponse.ok ? await webhookInfoResponse.json() : null;
       
       logger.info('Bot info retrieved', { botInfo: botInfo.result });
       
@@ -114,7 +114,7 @@ async function telegramBotSetupHandler(event: APIGatewayProxyEvent): Promise<API
       });
       
       if (!deleteResponse.ok) {
-        const error = await deleteResponse.json();
+        const error: any = await deleteResponse.json();
         throw new Error(`Failed to delete webhook: ${error.description}`);
       }
       

@@ -93,7 +93,7 @@ export interface MessageWithSender extends Message {
   };
 }
 
-export interface ChatRoomWithParticipants extends ChatRoom {
+export interface ChatRoomWithParticipants extends Omit<ChatRoom, 'participants'> {
   participants: Array<{
     userId: string;
     user: {

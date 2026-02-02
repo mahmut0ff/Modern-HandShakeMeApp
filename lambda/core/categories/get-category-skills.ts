@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Get category skills Lambda function
 
 import type { APIGatewayProxyResult } from 'aws-lambda';

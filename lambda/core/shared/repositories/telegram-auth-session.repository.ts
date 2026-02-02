@@ -3,6 +3,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { putItem, getItem, queryItems, updateItem, deleteItem } from '../db/dynamodb-client';
 import { Keys } from '../db/dynamodb-keys';
+import { logger } from '../utils/logger';
 
 export interface TelegramAuthSession {
   id: string;

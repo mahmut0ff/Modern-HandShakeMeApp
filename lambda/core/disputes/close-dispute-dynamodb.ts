@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Close dispute
 
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';

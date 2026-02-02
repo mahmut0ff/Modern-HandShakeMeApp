@@ -1,10 +1,25 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { z } from 'zod';
-import { createResponse, createErrorResponse } from '../shared/utils/response';
-import { requireAuth } from '../shared/middleware/auth';
 import { CacheService } from '../shared/services/cache';
 import { AvailabilityRepository } from '../shared/repositories/availability.repository';
 import { MasterProfileRepository } from '../shared/repositories/master-profile.repository';
+
+// Local response helpers
+function createResponse(statusCode: number, data: any): APIGatewayProxyResult {
+  return {
+    statusCode,
+    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+    body: JSON.stringify({ success: true, data })
+  };
+}
+
+function createErrorResponse(statusCode: number, code: string, message: string): APIGatewayProxyResult {
+  return {
+    statusCode,
+    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+    body: JSON.stringify({ success: false, error: { code, message } })
+  };
+}
 
 const availabilityRepo = new AvailabilityRepository();
 const masterRepo = new MasterProfileRepository();
@@ -20,22 +35,12 @@ const querySchema = z.object({
 
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   try {
-    // Authenticate user (optional for public availability viewing)
-    let user = null;
-    try {
-      user = await requireAuth()(event);
-    } catch (error) {
-      // Allow unauthenticated access for public availability viewing
-      if (!event.queryStringParameters?.masterId) {
-        return createErrorResponse(401, 'UNAUTHORIZED', 'Authentication required');
-      }
-    }
-
+    // Get masterId from query params (public endpoint)
     const queryParams = event.queryStringParameters || {};
     const validatedQuery = querySchema.parse(queryParams);
 
     // Determine which master's availability to fetch
-    const targetMasterId = validatedQuery.masterId || user?.userId;
+    const targetMasterId = validatedQuery.masterId;
     
     if (!targetMasterId) {
       return createErrorResponse(400, 'VALIDATION_ERROR', 'Master ID is required');
@@ -48,8 +53,8 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       return createErrorResponse(404, 'NOT_FOUND', 'Master not found');
     }
 
-    const isOwnAvailability = user?.userId === targetMasterId;
-    const includeBooked = isOwnAvailability && validatedQuery.includeBooked === 'true';
+    const isOwnAvailability = false; // Public endpoint
+    const includeBooked = validatedQuery.includeBooked === 'true';
 
     // Check cache first
     const cacheKey = `availability:${targetMasterId}:${JSON.stringify(validatedQuery)}`;

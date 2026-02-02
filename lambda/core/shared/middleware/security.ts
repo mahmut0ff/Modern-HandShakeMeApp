@@ -88,14 +88,14 @@ export function withSecurity(
         }
 
         // Add rate limit headers to the response later
-        context.rateLimitResult = rateLimitResult;
+        (context as any).rateLimitResult = rateLimitResult;
       }
 
       // Execute the handler
       const response = await handler(event, context);
 
       // Add security headers
-      return addSecurityHeaders(response, finalConfig, context.rateLimitResult);
+      return addSecurityHeaders(response, finalConfig, (context as any).rateLimitResult);
 
     } catch (error) {
       logger.error('Security middleware error', error);

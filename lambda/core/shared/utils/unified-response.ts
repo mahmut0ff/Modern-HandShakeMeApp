@@ -71,7 +71,8 @@ export function successResponse<T>(
     options.statusCode || 200,
     {
       success: true,
-      data
+      data,
+      timestamp: new Date().toISOString()
     },
     options
   );
@@ -85,7 +86,8 @@ export function createdResponse<T>(
     201,
     {
       success: true,
-      data
+      data,
+      timestamp: new Date().toISOString()
     },
     options
   );
@@ -114,7 +116,8 @@ export function paginatedResponse<T>(
         count,
         next: hasNext ? `?page=${page + 1}&page_size=${pageSize}` : null,
         previous: hasPrevious ? `?page=${page - 1}&page_size=${pageSize}` : null,
-      }
+      },
+      timestamp: new Date().toISOString()
     },
     options
   );
@@ -136,7 +139,8 @@ export function errorResponse(
         code,
         message,
         details
-      }
+      },
+      timestamp: new Date().toISOString()
     },
     { ...options, skipTransform: true } // Error responses don't need transformation
   );

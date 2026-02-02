@@ -1,0 +1,48 @@
+{
+  "deployment": {
+    "comment": "=== ЗАПОЛНИ ЭТИ ПОЛЯ ===",
+    
+    "aws": {
+      "region": "us-east-1",
+      "account_id": "473522039044",
+      "profile": "default"
+    },
+    
+    "telegram": {
+      "bot_token": "8113708588:AAFO4pmyCAJ1ky9hrlSOAhjpBk6ru_SU6zw",
+      "bot_username": "handshakeme_bot",
+      "webhook_secret": "GENERATE_OR_LEAVE_AUTO"
+    },
+    
+    "secrets": {
+      "jwt_secret": "GENERATE_OR_LEAVE_AUTO",
+      "comment": "Оставь 'GENERATE_OR_LEAVE_AUTO' для автогенерации"
+    },
+    
+    "email": {
+      "from_email": "klovvergg@gmail.com",
+      "alert_email": "klovvergg@gmail.com"
+    },
+    
+    "domain": {
+      "has_domain": false,
+      "domain_name": "handshake-me-backend.com",
+      "api_domain": "api.yourdomain.com",
+      "comment": "Если нет домена, оставь has_domain: false"
+    },
+    
+    "environment": {
+      "name": "production",
+      "project_name": "handshakeme",
+      "frontend_url": "https://handshake-me.com"
+    },
+    
+    "options": {
+      "run_tests": true,
+      "skip_terraform_plan": false,
+      "auto_approve": false,
+      "setup_monitoring": true,
+      "configure_telegram_webhook": true
+    }
+  }
+}

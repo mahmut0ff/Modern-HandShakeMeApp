@@ -11,9 +11,7 @@ export class StripeService {
       throw new Error('STRIPE_SECRET_KEY environment variable is required');
     }
     
-    this.stripe = new Stripe(secretKey, {
-      apiVersion: '2023-10-16',
-    });
+    this.stripe = new Stripe(secretKey);
   }
   
   async createCustomer(email: string, userId: string): Promise<Stripe.Customer> {

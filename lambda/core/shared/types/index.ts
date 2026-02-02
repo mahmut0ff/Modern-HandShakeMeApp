@@ -23,6 +23,9 @@ export interface User {
   telegramUsername?: string;
   telegramPhotoUrl?: string;
   isActive: boolean;
+  city?: string;
+  address?: string;
+  userId?: string; // Alias for id in some contexts
   createdAt: string;
   updatedAt: string;
 }
@@ -162,10 +165,28 @@ export interface WeeklyWorkingHours {
 export interface MasterAvailability {
   id: string;
   masterId: string;
+  scheduleType?: 'WEEKLY' | 'SPECIFIC_DATE';
+  dayOfWeek?: number; // 0-6, Sunday = 0
+  specificDate?: string; // YYYY-MM-DD
+  startTime: string; // HH:MM
+  endTime: string; // HH:MM
+  isAvailable: boolean;
   workingHours: WeeklyWorkingHours;
   timezone: string;
-  createdAt: Date;
-  updatedAt: Date;
+  serviceTypes?: string[];
+  maxBookings?: number;
+  bufferBefore?: number; // minutes
+  bufferAfter?: number; // minutes
+  specialPricing?: {
+    multiplier?: number;
+    fixedAmount?: number;
+  };
+  slotType?: 'WORK' | 'BREAK' | 'BLOCKED';
+  description?: string;
+  reason?: string;
+  timeZone?: string;
+  createdAt: string | Date;
+  updatedAt?: string | Date;
 }
 
 export interface AvailabilitySlot {
@@ -418,31 +439,6 @@ export interface CalendarConflict {
   externalEventId: string;
   description: string;
   suggestedResolution: string;
-}
-
-export interface MasterAvailability {
-  id: string;
-  masterId: string;
-  scheduleType: 'WEEKLY' | 'SPECIFIC_DATE';
-  dayOfWeek?: number; // 0-6, Sunday = 0
-  specificDate?: string; // YYYY-MM-DD
-  startTime: string; // HH:MM
-  endTime: string; // HH:MM
-  isAvailable: boolean;
-  serviceTypes?: string[];
-  maxBookings: number;
-  bufferBefore: number; // minutes
-  bufferAfter: number; // minutes
-  specialPricing?: {
-    multiplier?: number;
-    fixedAmount?: number;
-  };
-  slotType?: 'WORK' | 'BREAK' | 'BLOCKED';
-  description?: string;
-  reason?: string;
-  timeZone: string;
-  createdAt: string;
-  updatedAt?: string;
 }
 
 export interface BlockedTimeSlot {

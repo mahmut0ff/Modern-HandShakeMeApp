@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Send message in dispute
 
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';

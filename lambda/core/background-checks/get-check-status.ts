@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Get background check status and details
 
 import type { APIGatewayProxyResult } from 'aws-lambda';

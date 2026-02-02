@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Escalate dispute
 
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';

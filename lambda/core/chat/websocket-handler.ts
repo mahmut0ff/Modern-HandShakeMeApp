@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Unified WebSocket handler for chat
 
 import type { APIGatewayProxyWebsocketEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';

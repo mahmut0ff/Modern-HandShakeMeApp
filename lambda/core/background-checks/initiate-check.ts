@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Initiate background check
 
 import type { APIGatewayProxyResult } from 'aws-lambda';

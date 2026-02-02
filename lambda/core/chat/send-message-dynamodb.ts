@@ -58,7 +58,7 @@ async function sendMessageHandler(event: APIGatewayProxyEvent): Promise<APIGatew
     });
 
     logger.info('Message sent', { messageId: message.id, roomId: data.roomId, userId });
-    return success(message, { statusCode: 201 });
+    return success(message, 201);
   } catch (error: any) {
     logger.error('Send message error', error);
     

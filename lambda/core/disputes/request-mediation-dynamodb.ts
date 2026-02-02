@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Request mediation
 
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';

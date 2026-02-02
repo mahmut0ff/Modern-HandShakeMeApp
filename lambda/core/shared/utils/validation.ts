@@ -288,3 +288,98 @@ export function formatValidationErrors(error: z.ZodError): Array<{
     code: err.code
   }));
 }
+
+
+// Calendar sync schema
+export const syncCalendarSchema = z.object({
+  action: z.enum(['CONNECT', 'DISCONNECT', 'SYNC', 'GET_STATUS']),
+  provider: z.enum(['GOOGLE', 'OUTLOOK', 'APPLE', 'CALDAV']).optional(),
+  credentials: z.object({
+    accessToken: z.string().optional(),
+    refreshToken: z.string().optional(),
+    clientId: z.string().optional(),
+    clientSecret: z.string().optional(),
+    serverUrl: z.string().url().optional(),
+    username: z.string().optional(),
+    password: z.string().optional(),
+  }).optional(),
+  settings: z.object({
+    syncDirection: z.enum(['BIDIRECTIONAL', 'TO_EXTERNAL', 'FROM_EXTERNAL']).optional(),
+    syncFrequency: z.enum(['REAL_TIME', 'HOURLY', 'DAILY']).optional(),
+    syncBookings: z.boolean().optional(),
+    syncAvailability: z.boolean().optional(),
+    syncPersonalEvents: z.boolean().optional(),
+    conflictResolution: z.enum(['MANUAL', 'EXTERNAL_WINS', 'INTERNAL_WINS']).optional(),
+    timeZone: z.string().optional(),
+    calendarName: z.string().optional(),
+    eventPrefix: z.string().optional(),
+    includeClientInfo: z.boolean().optional(),
+    includeLocation: z.boolean().optional(),
+    reminderMinutes: z.array(z.number()).optional(),
+  }).optional(),
+});
+
+// Notification type enum for validation
+export const notificationTypeSchema = z.enum([
+  'ORDER', 'APPLICATION', 'PROJECT', 'REVIEW', 'CHAT', 
+  'PAYMENT', 'SYSTEM', 'SYSTEM_TEST', 'LOCATION'
+]);
+
+// Get check status schema
+export const getCheckStatusSchema = z.object({
+  checkId: z.string().uuid().optional(),
+});
+
+// Manage availability schema
+export const manageAvailabilitySchema = z.object({
+  action: z.enum(['SET_WEEKLY', 'SET_SPECIFIC_DATE', 'BLOCK_TIME', 'UNBLOCK_TIME', 'SET_VACATION', 'IMPORT_FROM_CALENDAR']),
+  weeklySchedule: z.array(z.object({
+    dayOfWeek: z.number().min(0).max(6),
+    timeSlots: z.array(z.object({
+      startTime: z.string(),
+      endTime: z.string(),
+      isAvailable: z.boolean().default(true),
+      serviceTypes: z.array(z.string()).optional(),
+      maxBookings: z.number().optional(),
+    })),
+    breaks: z.array(z.object({
+      startTime: z.string(),
+      endTime: z.string(),
+      description: z.string().optional(),
+    })).optional(),
+  })).optional(),
+  specificDates: z.array(z.object({
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    timeSlots: z.array(z.object({
+      startTime: z.string(),
+      endTime: z.string(),
+      isAvailable: z.boolean().default(true),
+      serviceTypes: z.array(z.string()).optional(),
+      maxBookings: z.number().optional(),
+      specialPricing: z.number().optional(),
+    })),
+    reason: z.string().optional(),
+  })).optional(),
+  blockedPeriods: z.array(z.object({
+    startDateTime: z.string().datetime(),
+    endDateTime: z.string().datetime(),
+    reason: z.string().optional(),
+    blockType: z.enum(['PERSONAL', 'VACATION', 'MAINTENANCE', 'OTHER']).default('PERSONAL'),
+    isRecurring: z.boolean().default(false),
+    recurrencePattern: z.object({
+      frequency: z.enum(['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY']),
+      interval: z.number().default(1),
+      occurrences: z.number().optional(),
+      endDate: z.string().datetime().optional(),
+    }).optional(),
+  })).optional(),
+  bufferTime: z.object({
+    beforeBooking: z.number().min(0).default(0),
+    afterBooking: z.number().min(0).default(0),
+  }).optional(),
+  timeZone: z.string().optional(),
+  calendarSync: z.object({
+    syncFromCalendar: z.boolean().default(false),
+    calendarProvider: z.enum(['GOOGLE', 'OUTLOOK', 'APPLE', 'CALDAV']).optional(),
+  }).optional(),
+});

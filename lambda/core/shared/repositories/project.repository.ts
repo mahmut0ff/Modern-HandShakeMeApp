@@ -8,6 +8,8 @@ export interface Project {
   orderId: string;
   clientId: string;
   masterId: string;
+  applicationId?: string;
+  deadline?: string;
   title: string;
   description: string;
   budget: number;
@@ -168,5 +170,10 @@ export class ProjectRepository {
     }
     
     return this.update(projectId, updates);
+  }
+  
+  // Alias for compatibility
+  async create(data: Partial<Project>): Promise<Project> {
+    return this.createProject(data);
   }
 }

@@ -1,9 +1,10 @@
 // Calendar Service - Integration with external calendar providers
 
 import { logger } from '../utils/logger';
-import { google } from 'googleapis';
-import { Client } from '@microsoft/microsoft-graph-client';
-import { AuthenticationProvider } from '@microsoft/microsoft-graph-client';
+
+// Note: googleapis and @microsoft/microsoft-graph-client are optional dependencies
+// They should be installed if calendar integration is needed:
+// npm install googleapis @microsoft/microsoft-graph-client
 
 export interface CalendarCredentials {
   accessToken?: string;
@@ -83,6 +84,16 @@ export class CalendarService {
   }
 
   private async validateGoogleCredentials(credentials: CalendarCredentials): Promise<CalendarInfo> {
+    // Dynamic import for optional dependency
+    let google: any;
+    try {
+      // @ts-ignore - googleapis is an optional dependency
+      const googleapis = await import('googleapis');
+      google = googleapis.google;
+    } catch {
+      throw new Error('googleapis package not installed. Run: npm install googleapis');
+    }
+
     const oauth2Client = new google.auth.OAuth2(
       credentials.clientId,
       credentials.clientSecret
@@ -105,8 +116,8 @@ export class CalendarService {
 
       // Use primary calendar or specified calendar
       const targetCalendar = credentials.calendarId 
-        ? response.data.items.find(cal => cal.id === credentials.calendarId)
-        : response.data.items.find(cal => cal.primary) || response.data.items[0];
+        ? response.data.items.find((cal: any) => cal.id === credentials.calendarId)
+        : response.data.items.find((cal: any) => cal.primary) || response.data.items[0];
 
       if (!targetCalendar) {
         throw new Error('Target calendar not found');
@@ -118,7 +129,7 @@ export class CalendarService {
         timeZone: targetCalendar.timeZone || 'UTC',
         description: targetCalendar.description,
       };
-    } catch (error) {
+    } catch (error: any) {
       if (error.code === 401) {
         throw new Error('invalid_credentials');
       } else if (error.code === 403) {
@@ -129,17 +140,27 @@ export class CalendarService {
   }
 
   private async validateOutlookCredentials(credentials: CalendarCredentials): Promise<CalendarInfo> {
-    const authProvider: AuthenticationProvider = {
+    // Dynamic import for optional dependency
+    let Client: any;
+    try {
+      // @ts-ignore - @microsoft/microsoft-graph-client is an optional dependency
+      const graphClient = await import('@microsoft/microsoft-graph-client');
+      Client = graphClient.Client;
+    } catch {
+      throw new Error('@microsoft/microsoft-graph-client package not installed');
+    }
+
+    const authProvider = {
       getAccessToken: async () => {
         return credentials.accessToken!;
       },
     };
 
-    const graphClient = Client.initWithMiddleware({ authProvider });
+    const graphClientInstance = Client.initWithMiddleware({ authProvider });
 
     try {
       // Test API access
-      const calendars = await graphClient.api('/me/calendars').get();
+      const calendars = await graphClientInstance.api('/me/calendars').get();
       
       if (!calendars.value || calendars.value.length === 0) {
         throw new Error('No calendars found');
@@ -159,7 +180,7 @@ export class CalendarService {
         calendarName: targetCalendar.name,
         timeZone: targetCalendar.timeZone || 'UTC',
       };
-    } catch (error) {
+    } catch (error: any) {
       if (error.code === 'InvalidAuthenticationToken') {
         throw new Error('invalid_credentials');
       } else if (error.code === 'Forbidden') {
@@ -348,6 +369,9 @@ export class CalendarService {
     calendarId: string,
     options: any
   ): Promise<CalendarEvent[]> {
+    // @ts-ignore - googleapis is an optional dependency
+    const { google } = await import('googleapis');
+    
     const oauth2Client = new google.auth.OAuth2(
       credentials.clientId,
       credentials.clientSecret
@@ -369,14 +393,14 @@ export class CalendarService {
       orderBy: 'startTime',
     });
 
-    return (response.data.items || []).map(event => ({
+    return (response.data.items || []).map((event: any) => ({
       id: event.id!,
       title: event.summary || 'Untitled Event',
       description: event.description,
       startDateTime: new Date(event.start?.dateTime || event.start?.date!),
       endDateTime: new Date(event.end?.dateTime || event.end?.date!),
       location: event.location,
-      attendees: event.attendees?.map(a => a.email!).filter(Boolean),
+      attendees: event.attendees?.map((a: any) => a.email!).filter(Boolean),
       isAllDay: !!event.start?.date,
       recurrence: event.recurrence,
       status: event.status as any || 'confirmed',
@@ -388,7 +412,10 @@ export class CalendarService {
     calendarId: string,
     options: any
   ): Promise<CalendarEvent[]> {
-    const authProvider: AuthenticationProvider = {
+    // @ts-ignore - @microsoft/microsoft-graph-client is an optional dependency
+    const { Client } = await import('@microsoft/microsoft-graph-client');
+    
+    const authProvider = {
       getAccessToken: async () => credentials.accessToken!,
     };
 

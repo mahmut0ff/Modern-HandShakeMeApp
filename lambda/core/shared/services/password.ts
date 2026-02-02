@@ -1,13 +1,13 @@
 // Password hashing service
 
-import { hash, compare } from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import { logger } from '../utils/logger';
 
 const SALT_ROUNDS = 12;
 
 export async function hashPassword(password: string): Promise<string> {
   try {
-    const hashed = await hash(password, SALT_ROUNDS);
+    const hashed = await bcrypt.hash(password, SALT_ROUNDS);
     return hashed;
   } catch (error) {
     logger.error('Password hashing failed', error);
@@ -17,10 +17,10 @@ export async function hashPassword(password: string): Promise<string> {
 
 export async function verifyPassword(
   password: string,
-  hash: string
+  hashedPassword: string
 ): Promise<boolean> {
   try {
-    const isValid = await compare(password, hash);
+    const isValid = await bcrypt.compare(password, hashedPassword);
     return isValid;
   } catch (error) {
     logger.error('Password verification failed', error);

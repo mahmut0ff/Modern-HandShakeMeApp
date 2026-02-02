@@ -201,7 +201,7 @@ export class TelegramService {
           });
 
           if (!response.ok) {
-            const error = await response.json();
+            const error = await response.json() as { description?: string };
             
             // Don't retry on client errors (4xx)
             if (response.status >= 400 && response.status < 500) {
@@ -220,7 +220,7 @@ export class TelegramService {
             throw lastError;
           }
 
-          const result = await response.json();
+          const result = await response.json() as { result: { message_id: number } };
           
           logger.info('Telegram message sent successfully', {
             chatId,
@@ -342,7 +342,7 @@ export class TelegramService {
         return null;
       }
 
-      const result = await response.json();
+      const result = await response.json() as { result: any };
       this.botInfoCache = result.result;
       this.botInfoCacheTime = now;
       

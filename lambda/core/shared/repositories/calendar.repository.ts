@@ -116,7 +116,17 @@ export class CalendarRepository {
       id,
       masterId,
       ...data,
-      createdAt: now
+      createdAt: now,
+      workingHours: data.workingHours || {
+        monday: { start: '09:00', end: '18:00', enabled: true },
+        tuesday: { start: '09:00', end: '18:00', enabled: true },
+        wednesday: { start: '09:00', end: '18:00', enabled: true },
+        thursday: { start: '09:00', end: '18:00', enabled: true },
+        friday: { start: '09:00', end: '18:00', enabled: true },
+        saturday: { start: '09:00', end: '18:00', enabled: false },
+        sunday: { start: '09:00', end: '18:00', enabled: false },
+      },
+      timezone: data.timezone || 'Asia/Bishkek'
     };
 
     const sk = data.scheduleType === 'WEEKLY' 

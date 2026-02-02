@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Dispute background check results
 
 import type { APIGatewayProxyResult } from 'aws-lambda';

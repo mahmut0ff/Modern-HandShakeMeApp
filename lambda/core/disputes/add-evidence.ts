@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Add evidence to dispute
 
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';

@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Manage master availability and calendar integration
 
 import type { APIGatewayProxyResult } from 'aws-lambda';

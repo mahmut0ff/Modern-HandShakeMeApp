@@ -3,6 +3,16 @@ import { internalServerError, badRequest, unprocessableEntity } from '../utils/r
 import { logger } from '../utils/logger';
 import { ZodError } from 'zod';
 
+export class ValidationError extends Error {
+  public errors?: any;
+  
+  constructor(message: string, errors?: any) {
+    super(message);
+    this.name = 'ValidationError';
+    this.errors = errors;
+  }
+}
+
 export type LambdaHandler = (
   event: APIGatewayProxyEvent,
   context: Context

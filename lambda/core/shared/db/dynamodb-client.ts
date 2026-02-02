@@ -109,6 +109,11 @@ export async function getItem(key: Record<string, any>): Promise<Record<string, 
   return result.Item;
 }
 
+export interface QueryResult {
+  items: Record<string, any>[];
+  lastEvaluatedKey?: Record<string, any>;
+}
+
 export async function queryItems(params: {
   KeyConditionExpression: string;
   ExpressionAttributeValues: Record<string, any>;
@@ -133,6 +138,35 @@ export async function queryItems(params: {
     }
   );
   return result.Items || [];
+}
+
+export async function queryItemsWithPagination(params: {
+  KeyConditionExpression: string;
+  ExpressionAttributeValues: Record<string, any>;
+  ExpressionAttributeNames?: Record<string, string>;
+  IndexName?: string;
+  ScanIndexForward?: boolean;
+  Limit?: number;
+  FilterExpression?: string;
+  Select?: 'ALL_ATTRIBUTES' | 'ALL_PROJECTED_ATTRIBUTES' | 'SPECIFIC_ATTRIBUTES' | 'COUNT';
+  ExclusiveStartKey?: Record<string, any>;
+}): Promise<QueryResult> {
+  const result = await withRetry(
+    () => dynamodb.send(new QueryCommand({
+      TableName: TABLE_NAME,
+      ...params,
+    })),
+    'queryItemsWithPagination',
+    { 
+      indexName: params.IndexName,
+      limit: params.Limit,
+      hasFilter: !!params.FilterExpression
+    }
+  );
+  return {
+    items: result.Items || [],
+    lastEvaluatedKey: result.LastEvaluatedKey
+  };
 }
 
 export async function updateItem(params: {

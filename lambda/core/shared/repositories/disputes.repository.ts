@@ -1,7 +1,7 @@
 // Disputes Repository for DynamoDB
 
 import { v4 as uuidv4 } from 'uuid';
-import { putItem, getItem, queryItems, updateItem, deleteItem } from '../db/dynamodb-client';
+import { putItem, getItem, queryItems, queryItemsWithPagination, updateItem, deleteItem } from '../db/dynamodb-client';
 import { Keys } from '../db/dynamodb-keys';
 import { 
   Dispute, 
@@ -158,7 +158,7 @@ export class DisputesRepository {
       params.ExclusiveStartKey = JSON.parse(Buffer.from(nextToken, 'base64').toString());
     }
     
-    const result = await queryItems(params);
+    const { items: result, lastEvaluatedKey } = await queryItemsWithPagination(params);
     
     // Convert to DisputeWithDetails (user/order info will be populated by service layer)
     const disputes: DisputeWithDetails[] = result.map((item: any) => ({
@@ -170,9 +170,9 @@ export class DisputesRepository {
       messageCount: 0, // Will be calculated
     }));
     
-    const hasMore = !!result.LastEvaluatedKey;
+    const hasMore = !!lastEvaluatedKey;
     const nextTokenValue = hasMore 
-      ? Buffer.from(JSON.stringify(result.LastEvaluatedKey)).toString('base64')
+      ? Buffer.from(JSON.stringify(lastEvaluatedKey)).toString('base64')
       : undefined;
     
     return {
@@ -352,7 +352,7 @@ export class DisputesRepository {
       params.ExclusiveStartKey = JSON.parse(Buffer.from(nextToken, 'base64').toString());
     }
     
-    const result = await queryItems(params);
+    const { items: result, lastEvaluatedKey } = await queryItemsWithPagination(params);
     
     // Convert to DisputeMessageWithSender (sender info will be populated by service layer)
     const messages: DisputeMessageWithSender[] = result.map((item: any) => ({
@@ -365,8 +365,8 @@ export class DisputesRepository {
       },
     }));
     
-    const nextTokenValue = result.LastEvaluatedKey
-      ? Buffer.from(JSON.stringify(result.LastEvaluatedKey)).toString('base64')
+    const nextTokenValue = lastEvaluatedKey
+      ? Buffer.from(JSON.stringify(lastEvaluatedKey)).toString('base64')
       : undefined;
     
     return { messages, nextToken: nextTokenValue };

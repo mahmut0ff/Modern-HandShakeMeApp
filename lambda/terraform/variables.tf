@@ -39,26 +39,31 @@ variable "app_version" {
 variable "domain_name" {
   description = "Main domain name"
   type        = string
+  default     = "handshakeme.com"
 }
 
 variable "api_domain" {
   description = "API subdomain"
   type        = string
+  default     = "api.handshakeme.com"
 }
 
 variable "ws_domain" {
   description = "WebSocket subdomain"
   type        = string
+  default     = "ws.handshakeme.com"
 }
 
 variable "cdn_domain" {
   description = "CDN subdomain"
   type        = string
+  default     = "cdn.handshakeme.com"
 }
 
 variable "ssl_certificate_arn" {
   description = "SSL certificate ARN from ACM"
   type        = string
+  default     = ""
 }
 
 # Database Configuration
@@ -269,4 +274,82 @@ variable "tags" {
     Environment = "production"
     Project     = "HandShakeMe"
   }
+}
+
+
+# Additional Variables for Lambda Functions
+
+variable "jwt_secret" {
+  description = "JWT secret for authentication"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "telegram_bot_token" {
+  description = "Telegram bot token for authentication"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "frontend_url" {
+  description = "Frontend application URL"
+  type        = string
+  default     = "https://app.handshakeme.com"
+}
+
+variable "enable_vpc" {
+  description = "Enable VPC for Lambda functions"
+  type        = bool
+  default     = false
+}
+
+variable "enable_redis" {
+  description = "Enable Redis/ElastiCache"
+  type        = bool
+  default     = false
+}
+
+variable "redis_host" {
+  description = "Redis host address"
+  type        = string
+  default     = ""
+}
+
+variable "redis_port" {
+  description = "Redis port"
+  type        = string
+  default     = "6379"
+}
+
+variable "replica_region" {
+  description = "Replica region for disaster recovery"
+  type        = string
+  default     = "us-west-2"
+}
+
+variable "disaster_recovery_email" {
+  description = "Email for disaster recovery notifications"
+  type        = string
+  default     = ""
+}
+
+variable "enable_global_tables" {
+  description = "Enable DynamoDB global tables for multi-region replication"
+  type        = bool
+  default     = false
+}
+
+variable "redis_auth_token" {
+  description = "Redis authentication token"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "route53_zone_id" {
+  description = "Route53 hosted zone ID"
+  type        = string
+  default     = ""
 }

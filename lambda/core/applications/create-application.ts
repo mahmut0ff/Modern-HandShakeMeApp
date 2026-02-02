@@ -90,7 +90,7 @@ async function createApplicationHandler(event: AuthenticatedEvent): Promise<APIG
     orderId: validatedData.orderId,
   });
   
-  return success(application, { statusCode: 201 });
+  return success(application, 201);
 }
 
 export const handler = withErrorHandler(withAuth(createApplicationHandler, { roles: ['MASTER'] }));

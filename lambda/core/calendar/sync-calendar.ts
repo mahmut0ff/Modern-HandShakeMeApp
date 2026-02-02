@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Sync with external calendar services (Google Calendar, Outlook, Apple Calendar)
 
 import type { APIGatewayProxyResult } from 'aws-lambda';

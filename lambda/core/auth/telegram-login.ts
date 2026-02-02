@@ -27,7 +27,8 @@ async function telegramLoginHandler(event: APIGatewayProxyEvent): Promise<APIGat
   // Validate input
   let loginData: TelegramLoginData;
   try {
-    loginData = telegramLoginSchema.parse(body);
+    const parsed = telegramLoginSchema.parse(body);
+    loginData = parsed as TelegramLoginData;
   } catch (error) {
     if (error instanceof z.ZodError) {
       throw new ValidationError('Validation failed', error.errors);

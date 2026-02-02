@@ -31,7 +31,11 @@ interface JWTPayload extends JwtPayload {
 
 const userRepository = new UserRepository();
 
-export function withAuth(handler: AuthenticatedHandler) {
+export interface WithAuthOptions {
+  roles?: ('CLIENT' | 'MASTER' | 'ADMIN')[];
+}
+
+export function withAuth(handler: AuthenticatedHandler, options?: WithAuthOptions) {
   return async (
     event: APIGatewayProxyEvent,
     context: Context
@@ -59,6 +63,18 @@ export function withAuth(handler: AuthenticatedHandler) {
       if (!authContext) {
         logger.warn('Invalid token', { token: token.substring(0, 10) + '...' });
         return unauthorized('Invalid token');
+      }
+
+      // Check role if specified
+      if (options?.roles && options.roles.length > 0) {
+        if (!options.roles.includes(authContext.role)) {
+          logger.warn('Insufficient permissions', { 
+            userId: authContext.userId,
+            role: authContext.role,
+            requiredRoles: options.roles 
+          });
+          return unauthorized('Insufficient permissions');
+        }
       }
 
       // Add auth context to event
@@ -177,3 +193,6 @@ export function requireRole(...allowedRoles: ('CLIENT' | 'MASTER' | 'ADMIN')[]) 
     };
   };
 }
+
+// Alias for compatibility
+export const requireAuth = withAuth;

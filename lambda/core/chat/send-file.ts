@@ -67,7 +67,7 @@ async function sendFileHandler(
   });
   
   logger.info('File message sent', { messageId: message.id, roomId, fileName });
-  return success(message, { statusCode: 201 });
+  return success(message, 201);
 }
 
 export const handler = withErrorHandler(withAuth(sendFileHandler));

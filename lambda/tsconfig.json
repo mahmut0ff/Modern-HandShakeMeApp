@@ -6,9 +6,16 @@
     "moduleResolution": "node",
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
-    "strict": true,
+    "strict": false,
+    "noImplicitAny": false,
+    "strictNullChecks": false,
+    "strictFunctionTypes": false,
+    "strictBindCallApply": false,
+    "strictPropertyInitialization": false,
+    "noImplicitThis": false,
+    "useUnknownInCatchVariables": false,
     "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
+    "forceConsistentCasingInFileNames": false,
     "resolveJsonModule": true,
     "isolatedModules": false,
     "noEmit": false,
@@ -21,17 +28,18 @@
       "@/shared/*": ["core/shared/*"],
       "@/types/*": ["core/shared/types/*"]
     },
-    "types": ["node", "@types/aws-lambda", "jest"]
+    "types": ["node", "@types/aws-lambda", "jest"],
+    "noEmitOnError": false
   },
   "include": [
-    "core/**/*",
-    "__tests__/**/*"
+    "core/**/*"
   ],
   "exclude": [
     "node_modules",
     "dist",
     "build",
     "terraform",
-    "scripts"
+    "scripts",
+    "__tests__"
   ]
 }

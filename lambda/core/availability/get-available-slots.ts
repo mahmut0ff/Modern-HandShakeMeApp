@@ -1,9 +1,25 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { z } from 'zod';
-import { createResponse, createErrorResponse } from '../shared/utils/response';
 import { CacheService } from '../shared/services/cache';
 import { AvailabilityRepository } from '../shared/repositories/availability.repository';
 import { MasterProfileRepository } from '../shared/repositories/master-profile.repository';
+
+// Local response helpers
+function createResponse(statusCode: number, data: any): APIGatewayProxyResult {
+  return {
+    statusCode,
+    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+    body: JSON.stringify({ success: true, data })
+  };
+}
+
+function createErrorResponse(statusCode: number, code: string, message: string): APIGatewayProxyResult {
+  return {
+    statusCode,
+    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+    body: JSON.stringify({ success: false, error: { code, message } })
+  };
+}
 
 const availabilityRepo = new AvailabilityRepository();
 const masterRepo = new MasterProfileRepository();

@@ -51,7 +51,7 @@ async function deleteApplicationHandler(event: AuthenticatedEvent): Promise<APIG
     orderId,
   });
   
-  return success({ message: 'Application deleted successfully' }, { statusCode: 204 });
+  return success({ message: 'Application deleted successfully' }, 204);
 }
 
 export const handler = withErrorHandler(withAuth(deleteApplicationHandler, { roles: ['MASTER'] }));

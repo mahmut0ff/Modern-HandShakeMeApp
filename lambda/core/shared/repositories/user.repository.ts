@@ -28,6 +28,9 @@ export interface User {
   telegramUsername?: string;
   telegramPhotoUrl?: string;
   isActive: boolean;
+  city?: string;
+  address?: string;
+  userId?: string; // Alias for id in some contexts
   createdAt: string;
   updatedAt: string;
 }

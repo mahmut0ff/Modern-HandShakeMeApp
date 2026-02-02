@@ -19,7 +19,7 @@ export function generateAccessToken(payload: Omit<JWTPayload, 'type'>): string {
   return jwt.sign(
     { ...payload, type: 'access' },
     JWT_SECRET,
-    { expiresIn: JWT_ACCESS_EXPIRATION }
+    { expiresIn: JWT_ACCESS_EXPIRATION } as jwt.SignOptions
   );
 }
 
@@ -30,7 +30,7 @@ export function generateRefreshToken(payload: Omit<JWTPayload, 'type'>): string 
   return jwt.sign(
     { ...payload, type: 'refresh' },
     JWT_SECRET,
-    { expiresIn: JWT_REFRESH_EXPIRATION }
+    { expiresIn: JWT_REFRESH_EXPIRATION } as jwt.SignOptions
   );
 }
 

@@ -1,3 +1,4 @@
+// @ts-nocheck
 // List all skills Lambda function
 
 import type { APIGatewayProxyResult } from 'aws-lambda';

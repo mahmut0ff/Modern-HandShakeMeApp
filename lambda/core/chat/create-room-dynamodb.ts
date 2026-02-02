@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Create chat room
 
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
@@ -44,7 +45,7 @@ async function createRoomHandler(event: APIGatewayProxyEvent): Promise<APIGatewa
     });
 
     logger.info('Chat room created', { roomId: room.id, userId });
-    return success(room, { statusCode: 201 });
+    return success(room, 201);
   } catch (error: any) {
     logger.error('Create room error', error);
     

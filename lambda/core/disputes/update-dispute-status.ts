@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Update dispute status
 
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';

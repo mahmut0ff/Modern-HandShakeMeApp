@@ -235,7 +235,26 @@ export class S3Service {
       return { deleted, failed };
     } catch (error: any) {
       logger.error('Failed to delete files by prefix', { prefix, error: error.message });
-      return { deleted: 0, failed: keys.length || 0 };
+      return { deleted: 0, failed: 0 };
+    }
+  }
+
+  /**
+   * Upload a file to S3
+   */
+  async uploadFile(key: string, body: Buffer | string, contentType?: string): Promise<string> {
+    try {
+      await this.s3.putObject({
+        Bucket: this.bucketName,
+        Key: key,
+        Body: body,
+        ContentType: contentType || 'application/octet-stream'
+      }).promise();
+
+      return `https://${this.bucketName}.s3.amazonaws.com/${key}`;
+    } catch (error: any) {
+      logger.error('Failed to upload file', { key, error: error.message });
+      throw error;
     }
   }
 }

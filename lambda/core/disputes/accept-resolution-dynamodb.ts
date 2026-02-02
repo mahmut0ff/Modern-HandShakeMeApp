@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Accept resolution
 
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';

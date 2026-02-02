@@ -10,8 +10,9 @@ locals {
       public_read = false
       lifecycle_rules = [
         {
-          id     = "avatar_lifecycle"
-          status = "Enabled"
+          id              = "avatar_lifecycle"
+          status          = "Enabled"
+          expiration_days = null
           transitions = [
             {
               days          = 30
@@ -32,8 +33,9 @@ locals {
       public_read = false
       lifecycle_rules = [
         {
-          id     = "orders_lifecycle"
-          status = "Enabled"
+          id              = "orders_lifecycle"
+          status          = "Enabled"
+          expiration_days = null
           transitions = [
             {
               days          = 60
@@ -54,8 +56,9 @@ locals {
       public_read = false
       lifecycle_rules = [
         {
-          id     = "chat_lifecycle"
-          status = "Enabled"
+          id              = "chat_lifecycle"
+          status          = "Enabled"
+          expiration_days = 365  # Delete chat files after 1 year
           transitions = [
             {
               days          = 30
@@ -66,9 +69,6 @@ locals {
               storage_class = "GLACIER"
             }
           ]
-          expiration = {
-            days = 365  # Delete chat files after 1 year
-          }
         }
       ]
     }
@@ -79,8 +79,9 @@ locals {
       public_read = true
       lifecycle_rules = [
         {
-          id     = "static_lifecycle"
-          status = "Enabled"
+          id              = "static_lifecycle"
+          status          = "Enabled"
+          expiration_days = null
           transitions = [
             {
               days          = 30
@@ -154,6 +155,10 @@ resource "aws_s3_bucket_lifecycle_configuration" "buckets" {
       id     = rule.value.id
       status = rule.value.status
 
+      filter {
+        prefix = ""
+      }
+
       dynamic "transition" {
         for_each = rule.value.transitions
         content {
@@ -163,9 +168,9 @@ resource "aws_s3_bucket_lifecycle_configuration" "buckets" {
       }
 
       dynamic "expiration" {
-        for_each = rule.value.expiration != null ? [rule.value.expiration] : []
+        for_each = rule.value.expiration_days != null ? [rule.value.expiration_days] : []
         content {
-          days = expiration.value.days
+          days = expiration.value
         }
       }
 
@@ -339,15 +344,16 @@ resource "aws_cloudfront_distribution" "main" {
     }
   }
 
-  # SSL Certificate
+  # SSL Certificate - use CloudFront default if no valid ACM certificate provided
   viewer_certificate {
-    acm_certificate_arn      = var.ssl_certificate_arn
-    ssl_support_method       = "sni-only"
-    minimum_protocol_version = "TLSv1.2_2021"
+    cloudfront_default_certificate = var.ssl_certificate_arn == "" || var.ssl_certificate_arn == "ssl-arn" ? true : false
+    acm_certificate_arn            = var.ssl_certificate_arn != "" && var.ssl_certificate_arn != "ssl-arn" ? var.ssl_certificate_arn : null
+    ssl_support_method             = var.ssl_certificate_arn != "" && var.ssl_certificate_arn != "ssl-arn" ? "sni-only" : null
+    minimum_protocol_version       = var.ssl_certificate_arn != "" && var.ssl_certificate_arn != "ssl-arn" ? "TLSv1.2_2021" : "TLSv1"
   }
 
-  # Custom domain
-  aliases = [var.cdn_domain]
+  # Custom domain - only if valid SSL certificate is provided
+  aliases = var.ssl_certificate_arn != "" && var.ssl_certificate_arn != "ssl-arn" ? [var.cdn_domain] : []
 
   # Logging
   logging_config {
@@ -379,6 +385,10 @@ resource "aws_s3_bucket_lifecycle_configuration" "cloudfront_logs" {
     id     = "cloudfront_logs_lifecycle"
     status = "Enabled"
 
+    filter {
+      prefix = ""
+    }
+
     expiration {
       days = 90  # Delete logs after 90 days
     }
@@ -390,9 +400,10 @@ resource "aws_s3_bucket_lifecycle_configuration" "cloudfront_logs" {
   }
 }
 
-# Route 53 Record for CDN Domain
+# Route 53 Record for CDN Domain - only if zone_id is provided
 resource "aws_route53_record" "cdn" {
-  zone_id = data.aws_route53_zone.main.zone_id
+  count   = var.route53_zone_id != "" ? 1 : 0
+  zone_id = var.route53_zone_id
   name    = var.cdn_domain
   type    = "A"
 
@@ -403,28 +414,28 @@ resource "aws_route53_record" "cdn" {
   }
 }
 
-# S3 Bucket Notifications (for processing uploaded files)
-resource "aws_s3_bucket_notification" "file_processing" {
-  bucket = aws_s3_bucket.buckets["orders"].id
+# S3 Bucket Notifications - disabled until Lambda function is deployed
+# resource "aws_s3_bucket_notification" "file_processing" {
+#   bucket = aws_s3_bucket.buckets["orders"].id
+#
+#   lambda_function {
+#     lambda_function_arn = aws_lambda_function.functions["process-uploaded-file"].arn
+#     events              = ["s3:ObjectCreated:*"]
+#     filter_prefix       = "uploads/"
+#     filter_suffix       = ""
+#   }
+#
+#   depends_on = [aws_lambda_permission.s3_invoke]
+# }
 
-  lambda_function {
-    lambda_function_arn = aws_lambda_function.functions["process-uploaded-file"].arn
-    events              = ["s3:ObjectCreated:*"]
-    filter_prefix       = "uploads/"
-    filter_suffix       = ""
-  }
-
-  depends_on = [aws_lambda_permission.s3_invoke]
-}
-
-# Lambda permission for S3 to invoke file processing
-resource "aws_lambda_permission" "s3_invoke" {
-  statement_id  = "AllowExecutionFromS3Bucket"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.functions["process-uploaded-file"].function_name
-  principal     = "s3.amazonaws.com"
-  source_arn    = aws_s3_bucket.buckets["orders"].arn
-}
+# Lambda permission for S3 to invoke file processing - disabled until Lambda function is deployed
+# resource "aws_lambda_permission" "s3_invoke" {
+#   statement_id  = "AllowExecutionFromS3Bucket"
+#   action        = "lambda:InvokeFunction"
+#   function_name = aws_lambda_function.functions["process-uploaded-file"].function_name
+#   principal     = "s3.amazonaws.com"
+#   source_arn    = aws_s3_bucket.buckets["orders"].arn
+# }
 
 # Outputs
 output "s3_bucket_names" {

@@ -109,7 +109,7 @@ export class YandexMapsService {
         throw new Error(`Yandex Geocoding API error: ${response.status} ${response.statusText}`);
       }
 
-      const data = await response.json();
+      const data = await response.json() as { error?: { message: string } };
       
       if (data.error) {
         throw new Error(`Yandex API error: ${data.error.message}`);
@@ -123,7 +123,7 @@ export class YandexMapsService {
       });
 
       return results;
-    } catch (error) {
+    } catch (error: any) {
       logger.error('Geocoding failed', { address, error: error.message });
       throw error;
     }
@@ -147,7 +147,7 @@ export class YandexMapsService {
         throw new Error(`Yandex Geocoding API error: ${response.status} ${response.statusText}`);
       }
 
-      const data = await response.json();
+      const data = await response.json() as { error?: { message: string } };
       
       if (data.error) {
         throw new Error(`Yandex API error: ${data.error.message}`);
@@ -199,7 +199,7 @@ export class YandexMapsService {
         throw new Error(`Yandex Search API error: ${response.status} ${response.statusText}`);
       }
 
-      const data = await response.json();
+      const data = await response.json() as { error?: { message: string } };
       
       if (data.error) {
         throw new Error(`Yandex API error: ${data.error.message}`);
@@ -247,7 +247,7 @@ export class YandexMapsService {
         throw new Error(`Yandex Routing API error: ${response.status} ${response.statusText}`);
       }
 
-      const data = await response.json();
+      const data = await response.json() as { error?: { message: string } };
       
       if (data.error) {
         throw new Error(`Yandex API error: ${data.error.message}`);
