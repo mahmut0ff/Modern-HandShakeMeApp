@@ -1,12 +1,15 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { View, Text, TouchableOpacity, Animated, Easing } from 'react-native'
-import { Link, router } from 'expo-router'
+import { Link, router, useRootNavigationState, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { useAppSelector } from '../hooks/redux'
-import { getButtonAccessibility, getImageAccessibility, getHeaderAccessibility, accessibilityManager } from '../utils/accessibility'
+import { getButtonAccessibility, getHeaderAccessibility, accessibilityManager } from '../utils/accessibility'
 
 export default function WelcomePage() {
   const { isAuthenticated, user } = useAppSelector((state) => state.auth)
+  const rootNavigationState = useRootNavigationState()
+  const segments = useSegments()
+  const hasNavigated = useRef(false)
   
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current
@@ -15,19 +18,35 @@ export default function WelcomePage() {
   const floatAnim = useRef(new Animated.Value(0)).current
 
   useEffect(() => {
-    // Redirect if authenticated
+    // Wait for navigation to be ready
+    if (!rootNavigationState?.key) return
+    
+    // Only redirect once and only from index page
+    if (hasNavigated.current) return
+    if (segments[0] && segments[0] !== 'index') return
+    
     if (isAuthenticated && user) {
-      // FIXED: Use uppercase role format to match Lambda
-      if (user.role === 'MASTER' || user.role === 'ADMIN') {
-        router.replace('/(master)/dashboard')
-      } else {
-        router.replace('/(client)/dashboard')
-      }
+      hasNavigated.current = true
+      
+      const targetRoute = (user.role === 'MASTER' || user.role === 'ADMIN')
+        ? '/(master)/dashboard'
+        : '/(client)/dashboard'
+      
+      // Use requestAnimationFrame to ensure we're not in a render cycle
+      requestAnimationFrame(() => {
+        router.replace(targetRoute)
+      })
     } else {
-      // Announce page for accessibility
       accessibilityManager.announcePageChange('Добро пожаловать в HandShakeMe')
     }
-  }, [isAuthenticated, user])
+  }, [isAuthenticated, user, rootNavigationState?.key, segments])
+
+  // Reset navigation flag when user logs out
+  useEffect(() => {
+    if (!isAuthenticated) {
+      hasNavigated.current = false
+    }
+  }, [isAuthenticated])
 
   useEffect(() => {
     // Start animations

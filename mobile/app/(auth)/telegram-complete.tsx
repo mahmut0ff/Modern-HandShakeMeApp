@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { View, Text, TextInput, TouchableOpacity, ScrollView } from 'react-native'
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Modal, FlatList } from 'react-native'
 import { router, useLocalSearchParams } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { Ionicons } from '@expo/vector-icons'
@@ -9,58 +9,81 @@ import { useTelegramCompleteMutation } from '../../services/authApi'
 
 type Role = 'CLIENT' | 'MASTER'
 
+const countries = [
+  { code: 'KG', name: 'Кыргызстан', flag: '🇰🇬' },
+  { code: 'RU', name: 'Россия', flag: '🇷🇺' },
+  { code: 'KZ', name: 'Казахстан', flag: '🇰🇿' },
+  { code: 'UZ', name: 'Узбекистан', flag: '🇺🇿' },
+  { code: 'TJ', name: 'Таджикистан', flag: '🇹🇯' },
+  { code: 'UA', name: 'Украина', flag: '🇺🇦' },
+  { code: 'BY', name: 'Беларусь', flag: '🇧🇾' },
+  { code: 'OTHER', name: 'Другое', flag: '🌍' },
+]
+
 export default function TelegramCompletePage() {
   const dispatch = useAppDispatch()
   const params = useLocalSearchParams()
   const [telegramComplete] = useTelegramCompleteMutation()
   
-  // Telegram data from previous screen
   const telegramData = params.telegramData ? JSON.parse(params.telegramData as string) : {}
   
+  const [step, setStep] = useState(1) // 1: role, 2: details, 3: citizenship
   const [formData, setFormData] = useState({
     firstName: telegramData.firstName || '',
     lastName: telegramData.lastName || '',
-    role: 'CLIENT' as Role,
+    role: '' as Role | '',
+    citizenship: '',
+    city: '',
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [isLoading, setIsLoading] = useState(false)
+  const [showCountryPicker, setShowCountryPicker] = useState(false)
 
-  const handleRoleChange = (role: Role) => {
+  const selectedCountry = countries.find(c => c.code === formData.citizenship)
+
+  const handleRoleSelect = (role: Role) => {
     setFormData({ ...formData, role })
+    setStep(2)
   }
 
-  const validateForm = () => {
+  const handleBack = () => {
+    if (step > 1) setStep(step - 1)
+  }
+
+  const validateStep2 = () => {
     const newErrors: Record<string, string> = {}
-    
-    if (!formData.firstName.trim()) {
-      newErrors.firstName = 'Имя обязательно'
-    }
-    
-    if (!formData.lastName.trim()) {
-      newErrors.lastName = 'Фамилия обязательна'
-    }
-    
+    if (!formData.firstName.trim()) newErrors.firstName = 'Имя обязательно'
+    if (!formData.lastName.trim()) newErrors.lastName = 'Фамилия обязательна'
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
 
+  const handleNextStep = () => {
+    if (step === 2 && validateStep2()) {
+      setStep(3)
+    }
+  }
+
   const handleSubmit = async () => {
-    if (!validateForm()) return
+    if (!formData.citizenship) {
+      setErrors({ citizenship: 'Выберите гражданство' })
+      return
+    }
 
     setIsLoading(true)
 
     try {
-      if (!telegramData?.id) {
-        throw new Error('Telegram data not available')
-      }
+      if (!telegramData?.id) throw new Error('Telegram data not available')
 
       const result = await telegramComplete({
         telegram_id: telegramData.id,
         first_name: formData.firstName.trim(),
         last_name: formData.lastName.trim(),
-        role: formData.role,
-        username: telegramData.username || undefined,
-        photo_url: telegramData.photoUrl || undefined,
+        role: formData.role as Role,
+        username: telegramData.username,
+        photo_url: telegramData.photoUrl,
+        citizenship: formData.citizenship,
+        city: formData.city,
       }).unwrap()
 
       dispatch(setCredentials({
@@ -79,182 +102,224 @@ export default function TelegramCompletePage() {
       router.replace(route)
     } catch (err: any) {
       console.error('Registration error:', err)
-      setErrors({ 
-        general: err.data?.message || err.message || 'Произошла ошибка. Попробуйте позже.' 
-      })
+      setErrors({ general: err.data?.message || 'Произошла ошибка' })
     } finally {
       setIsLoading(false)
     }
   }
 
-  return (
-    <View className="flex-1 bg-blue-500">
-      <StatusBar style="light" />
-      
-      {/* Animated Background */}
-      <View className="absolute inset-0">
-        <View className="absolute top-10 left-5 w-32 h-32 bg-white/10 rounded-full" />
-        <View className="absolute top-32 right-12 w-24 h-24 bg-white/15 rounded-full" />
-        <View className="absolute bottom-24 left-16 w-40 h-40 bg-white/8 rounded-full" />
-        <View className="absolute bottom-16 right-8 w-28 h-28 bg-white/12 rounded-full" />
+  // Step 1: Role Selection
+  const renderRoleStep = () => (
+    <View className="flex-1 justify-center">
+      <Text className="text-2xl font-bold text-gray-900 text-center mb-2">
+        Кто вы?
+      </Text>
+      <Text className="text-gray-600 text-center mb-8">
+        Выберите вашу роль в приложении
+      </Text>
+
+      <TouchableOpacity
+        onPress={() => handleRoleSelect('CLIENT')}
+        className="bg-white rounded-2xl p-6 mb-4 border-2 border-gray-100"
+        style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 3 }}
+      >
+        <View className="flex-row items-center">
+          <View className="w-14 h-14 bg-blue-100 rounded-2xl items-center justify-center mr-4">
+            <Ionicons name="person" size={28} color="#3B82F6" />
+          </View>
+          <View className="flex-1">
+            <Text className="text-lg font-bold text-gray-900">Клиент</Text>
+            <Text className="text-gray-600 text-sm mt-1">
+              Ищу мастеров для выполнения работ
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={24} color="#9CA3AF" />
+        </View>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        onPress={() => handleRoleSelect('MASTER')}
+        className="bg-white rounded-2xl p-6 border-2 border-gray-100"
+        style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 3 }}
+      >
+        <View className="flex-row items-center">
+          <View className="w-14 h-14 bg-green-100 rounded-2xl items-center justify-center mr-4">
+            <Ionicons name="construct" size={28} color="#10B981" />
+          </View>
+          <View className="flex-1">
+            <Text className="text-lg font-bold text-gray-900">Мастер</Text>
+            <Text className="text-gray-600 text-sm mt-1">
+              Предлагаю свои услуги и навыки
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={24} color="#9CA3AF" />
+        </View>
+      </TouchableOpacity>
+
+      {formData.role === 'MASTER' && (
+        <View className="mt-6 p-4 bg-amber-50 rounded-2xl flex-row items-start">
+          <Ionicons name="information-circle" size={20} color="#F59E0B" />
+          <Text className="text-amber-800 text-sm ml-2 flex-1">
+            Мастерам потребуется пройти верификацию личности для получения заказов
+          </Text>
+        </View>
+      )}
+    </View>
+  )
+
+  // Step 2: Personal Details
+  const renderDetailsStep = () => (
+    <View className="flex-1">
+      <View className="flex-row items-center mb-6">
+        <TouchableOpacity onPress={handleBack} className="mr-3">
+          <Ionicons name="arrow-back" size={24} color="#374151" />
+        </TouchableOpacity>
+        <View>
+          <Text className="text-xl font-bold text-gray-900">Личные данные</Text>
+          <Text className="text-gray-600 text-sm">Шаг 2 из 3</Text>
+        </View>
       </View>
+
+      {errors.general && (
+        <View className="mb-4 p-4 bg-red-50 rounded-2xl flex-row items-center">
+          <Ionicons name="alert-circle" size={20} color="#DC2626" />
+          <Text className="text-red-600 text-sm ml-2 flex-1">{errors.general}</Text>
+        </View>
+      )}
+
+      <View className="bg-white rounded-2xl p-6 mb-4">
+        <View className="mb-4">
+          <Text className="text-sm font-semibold text-gray-700 mb-2">Имя *</Text>
+          <TextInput
+            value={formData.firstName}
+            onChangeText={(v) => { setFormData({...formData, firstName: v}); setErrors({...errors, firstName: ''}) }}
+            className={`rounded-xl border-2 bg-gray-50 px-4 py-3 text-gray-900 ${errors.firstName ? 'border-red-300' : 'border-gray-200'}`}
+            placeholder="Введите имя"
+            placeholderTextColor="#9CA3AF"
+          />
+          {errors.firstName && <Text className="text-red-600 text-xs mt-1">{errors.firstName}</Text>}
+        </View>
+
+        <View className="mb-4">
+          <Text className="text-sm font-semibold text-gray-700 mb-2">Фамилия *</Text>
+          <TextInput
+            value={formData.lastName}
+            onChangeText={(v) => { setFormData({...formData, lastName: v}); setErrors({...errors, lastName: ''}) }}
+            className={`rounded-xl border-2 bg-gray-50 px-4 py-3 text-gray-900 ${errors.lastName ? 'border-red-300' : 'border-gray-200'}`}
+            placeholder="Введите фамилию"
+            placeholderTextColor="#9CA3AF"
+          />
+          {errors.lastName && <Text className="text-red-600 text-xs mt-1">{errors.lastName}</Text>}
+        </View>
+
+        <View>
+          <Text className="text-sm font-semibold text-gray-700 mb-2">Город</Text>
+          <TextInput
+            value={formData.city}
+            onChangeText={(v) => setFormData({...formData, city: v})}
+            className="rounded-xl border-2 border-gray-200 bg-gray-50 px-4 py-3 text-gray-900"
+            placeholder="Например: Бишкек"
+            placeholderTextColor="#9CA3AF"
+          />
+        </View>
+      </View>
+
+      <TouchableOpacity
+        onPress={handleNextStep}
+        className="bg-blue-500 py-4 rounded-2xl"
+      >
+        <Text className="text-white font-bold text-center text-base">Далее</Text>
+      </TouchableOpacity>
+    </View>
+  )
+
+  // Step 3: Citizenship
+  const renderCitizenshipStep = () => (
+    <View className="flex-1">
+      <View className="flex-row items-center mb-6">
+        <TouchableOpacity onPress={handleBack} className="mr-3">
+          <Ionicons name="arrow-back" size={24} color="#374151" />
+        </TouchableOpacity>
+        <View>
+          <Text className="text-xl font-bold text-gray-900">Гражданство</Text>
+          <Text className="text-gray-600 text-sm">Шаг 3 из 3</Text>
+        </View>
+      </View>
+
+      <Text className="text-gray-600 mb-4">
+        Выберите страну гражданства для правильного оформления документов
+      </Text>
+
+      <View className="bg-white rounded-2xl p-4 mb-4">
+        {countries.map((country) => (
+          <TouchableOpacity
+            key={country.code}
+            onPress={() => setFormData({...formData, citizenship: country.code})}
+            className={`flex-row items-center p-3 rounded-xl mb-2 ${
+              formData.citizenship === country.code ? 'bg-blue-50 border-2 border-blue-500' : 'bg-gray-50'
+            }`}
+          >
+            <Text className="text-2xl mr-3">{country.flag}</Text>
+            <Text className={`flex-1 font-medium ${
+              formData.citizenship === country.code ? 'text-blue-700' : 'text-gray-900'
+            }`}>
+              {country.name}
+            </Text>
+            {formData.citizenship === country.code && (
+              <Ionicons name="checkmark-circle" size={24} color="#3B82F6" />
+            )}
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {errors.citizenship && (
+        <Text className="text-red-600 text-sm mb-4">{errors.citizenship}</Text>
+      )}
+
+      <TouchableOpacity
+        onPress={handleSubmit}
+        disabled={isLoading || !formData.citizenship}
+        className={`py-4 rounded-2xl ${
+          isLoading || !formData.citizenship ? 'bg-gray-400' : 'bg-blue-500'
+        }`}
+      >
+        <Text className="text-white font-bold text-center text-base">
+          {isLoading ? 'Регистрация...' : 'Завершить регистрацию'}
+        </Text>
+      </TouchableOpacity>
+
+      <View className="mt-4 p-4 bg-blue-50 rounded-2xl flex-row items-start">
+        <Ionicons name="shield-checkmark" size={20} color="#3B82F6" />
+        <Text className="text-blue-800 text-sm ml-2 flex-1">
+          Данные защищены и используются только для работы приложения
+        </Text>
+      </View>
+    </View>
+  )
+
+  return (
+    <View className="flex-1 bg-gray-100">
+      <StatusBar style="dark" />
       
       <ScrollView 
         className="flex-1 px-4 pt-12" 
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 40 }}
+        contentContainerStyle={{ paddingBottom: 40, flexGrow: 1 }}
         keyboardShouldPersistTaps="handled"
       >
-        <View className="bg-white rounded-3xl p-6 mt-4 mb-8">
-          {/* Logo */}
-          <View className="items-center mb-6">
-            <View className="w-16 h-16 bg-blue-500 rounded-3xl items-center justify-center mb-4">
-              <Ionicons name="person-add" size={28} color="white" />
-            </View>
-            <Text className="text-2xl font-bold text-gray-900 mb-2 text-center">Завершение регистрации</Text>
-            <Text className="text-gray-600 text-center text-sm">Подтвердите ваши данные</Text>
-          </View>
-          
-          {errors.general && (
-            <View className="mb-6 p-4 bg-red-50 border border-red-100 rounded-2xl flex-row items-center gap-3">
-              <Ionicons name="alert-circle" size={20} color="#DC2626" />
-              <Text className="text-red-600 text-sm flex-1">{errors.general}</Text>
-            </View>
-          )}
-
-          {/* Role Selection */}
-          <View className="mb-4">
-            <Text className="text-sm font-semibold text-gray-700 mb-2">
-              Выберите роль
-            </Text>
-            <View className="flex-row gap-3">
-              <TouchableOpacity
-                onPress={() => handleRoleChange('CLIENT')}
-                className={`flex-1 p-3 rounded-2xl border-2 items-center ${
-                  formData.role === 'CLIENT'
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 bg-gray-50'
-                }`}
-              >
-                <Ionicons 
-                  name="person" 
-                  size={20} 
-                  color={formData.role === 'CLIENT' ? '#3B82F6' : '#6B7280'} 
-                />
-                <Text className={`font-semibold text-xs mt-1 ${
-                  formData.role === 'CLIENT' ? 'text-blue-500' : 'text-gray-700'
-                }`}>
-                  Клиент
-                </Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                onPress={() => handleRoleChange('MASTER')}
-                className={`flex-1 p-3 rounded-2xl border-2 items-center ${
-                  formData.role === 'MASTER'
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 bg-gray-50'
-                }`}
-              >
-                <Ionicons 
-                  name="construct" 
-                  size={20} 
-                  color={formData.role === 'MASTER' ? '#3B82F6' : '#6B7280'} 
-                />
-                <Text className={`font-semibold text-xs mt-1 ${
-                  formData.role === 'MASTER' ? 'text-blue-500' : 'text-gray-700'
-                }`}>
-                  Мастер
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* First Name */}
-          <View className="mb-4">
-            <Text className="text-sm font-semibold text-gray-700 mb-2">
-              Имя
-            </Text>
-            <View className="relative">
-              <View className="absolute left-4 top-1/2 -translate-y-1/2 z-10">
-                <Ionicons name="person" size={20} color="#9CA3AF" />
-              </View>
-              <TextInput
-                value={formData.firstName}
-                onChangeText={(value) => {
-                  setFormData({ ...formData, firstName: value })
-                  setErrors({ ...errors, firstName: '' })
-                }}
-                className={`w-full rounded-2xl border-2 bg-gray-50 pl-12 pr-4 py-3 text-gray-900 ${
-                  errors.firstName ? 'border-red-300' : 'border-gray-200'
-                }`}
-                placeholder="Введите ваше имя"
-                placeholderTextColor="#9CA3AF"
-              />
-            </View>
-            {errors.firstName && (
-              <View className="mt-1 flex-row items-center gap-1">
-                <Ionicons name="alert-circle" size={14} color="#DC2626" />
-                <Text className="text-xs text-red-600">{errors.firstName}</Text>
-              </View>
-            )}
-          </View>
-
-          {/* Last Name */}
-          <View className="mb-6">
-            <Text className="text-sm font-semibold text-gray-700 mb-2">
-              Фамилия
-            </Text>
-            <View className="relative">
-              <View className="absolute left-4 top-1/2 -translate-y-1/2 z-10">
-                <Ionicons name="person" size={20} color="#9CA3AF" />
-              </View>
-              <TextInput
-                value={formData.lastName}
-                onChangeText={(value) => {
-                  setFormData({ ...formData, lastName: value })
-                  setErrors({ ...errors, lastName: '' })
-                }}
-                className={`w-full rounded-2xl border-2 bg-gray-50 pl-12 pr-4 py-3 text-gray-900 ${
-                  errors.lastName ? 'border-red-300' : 'border-gray-200'
-                }`}
-                placeholder="Введите вашу фамилию"
-                placeholderTextColor="#9CA3AF"
-              />
-            </View>
-            {errors.lastName && (
-              <View className="mt-1 flex-row items-center gap-1">
-                <Ionicons name="alert-circle" size={14} color="#DC2626" />
-                <Text className="text-xs text-red-600">{errors.lastName}</Text>
-              </View>
-            )}
-          </View>
-
-          <TouchableOpacity
-            onPress={handleSubmit}
-            disabled={isLoading}
-            className={`w-full py-3.5 px-6 rounded-2xl mb-4 ${
-              isLoading ? 'bg-gray-400' : 'bg-blue-500'
-            }`}
-          >
-            <View className="flex-row items-center justify-center gap-2">
-              <Text className="text-white font-bold text-base">
-                {isLoading ? 'Завершаем регистрацию...' : 'Завершить регистрацию'}
-              </Text>
-              {!isLoading && <Ionicons name="checkmark-circle" size={20} color="white" />}
-            </View>
-          </TouchableOpacity>
-
-          {/* Info */}
-          <View className="mt-4 p-4 bg-blue-50 rounded-2xl">
-            <View className="flex-row items-start gap-3">
-              <Ionicons name="shield-checkmark" size={20} color="#0165FB" />
-              <Text className="text-blue-900 text-xs flex-1">
-                Ваши данные защищены и используются только для работы приложения
-              </Text>
-            </View>
-          </View>
+        {/* Progress indicator */}
+        <View className="flex-row mb-6">
+          {[1, 2, 3].map((s) => (
+            <View 
+              key={s} 
+              className={`flex-1 h-1 rounded-full mx-1 ${s <= step ? 'bg-blue-500' : 'bg-gray-300'}`} 
+            />
+          ))}
         </View>
+
+        {step === 1 && renderRoleStep()}
+        {step === 2 && renderDetailsStep()}
+        {step === 3 && renderCitizenshipStep()}
       </ScrollView>
     </View>
   )

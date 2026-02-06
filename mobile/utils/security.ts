@@ -215,3 +215,171 @@ export class SecurityAuditLogger {
     this.failedAttempts.delete(key);
   }
 }
+
+
+// ============================================================================
+// Aliases for test compatibility
+// ============================================================================
+
+// Email validation alias
+export const isValidEmail = validateEmail;
+
+// Phone validation alias
+export const isValidPhone = validatePhone;
+
+// Password strength check alias
+export const checkPasswordStrength = validatePasswordStrength;
+
+// ============================================================================
+// Additional security utilities
+// ============================================================================
+
+/**
+ * Mask sensitive data for logging/display
+ */
+export const maskSensitiveData = (data: string, visibleChars: number = 4): string => {
+  if (!data || data.length <= visibleChars) {
+    return '*'.repeat(data?.length || 0);
+  }
+  const masked = '*'.repeat(data.length - visibleChars);
+  return masked + data.slice(-visibleChars);
+};
+
+/**
+ * Validate file type against allowed types
+ */
+export const isValidFileType = (
+  mimeType: string,
+  allowedTypes: string[] = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf']
+): boolean => {
+  return allowedTypes.includes(mimeType.toLowerCase());
+};
+
+/**
+ * Validate file size
+ */
+export const isValidFileSize = (
+  sizeInBytes: number,
+  maxSizeInMB: number = 10
+): boolean => {
+  const maxSizeInBytes = maxSizeInMB * 1024 * 1024;
+  return sizeInBytes <= maxSizeInBytes;
+};
+
+/**
+ * Check if URL is safe (not pointing to internal/dangerous resources)
+ */
+export const isSafeURL = (url: string): boolean => {
+  try {
+    const urlObj = new URL(url);
+    
+    // Block dangerous protocols
+    const dangerousProtocols = ['javascript:', 'data:', 'vbscript:', 'file:'];
+    if (dangerousProtocols.includes(urlObj.protocol)) {
+      return false;
+    }
+    
+    // Block internal IPs
+    const hostname = urlObj.hostname;
+    const internalPatterns = [
+      /^localhost$/i,
+      /^127\./,
+      /^10\./,
+      /^172\.(1[6-9]|2[0-9]|3[0-1])\./,
+      /^192\.168\./,
+      /^0\.0\.0\.0$/,
+    ];
+    
+    for (const pattern of internalPatterns) {
+      if (pattern.test(hostname)) {
+        return false;
+      }
+    }
+    
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Rate limiter for preventing abuse
+ */
+export class RateLimiter {
+  private requests: Map<string, number[]> = new Map();
+  private maxRequests: number;
+  private windowMs: number;
+
+  constructor(maxRequests: number = 100, windowMs: number = 60000) {
+    this.maxRequests = maxRequests;
+    this.windowMs = windowMs;
+  }
+
+  isAllowed(key: string): boolean {
+    const now = Date.now();
+    const timestamps = this.requests.get(key) || [];
+    
+    // Remove old timestamps
+    const validTimestamps = timestamps.filter(t => now - t < this.windowMs);
+    
+    if (validTimestamps.length >= this.maxRequests) {
+      return false;
+    }
+    
+    validTimestamps.push(now);
+    this.requests.set(key, validTimestamps);
+    return true;
+  }
+
+  reset(key: string): void {
+    this.requests.delete(key);
+  }
+
+  resetAll(): void {
+    this.requests.clear();
+  }
+}
+
+/**
+ * Content Security Policy helper
+ */
+export class CSP {
+  private directives: Map<string, string[]> = new Map();
+
+  constructor() {
+    // Default secure policy
+    this.directives.set('default-src', ["'self'"]);
+    this.directives.set('script-src', ["'self'"]);
+    this.directives.set('style-src', ["'self'", "'unsafe-inline'"]);
+    this.directives.set('img-src', ["'self'", 'data:', 'https:']);
+    this.directives.set('connect-src', ["'self'"]);
+    this.directives.set('font-src', ["'self'"]);
+    this.directives.set('object-src', ["'none'"]);
+    this.directives.set('frame-ancestors', ["'none'"]);
+  }
+
+  addDirective(directive: string, values: string[]): void {
+    const existing = this.directives.get(directive) || [];
+    this.directives.set(directive, [...existing, ...values]);
+  }
+
+  setDirective(directive: string, values: string[]): void {
+    this.directives.set(directive, values);
+  }
+
+  removeDirective(directive: string): void {
+    this.directives.delete(directive);
+  }
+
+  toString(): string {
+    const parts: string[] = [];
+    this.directives.forEach((values, directive) => {
+      parts.push(`${directive} ${values.join(' ')}`);
+    });
+    return parts.join('; ');
+  }
+
+  toHeader(): { 'Content-Security-Policy': string } {
+    return { 'Content-Security-Policy': this.toString() };
+  }
+}

@@ -3,6 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, TextInput, Alert } from 'reac
 import { router } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
+import { safeNavigate } from '../../../../hooks/useNavigation'
 
 export default function AddCardPage() {
   const [cardNumber, setCardNumber] = useState('')
@@ -55,7 +56,7 @@ export default function AddCardPage() {
       Alert.alert(
         'Успех',
         'Карта успешно добавлена',
-        [{ text: 'OK', onPress: () => router.back() }]
+        [{ text: 'OK', onPress: () => safeNavigate.back() }]
       )
     } catch (error) {
       Alert.alert('Ошибка', 'Не удалось добавить карту. Попробуйте позже.')

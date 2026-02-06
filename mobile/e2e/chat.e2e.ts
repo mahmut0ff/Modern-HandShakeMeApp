@@ -1,3 +1,5 @@
+import { device, element, by, expect, waitFor } from 'detox';
+
 describe('Chat E2E', () => {
   beforeAll(async () => {
     await device.launchApp();

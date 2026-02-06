@@ -1,8 +1,15 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Alert, Image } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Alert, Image, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { 
+  useGetProjectQuery, 
+  useCompleteProjectMutation,
+  useUpdateProjectMutation 
+} from '../../../services/projectApi';
+import { useSendPaymentMutation } from '../../../services/walletApi';
+import { LoadingSpinner } from '../../../components/LoadingSpinner';
 
 interface Project {
   id: number;
@@ -60,74 +67,28 @@ export default function MasterProjectDetailPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [loading, setLoading] = useState(false);
 
-  // Mock data - replace with actual API calls
-  const project: Project = {
-    id: Number(id),
-    order_title: 'Ремонт ванной комнаты',
-    client: {
-      id: 1,
-      name: 'Анна Сидорова',
-      avatar: undefined,
-      phone: '+996700123456'
-    },
-    agreed_price: '28000',
-    status: 'in_progress',
-    progress: 65,
-    deadline: '2024-02-15',
-    start_date: '2024-02-01',
-    description: 'Полный ремонт ванной комнаты площадью 6 кв.м с заменой сантехники и плитки.',
-    milestones: [
-      {
-        id: 1,
-        title: 'Демонтаж старой плитки',
-        description: 'Снос старой плитки и подготовка поверхности',
-        is_completed: true,
-        completed_at: '2024-02-02T10:00:00Z'
-      },
-      {
-        id: 2,
-        title: 'Выравнивание стен',
-        description: 'Штукатурка и выравнивание стен под плитку',
-        is_completed: true,
-        completed_at: '2024-02-05T16:00:00Z'
-      },
-      {
-        id: 3,
-        title: 'Укладка плитки',
-        description: 'Укладка новой плитки на стены и пол',
-        is_completed: false
-      },
-      {
-        id: 4,
-        title: 'Установка сантехники',
-        description: 'Установка новой сантехники и подключение',
-        is_completed: false
-      }
-    ],
-    files: [
-      {
-        id: 1,
-        file_url: 'https://example.com/progress1.jpg',
-        file_type: 'image',
-        uploaded_by: 'master',
-        created_at: '2024-02-02T10:30:00Z'
-      },
-      {
-        id: 2,
-        file_url: 'https://example.com/progress2.jpg',
-        file_type: 'image',
-        uploaded_by: 'master',
-        created_at: '2024-02-05T16:30:00Z'
-      }
-    ]
-  };
+  // API hooks
+  const { data: project, isLoading: projectLoading, error: projectError } = useGetProjectQuery(Number(id));
+  const [completeProject] = useCompleteProjectMutation();
+  const [updateProject] = useUpdateProjectMutation();
+  const [sendPayment] = useSendPaymentMutation();
 
   const handleStartChat = () => {
-    // Navigate to chat list - actual chat room should be created/found via API
     router.push(`/(master)/chat`);
   };
 
+  const handleCallClient = () => {
+    const phone = project?.client?.phone || project?.client_phone;
+    if (phone) {
+      Linking.openURL(`tel:${phone}`);
+    } else {
+      Alert.alert('Ошибка', 'Номер телефона недоступен');
+    }
+  };
+
   const handleRequestPayment = async () => {
+    if (!project) return;
+    
     Alert.alert(
       'Запросить оплату',
       'Вы уверены, что хотите запросить оплату за выполненную работу?',
@@ -138,11 +99,16 @@ export default function MasterProjectDetailPage() {
           onPress: async () => {
             setLoading(true);
             try {
-              // TODO: Implement API call
-              await new Promise(resolve => setTimeout(resolve, 2000));
+              await sendPayment({
+                recipient_id: project.client?.id || 0,
+                amount: parseFloat(project.agreed_price),
+                description: `Оплата за проект: ${project.order?.title || project.order_title}`,
+                project_id: project.id,
+              }).unwrap();
               Alert.alert('Успех', 'Запрос на оплату отправлен клиенту!');
-            } catch (error) {
-              Alert.alert('Ошибка', 'Не удалось отправить запрос на оплату');
+            } catch (error: any) {
+              console.error('Request payment error:', error);
+              Alert.alert('Ошибка', error.data?.message || 'Не удалось отправить запрос на оплату');
             } finally {
               setLoading(false);
             }
@@ -153,6 +119,8 @@ export default function MasterProjectDetailPage() {
   };
 
   const handleCompleteProject = async () => {
+    if (!project) return;
+    
     Alert.alert(
       'Завершить проект',
       'Вы уверены, что работа полностью выполнена?',
@@ -163,11 +131,11 @@ export default function MasterProjectDetailPage() {
           onPress: async () => {
             setLoading(true);
             try {
-              // TODO: Implement API call
-              await new Promise(resolve => setTimeout(resolve, 2000));
+              await completeProject({ id: project.id }).unwrap();
               Alert.alert('Успех', 'Проект завершён!');
-            } catch (error) {
-              Alert.alert('Ошибка', 'Не удалось завершить проект');
+            } catch (error: any) {
+              console.error('Complete project error:', error);
+              Alert.alert('Ошибка', error.data?.message || 'Не удалось завершить проект');
             } finally {
               setLoading(false);
             }
@@ -177,8 +145,28 @@ export default function MasterProjectDetailPage() {
     );
   };
 
-  const completedMilestones = project.milestones.filter(m => m.is_completed).length;
-  const totalMilestones = project.milestones.length;
+  if (projectLoading) {
+    return <LoadingSpinner fullScreen text="Загрузка проекта..." />;
+  }
+
+  if (projectError || !project) {
+    return (
+      <SafeAreaView className="flex-1 bg-[#F8F7FC] items-center justify-center px-4">
+        <Ionicons name="alert-circle" size={64} color="#EF4444" />
+        <Text className="text-gray-900 font-semibold mt-4">Проект не найден</Text>
+        <TouchableOpacity onPress={() => router.back()} className="mt-4 px-6 py-3 bg-[#0165FB] rounded-xl">
+          <Text className="text-white font-semibold">Назад</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    );
+  }
+
+  const completedMilestones = project.milestones?.filter(m => m.status === 'COMPLETED').length || 0;
+  const totalMilestones = project.milestones?.length || 0;
+  const clientName = project.client?.name || project.client_name || 'Клиент';
+  const clientAvatar = project.client?.avatar || project.client_avatar;
+  const clientPhone = project.client?.phone || project.client_phone;
+  const orderTitle = project.order?.title || project.order_title || 'Проект';
 
   return (
     <SafeAreaView className="flex-1 bg-[#F8F7FC]">
@@ -193,10 +181,10 @@ export default function MasterProjectDetailPage() {
           </TouchableOpacity>
           <View className="flex-1">
             <Text className="text-xl font-bold text-gray-900" numberOfLines={1}>
-              {project.order_title}
+              {orderTitle}
             </Text>
-            <View className={`self-start px-3 py-1 rounded-full mt-1 ${statusColors[project.status]}`}>
-              <Text className="text-xs font-semibold">{statusLabels[project.status]}</Text>
+            <View className={`self-start px-3 py-1 rounded-full mt-1 ${statusColors[project.status] || 'bg-gray-100 text-gray-700'}`}>
+              <Text className="text-xs font-semibold">{statusLabels[project.status] || project.status}</Text>
             </View>
           </View>
         </View>
@@ -237,25 +225,25 @@ export default function MasterProjectDetailPage() {
           </View>
           <View className="flex-row items-center gap-4">
             <TouchableOpacity
-              onPress={() => router.push(`/(master)/clients/${project.client.id}`)}
+              onPress={() => router.push(`/(master)/clients/${project.client?.id || project.client_id}`)}
               className="w-16 h-16 bg-[#0165FB] rounded-full items-center justify-center overflow-hidden"
             >
-              {project.client.avatar ? (
-                <Image source={{ uri: project.client.avatar }} className="w-full h-full" />
+              {clientAvatar ? (
+                <Image source={{ uri: clientAvatar }} className="w-full h-full" />
               ) : (
                 <Ionicons name="person" size={32} color="white" />
               )}
             </TouchableOpacity>
             <View className="flex-1">
-              <TouchableOpacity onPress={() => router.push(`/(master)/clients/${project.client.id}`)}>
-                <Text className="font-semibold text-gray-900">{project.client.name}</Text>
+              <TouchableOpacity onPress={() => router.push(`/(master)/clients/${project.client?.id || project.client_id}`)}>
+                <Text className="font-semibold text-gray-900">{clientName}</Text>
               </TouchableOpacity>
               <TouchableOpacity 
-                onPress={() => {/* TODO: Make phone call */}}
+                onPress={handleCallClient}
                 className="flex-row items-center gap-1 mt-1"
               >
                 <Ionicons name="call" size={16} color="#0165FB" />
-                <Text className="text-[#0165FB] font-medium">{project.client.phone}</Text>
+                <Text className="text-[#0165FB] font-medium">{clientPhone || 'Нет номера'}</Text>
               </TouchableOpacity>
             </View>
             <TouchableOpacity
@@ -277,49 +265,54 @@ export default function MasterProjectDetailPage() {
         </View>
 
         {/* Milestones */}
-        <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-4">
-          <View className="flex-row items-center justify-between mb-4">
-            <View className="flex-row items-center gap-2">
-              <Ionicons name="checkmark-circle" size={20} color="#0165FB" />
-              <Text className="font-semibold text-gray-900">Этапы работы</Text>
-            </View>
-            <Text className="text-sm text-gray-500">
-              {completedMilestones} из {totalMilestones}
-            </Text>
-          </View>
-          
-          <View className="flex flex-col gap-3">
-            {project.milestones.map((milestone, index) => (
-              <View key={milestone.id} className="flex-row items-start gap-3">
-                <View className={`w-6 h-6 rounded-full items-center justify-center mt-0.5 ${
-                  milestone.is_completed ? 'bg-green-500' : 'bg-gray-300'
-                }`}>
-                  {milestone.is_completed ? (
-                    <Ionicons name="checkmark" size={16} color="white" />
-                  ) : (
-                    <Text className="text-white text-xs font-bold">{index + 1}</Text>
-                  )}
-                </View>
-                <View className="flex-1">
-                  <Text className={`font-medium ${
-                    milestone.is_completed ? 'text-gray-900' : 'text-gray-500'
-                  }`}>
-                    {milestone.title}
-                  </Text>
-                  <Text className="text-sm text-gray-500 mt-1">{milestone.description}</Text>
-                  {milestone.completed_at && (
-                    <Text className="text-xs text-green-600 mt-1">
-                      Завершено: {new Date(milestone.completed_at).toLocaleDateString('ru-RU')}
-                    </Text>
-                  )}
-                </View>
+        {project.milestones && project.milestones.length > 0 && (
+          <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-4">
+            <View className="flex-row items-center justify-between mb-4">
+              <View className="flex-row items-center gap-2">
+                <Ionicons name="checkmark-circle" size={20} color="#0165FB" />
+                <Text className="font-semibold text-gray-900">Этапы работы</Text>
               </View>
-            ))}
+              <Text className="text-sm text-gray-500">
+                {completedMilestones} из {totalMilestones}
+              </Text>
+            </View>
+            
+            <View className="flex flex-col gap-3">
+              {project.milestones.map((milestone, index) => {
+                const isCompleted = milestone.status === 'COMPLETED' || milestone.is_completed;
+                return (
+                  <View key={milestone.id} className="flex-row items-start gap-3">
+                    <View className={`w-6 h-6 rounded-full items-center justify-center mt-0.5 ${
+                      isCompleted ? 'bg-green-500' : 'bg-gray-300'
+                    }`}>
+                      {isCompleted ? (
+                        <Ionicons name="checkmark" size={16} color="white" />
+                      ) : (
+                        <Text className="text-white text-xs font-bold">{index + 1}</Text>
+                      )}
+                    </View>
+                    <View className="flex-1">
+                      <Text className={`font-medium ${
+                        isCompleted ? 'text-gray-900' : 'text-gray-500'
+                      }`}>
+                        {milestone.title}
+                      </Text>
+                      <Text className="text-sm text-gray-500 mt-1">{milestone.description}</Text>
+                      {(milestone.completedAt || milestone.completed_at) && (
+                        <Text className="text-xs text-green-600 mt-1">
+                          Завершено: {new Date(milestone.completedAt || milestone.completed_at!).toLocaleDateString('ru-RU')}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
           </View>
-        </View>
+        )}
 
         {/* Project Files */}
-        {project.files.length > 0 && (
+        {project.files && project.files.length > 0 && (
           <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-4">
             <View className="flex-row items-center gap-2 mb-4">
               <Ionicons name="image" size={20} color="#0165FB" />
@@ -331,8 +324,8 @@ export default function MasterProjectDetailPage() {
                   key={file.id}
                   className="w-24 h-24 rounded-2xl overflow-hidden bg-gray-100 relative"
                 >
-                  {file.file_type === 'image' ? (
-                    <Image source={{ uri: file.file_url }} className="w-full h-full" />
+                  {(file.file_type === 'photo') ? (
+                    <Image source={{ uri: file.file_url || file.file }} className="w-full h-full" />
                   ) : (
                     <View className="w-full h-full items-center justify-center">
                       <Ionicons name="document" size={32} color="#9CA3AF" />

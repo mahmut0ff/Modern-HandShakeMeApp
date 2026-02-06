@@ -4,22 +4,17 @@
  */
 
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, QueryCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
-
-const client = new DynamoDBClient({});
-const docClient = DynamoDBDocumentClient.from(client);
-
-const ORDERS_TABLE = process.env.ORDERS_TABLE || 'orders';
-const APPLICATIONS_TABLE = process.env.APPLICATIONS_TABLE || 'applications';
-const MASTERS_TABLE = process.env.MASTERS_TABLE || 'masters';
-const CHAT_ROOMS_TABLE = process.env.CHAT_ROOMS_TABLE || 'chat_rooms';
+import { queryItems, getItem, TABLE_NAME } from '../shared/db/dynamodb-client';
+import { Keys } from '../shared/db/dynamodb-keys';
+import { logger } from '../shared/utils/logger';
 
 export const handler = async (
   event: APIGatewayProxyEvent
 ): Promise<APIGatewayProxyResult> => {
   try {
-    const userId = event.requestContext.authorizer?.claims?.sub;
+    // Support both API Gateway authorizer formats
+    const userId = event.requestContext.authorizer?.claims?.sub
+      || event.requestContext.authorizer?.userId;
 
     if (!userId) {
       return {
@@ -32,99 +27,86 @@ export const handler = async (
       };
     }
 
-    // Get master profile to get rating
-    const masterProfile = await docClient.send(
-      new GetCommand({
-        TableName: MASTERS_TABLE,
-        Key: { user_id: userId },
-      })
-    );
+    logger.info('Getting master dashboard stats', { userId });
 
-    // Get active orders count (orders where master is assigned)
-    const activeOrdersResult = await docClient.send(
-      new QueryCommand({
-        TableName: ORDERS_TABLE,
-        IndexName: 'MasterStatusIndex',
-        KeyConditionExpression: 'master_id = :masterId AND #status = :status',
+    // Get user profile
+    const user = await getItem(Keys.user(userId));
+    
+    // Get orders where user is master (using GSI)
+    let activeOrders = 0;
+    let completedOrders = 0;
+    let totalEarned = 0;
+    let pendingApplications = 0;
+
+    try {
+      // Query orders by master
+      const orders = await queryItems({
+        IndexName: 'GSI1',
+        KeyConditionExpression: 'GSI1PK = :pk',
+        ExpressionAttributeValues: {
+          ':pk': `MASTER#${userId}`,
+        },
+      });
+
+      for (const order of orders) {
+        if (order.status === 'IN_PROGRESS' || order.status === 'in_progress') {
+          activeOrders++;
+        } else if (order.status === 'COMPLETED' || order.status === 'completed') {
+          completedOrders++;
+          totalEarned += Number(order.finalPrice || order.budgetMax || order.budgetMin || 0);
+        }
+      }
+    } catch (e) {
+      logger.warn('Could not query orders', { error: e });
+    }
+
+    try {
+      // Query applications by master
+      const applications = await queryItems({
+        IndexName: 'GSI1',
+        KeyConditionExpression: 'GSI1PK = :pk',
+        FilterExpression: '#status = :status',
         ExpressionAttributeNames: {
           '#status': 'status',
         },
         ExpressionAttributeValues: {
-          ':masterId': userId,
-          ':status': 'in_progress',
+          ':pk': `MASTER#${userId}`,
+          ':status': 'PENDING',
         },
-        Select: 'COUNT',
-      })
-    );
+      });
+      pendingApplications = applications.length;
+    } catch (e) {
+      logger.warn('Could not query applications', { error: e });
+    }
 
-    // Get completed orders count
-    const completedOrdersResult = await docClient.send(
-      new QueryCommand({
-        TableName: ORDERS_TABLE,
-        IndexName: 'MasterStatusIndex',
-        KeyConditionExpression: 'master_id = :masterId AND #status = :status',
-        ExpressionAttributeNames: {
-          '#status': 'status',
-        },
+    // Get unread messages count
+    let unreadMessages = 0;
+    try {
+      const rooms = await queryItems({
+        IndexName: 'GSI1',
+        KeyConditionExpression: 'GSI1PK = :pk',
         ExpressionAttributeValues: {
-          ':masterId': userId,
-          ':status': 'completed',
+          ':pk': `USER#${userId}#ROOMS`,
         },
-        Select: 'COUNT',
-      })
-    );
-
-    // Get all completed orders to calculate total earned
-    const completedOrders = await docClient.send(
-      new QueryCommand({
-        TableName: ORDERS_TABLE,
-        IndexName: 'MasterStatusIndex',
-        KeyConditionExpression: 'master_id = :masterId AND #status = :status',
-        ExpressionAttributeNames: {
-          '#status': 'status',
-        },
-        ExpressionAttributeValues: {
-          ':masterId': userId,
-          ':status': 'completed',
-        },
-        ProjectionExpression: 'budget_min, budget_max, final_price',
-      })
-    );
-
-    // Calculate total earned
-    const totalEarned = (completedOrders.Items || []).reduce((sum, order) => {
-      const earned = order.final_price || order.budget_max || order.budget_min || 0;
-      return sum + Number(earned);
-    }, 0);
-
-    // Get pending applications count
-    const pendingApplicationsResult = await docClient.send(
-      new QueryCommand({
-        TableName: APPLICATIONS_TABLE,
-        IndexName: 'MasterStatusIndex',
-        KeyConditionExpression: 'master_id = :masterId AND #status = :status',
-        ExpressionAttributeNames: {
-          '#status': 'status',
-        },
-        ExpressionAttributeValues: {
-          ':masterId': userId,
-          ':status': 'pending',
-        },
-        Select: 'COUNT',
-      })
-    );
-
-    // Get unread messages count (simplified - would need proper chat implementation)
-    const unreadMessages = 0; // Placeholder
+      });
+      
+      for (const room of rooms) {
+        unreadMessages += Number(room.unreadCount || 0);
+      }
+    } catch (e) {
+      logger.warn('Could not query chat rooms', { error: e });
+    }
 
     const stats = {
-      active_orders: activeOrdersResult.Count || 0,
-      completed_orders: completedOrdersResult.Count || 0,
+      active_orders: activeOrders,
+      completed_orders: completedOrders,
       total_earned: totalEarned,
-      average_rating: masterProfile.Item?.rating || 0,
-      pending_applications: pendingApplicationsResult.Count || 0,
+      average_rating: user?.rating || 0,
+      pending_applications: pendingApplications,
       unread_messages: unreadMessages,
     };
+
+    logger.info('Master dashboard stats retrieved', { userId, stats });
 
     return {
       statusCode: 200,
@@ -135,7 +117,7 @@ export const handler = async (
       body: JSON.stringify(stats),
     };
   } catch (error) {
-    console.error('Error getting master dashboard stats:', error);
+    logger.error('Error getting master dashboard stats', error);
     return {
       statusCode: 500,
       headers: {

@@ -3,6 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, TextInput, Alert } from 'reac
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { safeNavigate } from '../../../../hooks/useNavigation';
 
 interface ReviewFormData {
   quality_rating: number;
@@ -51,7 +52,7 @@ export default function CreateReviewPage() {
         [
           {
             text: 'OK',
-            onPress: () => router.push('/(client)/projects')
+            onPress: () => safeNavigate.push('/(client)/projects')
           }
         ]
       );

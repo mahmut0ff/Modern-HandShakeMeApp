@@ -15,7 +15,7 @@ import {
   useGetProjectMilestonesQuery,
   useUpdateProjectMilestoneMutation,
 } from '../../services/projectApi';
-import LoadingSpinner from '../../components/LoadingSpinner';
+import { LoadingSpinner } from '../../components/LoadingSpinner';
 
 export default function MilestoneEditScreen() {
   const { projectId, milestoneId } = useLocalSearchParams<{
@@ -158,11 +158,10 @@ export default function MilestoneEditScreen() {
             {statusOptions.map((option) => (
               <TouchableOpacity
                 key={option.value}
-                className={`mr-2 mb-2 px-4 py-2 rounded-full border ${
-                  status === option.value
+                className={`mr-2 mb-2 px-4 py-2 rounded-full border ${status === option.value
                     ? 'bg-blue-600 border-blue-600'
                     : 'bg-white border-gray-300'
-                }`}
+                  }`}
                 onPress={() => setStatus(option.value as any)}
               >
                 <Text
@@ -212,9 +211,8 @@ export default function MilestoneEditScreen() {
 
         {/* Submit Button */}
         <TouchableOpacity
-          className={`rounded-lg py-4 items-center mt-6 ${
-            updating ? 'bg-blue-400' : 'bg-blue-600'
-          }`}
+          className={`rounded-lg py-4 items-center mt-6 ${updating ? 'bg-blue-400' : 'bg-blue-600'
+            }`}
           onPress={handleSubmit}
           disabled={updating}
         >

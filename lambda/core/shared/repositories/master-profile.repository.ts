@@ -1,24 +1,32 @@
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, PutCommand, GetCommand, UpdateCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
+import { PutCommand, GetCommand, UpdateCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
+import { dynamodb as docClient } from '../db/dynamodb-client';
 
-const client = new DynamoDBClient({});
-const docClient = DynamoDBDocumentClient.from(client);
 const TABLE_NAME = process.env.DYNAMODB_TABLE || 'handshake-table';
 
 export interface MasterProfile {
   profileId: string;
   userId: string;
+  firstName?: string;
+  lastName?: string;
+  companyName?: string;
   categories: number[];
   skills: number[];
   bio?: string;
   experienceYears?: number;
   hourlyRate?: string;
+  dailyRate?: string;
+  minOrderCost?: string;
   minOrderAmount?: string;
   maxOrderAmount?: string;
   city: string;
   address?: string;
   workRadius?: number;
+  travelRadius?: number;
+  hasTransport?: boolean;
+  hasTools?: boolean;
+  canPurchaseMaterials?: boolean;
+  workingHours?: Record<string, string>;
   languages?: string[];
   certifications?: string[];
   education?: string;
@@ -99,7 +107,7 @@ export class MasterProfileRepository {
 
   async update(userId: string, data: Partial<MasterProfile>): Promise<MasterProfile> {
     const now = new Date().toISOString();
-    
+
     const updateExpressions: string[] = ['updatedAt = :updatedAt'];
     const expressionAttributeValues: any = { ':updatedAt': now };
     const expressionAttributeNames: any = {};
@@ -111,6 +119,18 @@ export class MasterProfileRepository {
     if (data.skills !== undefined) {
       updateExpressions.push('skills = :skills');
       expressionAttributeValues[':skills'] = data.skills;
+    }
+    if (data.firstName !== undefined) {
+      updateExpressions.push('firstName = :firstName');
+      expressionAttributeValues[':firstName'] = data.firstName;
+    }
+    if (data.lastName !== undefined) {
+      updateExpressions.push('lastName = :lastName');
+      expressionAttributeValues[':lastName'] = data.lastName;
+    }
+    if (data.companyName !== undefined) {
+      updateExpressions.push('companyName = :companyName');
+      expressionAttributeValues[':companyName'] = data.companyName;
     }
     if (data.bio !== undefined) {
       updateExpressions.push('bio = :bio');
@@ -124,9 +144,41 @@ export class MasterProfileRepository {
       updateExpressions.push('hourlyRate = :hourlyRate');
       expressionAttributeValues[':hourlyRate'] = data.hourlyRate;
     }
+    if (data.dailyRate !== undefined) {
+      updateExpressions.push('dailyRate = :dailyRate');
+      expressionAttributeValues[':dailyRate'] = data.dailyRate;
+    }
+    if (data.minOrderCost !== undefined) {
+      updateExpressions.push('minOrderCost = :minOrderCost');
+      expressionAttributeValues[':minOrderCost'] = data.minOrderCost;
+    }
     if (data.city !== undefined) {
       updateExpressions.push('city = :city');
       expressionAttributeValues[':city'] = data.city;
+    }
+    if (data.address !== undefined) {
+      updateExpressions.push('address = :address');
+      expressionAttributeValues[':address'] = data.address;
+    }
+    if (data.travelRadius !== undefined) {
+      updateExpressions.push('travelRadius = :travelRadius');
+      expressionAttributeValues[':travelRadius'] = data.travelRadius;
+    }
+    if (data.hasTransport !== undefined) {
+      updateExpressions.push('hasTransport = :hasTransport');
+      expressionAttributeValues[':hasTransport'] = data.hasTransport;
+    }
+    if (data.hasTools !== undefined) {
+      updateExpressions.push('hasTools = :hasTools');
+      expressionAttributeValues[':hasTools'] = data.hasTools;
+    }
+    if (data.canPurchaseMaterials !== undefined) {
+      updateExpressions.push('canPurchaseMaterials = :canPurchaseMaterials');
+      expressionAttributeValues[':canPurchaseMaterials'] = data.canPurchaseMaterials;
+    }
+    if (data.workingHours !== undefined) {
+      updateExpressions.push('workingHours = :workingHours');
+      expressionAttributeValues[':workingHours'] = data.workingHours;
     }
     if (data.isAvailable !== undefined) {
       updateExpressions.push('isAvailable = :isAvailable');
@@ -202,5 +254,29 @@ export class MasterProfileRepository {
         ':gsi2sk': `RATING#${rating.toFixed(1)}`
       }
     }));
+  }
+
+  async listMasters(filters: {
+    category_id?: number;
+    skill_id?: number;
+    city?: string;
+    min_rating?: number;
+    max_hourly_rate?: number;
+    is_verified?: boolean;
+    is_available?: boolean;
+    search?: string;
+    ordering?: string;
+    page?: number;
+    page_size?: number;
+  }): Promise<MasterProfile[]> {
+    // Use the existing search method
+    return this.search({
+      city: filters.city,
+      category: filters.category_id,
+      minRating: filters.min_rating,
+      isVerified: filters.is_verified,
+      isAvailable: filters.is_available,
+      limit: filters.page_size || 20,
+    });
   }
 }

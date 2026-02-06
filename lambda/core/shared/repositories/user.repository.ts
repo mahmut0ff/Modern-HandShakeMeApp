@@ -31,6 +31,14 @@ export interface User {
   city?: string;
   address?: string;
   userId?: string; // Alias for id in some contexts
+  // New fields for registration
+  citizenship?: string; // Country code (KG, RU, KZ, etc.)
+  birthDate?: string;
+  gender?: 'MALE' | 'FEMALE' | 'OTHER';
+  isIdentityVerified: boolean; // Verified by passport/photo
+  identityVerifiedAt?: string;
+  registrationStep?: 'STARTED' | 'ROLE_SELECTED' | 'PROFILE_FILLED' | 'COMPLETED';
+  registrationSource?: 'TELEGRAM' | 'APP' | 'WEB';
   createdAt: string;
   updatedAt: string;
 }
@@ -67,6 +75,13 @@ export class UserRepository {
         telegramUsername: data.telegramUsername,
         telegramPhotoUrl: data.telegramPhotoUrl,
         isActive: true,
+        city: data.city,
+        citizenship: data.citizenship,
+        birthDate: data.birthDate,
+        gender: data.gender,
+        isIdentityVerified: data.isIdentityVerified || false,
+        registrationStep: data.registrationStep || 'STARTED',
+        registrationSource: data.registrationSource || 'APP',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };

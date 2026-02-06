@@ -6,12 +6,13 @@ interface LoadingSpinnerProps {
   fullScreen?: boolean
   text?: string
   size?: 'small' | 'large'
+  color?: string
 }
 
-export function LoadingSpinner({ fullScreen = false, text, size = 'large' }: LoadingSpinnerProps) {
+export function LoadingSpinner({ fullScreen = false, text, size = 'large', color = '#0165FB' }: LoadingSpinnerProps) {
   const content = (
     <View className={`items-center justify-center ${fullScreen ? 'flex-1' : 'py-8'}`}>
-      <ActivityIndicator size={size} color="#0165FB" />
+      <ActivityIndicator size={size} color={color} />
       {text && (
         <Text className="text-gray-600 text-sm mt-3 text-center">{text}</Text>
       )}
@@ -28,3 +29,6 @@ export function LoadingSpinner({ fullScreen = false, text, size = 'large' }: Loa
 
   return content
 }
+
+
+export default LoadingSpinner;

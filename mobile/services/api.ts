@@ -139,7 +139,8 @@ export const api = createApi({
     'InstantBooking',
     'Availability',
     'Category',
-    'Skill'
+    'Skill',
+    'Recommendation'
   ],
   endpoints: () => ({}),
 });

@@ -4,6 +4,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import { 
+  useCreatePortfolioItemMutation,
+  useAddPortfolioImageMutation 
+} from '../../../services/profileApi';
+import { useGetCategoriesQuery } from '../../../services/categoryApi';
+import { safeNavigate } from '../../../hooks/useNavigation';
 
 interface PortfolioImage {
   uri: string;
@@ -16,25 +22,19 @@ export default function CreatePortfolioItemPage() {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    category: 'Общие работы',
+    category: 0,
     duration: '',
     cost: '',
     client_feedback: '',
     skills_used: [] as string[],
   });
 
-  const categories = [
-    'Общие работы',
-    'Сантехника',
-    'Электрика',
-    'Ремонт и отделка',
-    'Клининг',
-    'Столярные работы',
-    'Дизайн интерьера',
-    'Ландшафтный дизайн',
-    'Автосервис',
-    'IT услуги'
-  ];
+  // API hooks
+  const [createPortfolioItem] = useCreatePortfolioItemMutation();
+  const [addPortfolioImage] = useAddPortfolioImageMutation();
+  const { data: categoriesData } = useGetCategoriesQuery();
+  
+  const categories = categoriesData || [];
 
   const availableSkills = [
     'Сантехника', 'Электрика', 'Плитка', 'Покраска', 'Обои',
@@ -139,16 +139,41 @@ export default function CreatePortfolioItemPage() {
 
     setLoading(true);
     try {
-      // TODO: Implement API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Create portfolio item
+      const result = await createPortfolioItem({
+        title: formData.title,
+        description: formData.description,
+        category: formData.category || 1,
+        price: formData.cost ? parseFloat(formData.cost) : undefined,
+        duration: formData.duration || undefined,
+        client_name: formData.client_feedback ? 'Клиент' : undefined,
+      }).unwrap();
+
+      // Upload images
+      for (const image of images) {
+        try {
+          const imageFormData = new FormData();
+          imageFormData.append('image', {
+            uri: image.uri,
+            type: 'image/jpeg',
+            name: 'portfolio-image.jpg',
+          } as any);
+          
+          await addPortfolioImage({ itemId: result.id, image: imageFormData }).unwrap();
+        } catch (imageError) {
+          console.error('Image upload error:', imageError);
+          // Continue with other images
+        }
+      }
       
       Alert.alert(
         'Успех',
         'Работа добавлена в портфолио',
-        [{ text: 'OK', onPress: () => router.back() }]
+        [{ text: 'OK', onPress: () => safeNavigate.back() }]
       );
-    } catch (error) {
-      Alert.alert('Ошибка', 'Не удалось добавить работу в портфолио');
+    } catch (error: any) {
+      console.error('Create portfolio error:', error);
+      Alert.alert('Ошибка', error.data?.message || 'Не удалось добавить работу в портфолио');
     } finally {
       setLoading(false);
     }
@@ -204,18 +229,18 @@ export default function CreatePortfolioItemPage() {
                   <View className="flex-row gap-2">
                     {categories.map(category => (
                       <TouchableOpacity
-                        key={category}
-                        onPress={() => setFormData(prev => ({ ...prev, category }))}
+                        key={category.id}
+                        onPress={() => setFormData(prev => ({ ...prev, category: category.id }))}
                         className={`px-4 py-2 rounded-full ${
-                          formData.category === category
+                          formData.category === category.id
                             ? 'bg-[#0165FB]'
                             : 'bg-gray-100'
                         }`}
                       >
                         <Text className={`text-sm font-medium ${
-                          formData.category === category ? 'text-white' : 'text-gray-700'
+                          formData.category === category.id ? 'text-white' : 'text-gray-700'
                         }`}>
-                          {category}
+                          {category.name}
                         </Text>
                       </TouchableOpacity>
                     ))}

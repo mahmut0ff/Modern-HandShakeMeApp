@@ -13,11 +13,11 @@ output "s3_bucket_name" {
   value       = aws_s3_bucket.uploads.id
 }
 
-output "lambda_role_arn" {
-  description = "Lambda execution role ARN"
-  value       = aws_iam_role.lambda_role.arn
-}
-
+# Note: lambda_role_arn disabled - requires IAM permissions
+# output "lambda_role_arn" {
+#   description = "Lambda execution role ARN"
+#   value       = aws_iam_role.lambda_role.arn
+# }
 
 # Worker outputs
 output "rating_calculation_queue_url" {
@@ -40,12 +40,13 @@ output "recommendation_queue_arn" {
   value       = aws_sqs_queue.recommendation_queue.arn
 }
 
+# Note: Lambda function outputs disabled - requires IAM permissions to create functions
 output "rating_calculator_function_name" {
-  description = "Rating calculator Lambda function name"
-  value       = aws_lambda_function.rating_calculator.function_name
+  description = "Rating calculator Lambda function name (placeholder)"
+  value       = "${var.project_name}-rating-calculator-${var.environment}"
 }
 
 output "recommendation_function_name" {
-  description = "Recommendation Lambda function name"
-  value       = aws_lambda_function.recommendation.function_name
+  description = "Recommendation Lambda function name (placeholder)"
+  value       = "${var.project_name}-recommendation-${var.environment}"
 }

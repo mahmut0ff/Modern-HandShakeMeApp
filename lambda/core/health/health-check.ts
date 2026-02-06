@@ -15,9 +15,9 @@ const startTime = Date.now();
 // Configuration checks for required environment variables
 const CONFIGURATION_CHECKS: ConfigurationCheck[] = [
   // Critical configuration
-  { name: 'DynamoDB Table', envVar: 'DYNAMODB_TABLE_NAME', required: true },
+  { name: 'DynamoDB Table', envVar: 'DYNAMODB_TABLE', required: true },
   { name: 'AWS Region', envVar: 'AWS_REGION', required: true },
-  { name: 'S3 Bucket', envVar: 'AWS_S3_BUCKET', required: true },
+  { name: 'S3 Bucket', envVar: 'AWS_S3_BUCKET', required: false }, // Not required for local dev
   
   // Authentication
   { name: 'JWT Secret', envVar: 'JWT_SECRET', required: true, validator: HealthUtils.isValidJwtSecret, sensitive: true },

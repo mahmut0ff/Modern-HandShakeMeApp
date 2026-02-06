@@ -9,10 +9,10 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useListCategoriesQuery, Category } from '../../services/categoryApi';
-import LoadingSpinner from '../LoadingSpinner';
+import { LoadingSpinner } from '../LoadingSpinner';
 
 interface CategoryPickerProps {
-  selectedCategoryId?: string;
+  selectedCategoryId?: number;
   onSelect: (category: Category) => void;
   placeholder?: string;
   error?: string;
@@ -33,8 +33,8 @@ export default function CategoryPicker({
 
   const filteredCategories = searchQuery.trim()
     ? categories?.filter((cat) =>
-        cat.name.toLowerCase().includes(searchQuery.toLowerCase())
-      )
+      cat.name.toLowerCase().includes(searchQuery.toLowerCase())
+    )
     : categories;
 
   const handleSelect = (category: Category) => {
@@ -46,9 +46,8 @@ export default function CategoryPicker({
   return (
     <>
       <TouchableOpacity
-        className={`bg-white border rounded-lg px-4 py-3 flex-row items-center justify-between ${
-          error ? 'border-red-500' : 'border-gray-300'
-        }`}
+        className={`bg-white border rounded-lg px-4 py-3 flex-row items-center justify-between ${error ? 'border-red-500' : 'border-gray-300'
+          }`}
         onPress={() => setModalVisible(true)}
       >
         {selectedCategory ? (
@@ -106,16 +105,14 @@ export default function CategoryPicker({
                 filteredCategories.map((category) => (
                   <TouchableOpacity
                     key={category.id}
-                    className={`p-4 border-b border-gray-100 flex-row items-center ${
-                      selectedCategoryId === category.id ? 'bg-blue-50' : ''
-                    }`}
+                    className={`p-4 border-b border-gray-100 flex-row items-center ${selectedCategoryId === category.id ? 'bg-blue-50' : ''
+                      }`}
                     onPress={() => handleSelect(category)}
                   >
                     <Text className="text-3xl mr-3">{category.icon}</Text>
                     <Text
-                      className={`flex-1 font-medium ${
-                        selectedCategoryId === category.id ? 'text-blue-600' : 'text-gray-800'
-                      }`}
+                      className={`flex-1 font-medium ${selectedCategoryId === category.id ? 'text-blue-600' : 'text-gray-800'
+                        }`}
                     >
                       {category.name}
                     </Text>

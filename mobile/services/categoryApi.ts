@@ -1,16 +1,17 @@
 import { api } from './api';
 
 export interface Category {
-  id: string;
+  id: number;
   name: string;
   icon: string;
   order: number;
 }
 
 export interface Skill {
-  id: string;
+  id: number;
   name: string;
-  categoryId: string;
+  categoryId: number;
+  category?: number;
 }
 
 export interface CategoryWithSkills extends Category {
@@ -22,7 +23,7 @@ export interface SkillsResponse {
   skills: Skill[];
   count: number;
   filters?: {
-    categoryId?: string;
+    categoryId?: number;
     search?: string;
     limit?: number;
   };
@@ -30,7 +31,7 @@ export interface SkillsResponse {
 
 export interface CategorySkillsResponse {
   category: {
-    id: string;
+    id: number;
     name: string;
     icon: string;
   };
@@ -47,13 +48,13 @@ export const categoryApi = api.injectEndpoints({
     }),
 
     // Get category with skills
-    getCategorySkills: builder.query<CategorySkillsResponse, string>({
+    getCategorySkills: builder.query<CategorySkillsResponse, number>({
       query: (categoryId) => `/categories/${categoryId}/skills`,
       providesTags: ['Category', 'Skill'],
     }),
 
     // List all skills with optional filters
-    listSkills: builder.query<SkillsResponse, { categoryId?: string; search?: string; limit?: number }>({
+    listSkills: builder.query<SkillsResponse, { categoryId?: number; search?: string; limit?: number }>({
       query: (params) => ({
         url: '/skills',
         params,
@@ -80,3 +81,6 @@ export const {
   useSearchSkillsQuery,
   useLazySearchSkillsQuery,
 } = categoryApi;
+
+// Alias for backward compatibility
+export const useGetCategoriesQuery = useListCategoriesQuery;

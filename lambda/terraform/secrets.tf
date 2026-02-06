@@ -23,24 +23,19 @@ resource "random_password" "jwt_secret" {
   special = true
 }
 
-# IAM policy for Lambda to read secrets
-resource "aws_iam_role_policy" "lambda_secrets" {
-  name = "${local.name_prefix}-lambda-secrets-policy"
-  role = aws_iam_role.lambda_role.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "secretsmanager:GetSecretValue"
-        ]
-        Resource = aws_secretsmanager_secret.jwt_secret.arn
-      }
-    ]
-  })
-}
+# IAM policy for Lambda to read secrets - DISABLED (requires IAM permissions)
+# resource "aws_iam_role_policy" "lambda_secrets" {
+#   name = "${local.name_prefix}-lambda-secrets-policy"
+#   role = aws_iam_role.lambda_role.id
+#   policy = jsonencode({
+#     Version = "2012-10-17"
+#     Statement = [{
+#       Effect   = "Allow"
+#       Action   = ["secretsmanager:GetSecretValue"]
+#       Resource = aws_secretsmanager_secret.jwt_secret.arn
+#     }]
+#   })
+# }
 
 # Data source to read JWT secret value
 data "aws_secretsmanager_secret_version" "jwt_secret" {

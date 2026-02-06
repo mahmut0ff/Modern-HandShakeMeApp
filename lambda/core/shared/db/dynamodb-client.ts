@@ -15,10 +15,33 @@ import {
 } from '@aws-sdk/lib-dynamodb';
 import { logger } from '../utils/logger';
 
-const client = new DynamoDBClient({
+// Check if using local DynamoDB
+const isLocal = !!process.env.DYNAMODB_ENDPOINT;
+
+const clientConfig: any = {
   region: process.env.AWS_REGION || 'us-east-1',
   maxAttempts: 3,
+};
+
+// For local development, use fake credentials and custom endpoint
+if (isLocal) {
+  clientConfig.endpoint = process.env.DYNAMODB_ENDPOINT;
+  clientConfig.credentials = {
+    accessKeyId: 'fakeAccessKeyId',
+    secretAccessKey: 'fakeSecretAccessKey',
+  };
+  logger.info('Using local DynamoDB', { endpoint: process.env.DYNAMODB_ENDPOINT });
+} else {
+  logger.info('Using AWS DynamoDB', { region: process.env.AWS_REGION });
+}
+
+logger.info('DynamoDB config', { 
+  tableName: process.env.DYNAMODB_TABLE,
+  endpoint: process.env.DYNAMODB_ENDPOINT,
+  isLocal 
 });
+
+const client = new DynamoDBClient(clientConfig);
 
 export const dynamodb = DynamoDBDocumentClient.from(client, {
   marshallOptions: {
@@ -31,7 +54,7 @@ export const dynamodb = DynamoDBDocumentClient.from(client, {
   },
 });
 
-export const TABLE_NAME = process.env.DYNAMODB_TABLE || 'handshake-dev-table';
+export const TABLE_NAME = process.env.DYNAMODB_TABLE || process.env.DYNAMODB_TABLE_NAME || 'handshakeme-local';
 
 // Retry configuration
 const MAX_RETRIES = 3;

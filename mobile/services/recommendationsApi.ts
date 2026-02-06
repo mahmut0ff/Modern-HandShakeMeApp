@@ -1,4 +1,4 @@
-import api from './api';
+import { api } from './api';
 
 export interface RecommendedOrder {
   id: string;
@@ -47,23 +47,24 @@ export interface RecommendationsResponse {
   generatedAt: string;
 }
 
-class RecommendationsApi {
-  /**
-   * Get recommended orders for master
-   */
-  async getRecommendedOrders(params?: {
-    limit?: number;
-    includeReasons?: boolean;
-  }): Promise<RecommendationsResponse> {
-    const response = await api.get<RecommendationsResponse>('/recommendations/orders', {
-      params: {
-        limit: params?.limit || 10,
-        includeReasons: params?.includeReasons !== false ? 'true' : 'false',
-      },
-    });
-    return response.data;
-  }
+export const recommendationsApi = api.injectEndpoints({
+  endpoints: (builder) => ({
+    getRecommendedOrders: builder.query<RecommendationsResponse, { limit?: number; includeReasons?: boolean } | void>({
+      query: (params) => ({
+        url: '/recommendations/orders',
+        params: {
+          limit: params?.limit || 10,
+          includeReasons: params?.includeReasons !== false ? 'true' : 'false',
+        },
+      }),
+      providesTags: ['Recommendation'],
+    }),
+  }),
+});
 
+export const { useGetRecommendedOrdersQuery } = recommendationsApi;
+
+class RecommendationsHelpers {
   /**
    * Get match score explanation
    */
@@ -160,4 +161,5 @@ class RecommendationsApi {
   }
 }
 
-export default new RecommendationsApi();
+export const recommendationsHelpers = new RecommendationsHelpers();
+export default recommendationsHelpers;

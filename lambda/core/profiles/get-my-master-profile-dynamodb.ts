@@ -1,59 +1,38 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import jwt from 'jsonwebtoken';
+import type { APIGatewayProxyResult } from 'aws-lambda';
+import { success, notFound } from '../shared/utils/response';
+import { withAuth, AuthenticatedEvent } from '../shared/middleware/auth';
+import { withErrorHandler } from '../shared/middleware/errorHandler';
 import { MasterProfileRepository } from '../shared/repositories/master-profile.repository';
 import { UserRepository } from '../shared/repositories/user.repository';
 import { formatUserObject } from '../shared/utils/response-formatter';
+import { logger } from '../shared/utils/logger';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 const masterProfileRepository = new MasterProfileRepository();
 const userRepository = new UserRepository();
 
-export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
-  try {
-    const authHeader = event.headers.Authorization || event.headers.authorization;
-    if (!authHeader) {
-      return {
-        statusCode: 401,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Authorization required' })
-      };
-    }
+async function getMyMasterProfileHandler(event: AuthenticatedEvent): Promise<APIGatewayProxyResult> {
+  const { userId } = event.auth;
+  
+  logger.info('Get my master profile', { userId });
 
-    const token = authHeader.replace('Bearer ', '');
-    const decoded: any = jwt.verify(token, JWT_SECRET);
-
-    const user = await userRepository.findById(decoded.userId);
-    if (!user) {
-      return {
-        statusCode: 404,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'User not found' })
-      };
-    }
-
-    let profile = await masterProfileRepository.findByUserId(decoded.userId);
-    
-    // Create profile if doesn't exist
-    if (!profile) {
-      profile = await masterProfileRepository.create(decoded.userId, {
-        city: user.city || ''
-      });
-    }
-
-    return {
-      statusCode: 200,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ...profile,
-        user: formatUserObject(user)
-      })
-    };
-  } catch (error) {
-    console.error('Error:', error);
-    return {
-      statusCode: 500,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: 'Internal server error' })
-    };
+  const user = await userRepository.findById(userId);
+  if (!user) {
+    return notFound('User not found');
   }
-};
+
+  let profile = await masterProfileRepository.findByUserId(userId);
+  
+  if (!profile) {
+    profile = await masterProfileRepository.create(userId, {
+      city: user.city || ''
+    });
+    logger.info('Master profile created', { userId });
+  }
+
+  return success({
+    ...profile,
+    user: formatUserObject(user)
+  });
+}
+
+export const handler = withErrorHandler(withAuth(getMyMasterProfileHandler));

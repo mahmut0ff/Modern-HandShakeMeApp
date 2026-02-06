@@ -1,49 +1,32 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import jwt from 'jsonwebtoken';
+import { APIGatewayProxyResult } from 'aws-lambda';
+import { withAuth, AuthenticatedEvent } from '../shared/middleware/auth';
+import { withErrorHandler } from '../shared/middleware/errorHandler';
+import { success } from '../shared/utils/response';
+import { logger } from '../shared/utils/logger';
 import { OrderRepository } from '../shared/repositories/order.repository';
 import { formatPaginatedResponse, formatOrderObject } from '../shared/utils/response-formatter';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 const orderRepository = new OrderRepository();
 
-export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
-  try {
-    const authHeader = event.headers.Authorization || event.headers.authorization;
-    if (!authHeader) {
-      return {
-        statusCode: 401,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Authorization required' })
-      };
-    }
+const getMyOrdersHandler = async (event: AuthenticatedEvent): Promise<APIGatewayProxyResult> => {
+  const { userId } = event.auth;
+  
+  const { status } = event.queryStringParameters || {};
 
-    const token = authHeader.replace('Bearer ', '');
-    const decoded: any = jwt.verify(token, JWT_SECRET);
-    
-    const { status } = event.queryStringParameters || {};
+  logger.info('Get my orders request', { userId, status });
 
-    // Get orders by client
-    const orders = await orderRepository.findByClient(decoded.userId);
-    
-    let filteredOrders = orders;
-    if (status) {
-      filteredOrders = orders.filter(o => o.status === status);
-    }
-
-    const formattedOrders = filteredOrders.map(formatOrderObject);
-    const response = formatPaginatedResponse(formattedOrders, formattedOrders.length);
-
-    return {
-      statusCode: 200,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(response)
-    };
-  } catch (error) {
-    console.error('Error:', error);
-    return {
-      statusCode: 500,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: 'Internal server error' })
-    };
+  // Get orders by client
+  const orders = await orderRepository.findByClient(userId);
+  
+  let filteredOrders = orders;
+  if (status) {
+    filteredOrders = orders.filter(o => o.status === status);
   }
+
+  const formattedOrders = filteredOrders.map(formatOrderObject);
+  const response = formatPaginatedResponse(formattedOrders, formattedOrders.length);
+
+  return success(response);
 };
+
+export const handler = withErrorHandler(withAuth(getMyOrdersHandler));

@@ -18,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import {
   useGetCalendarIntegrationsQuery,
   useUpdateCalendarSettingsMutation,
+  CalendarIntegration,
 } from '../../services/calendarApi';
 import { useTranslation } from '../../hooks/useTranslation';
 
@@ -50,16 +51,17 @@ export default function CalendarSettingsScreen() {
 
   const integration = integrations?.integrations.find(i => i.provider === provider);
 
-  const [settings, setSettings] = useState(integration?.settings || {
+  const [settings, setSettings] = useState<CalendarIntegration['settings']>(integration?.settings || {
     syncDirection: 'BIDIRECTIONAL',
     syncFrequency: 'REAL_TIME',
     syncBookings: true,
     syncAvailability: true,
     syncPersonalEvents: false,
     conflictResolution: 'MANUAL',
+    timeZone: 'UTC', // Added missing required property
+    eventPrefix: '[HandShakeMe]',
     includeClientInfo: false,
     includeLocation: true,
-    eventPrefix: '[HandShakeMe]',
     reminderMinutes: [15, 60],
   });
 
@@ -132,9 +134,8 @@ export default function CalendarSettingsScreen() {
             {SYNC_DIRECTIONS.map((dir) => (
               <TouchableOpacity
                 key={dir.value}
-                className={`flex-row items-center p-3 rounded-xl mb-2 last:mb-0 ${
-                  settings.syncDirection === dir.value ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50'
-                }`}
+                className={`flex-row items-center p-3 rounded-xl mb-2 last:mb-0 ${settings.syncDirection === dir.value ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50'
+                  }`}
                 onPress={() => setSettings({ ...settings, syncDirection: dir.value as any })}
               >
                 <Ionicons
@@ -142,9 +143,8 @@ export default function CalendarSettingsScreen() {
                   size={24}
                   color={settings.syncDirection === dir.value ? '#3B82F6' : '#6B7280'}
                 />
-                <Text className={`ml-3 font-medium ${
-                  settings.syncDirection === dir.value ? 'text-blue-700' : 'text-gray-700'
-                }`}>
+                <Text className={`ml-3 font-medium ${settings.syncDirection === dir.value ? 'text-blue-700' : 'text-gray-700'
+                  }`}>
                   {dir.label}
                 </Text>
               </TouchableOpacity>
@@ -159,14 +159,12 @@ export default function CalendarSettingsScreen() {
             {SYNC_FREQUENCIES.map((freq) => (
               <TouchableOpacity
                 key={freq.value}
-                className={`p-3 rounded-xl mb-2 last:mb-0 ${
-                  settings.syncFrequency === freq.value ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50'
-                }`}
+                className={`p-3 rounded-xl mb-2 last:mb-0 ${settings.syncFrequency === freq.value ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50'
+                  }`}
                 onPress={() => setSettings({ ...settings, syncFrequency: freq.value as any })}
               >
-                <Text className={`font-medium ${
-                  settings.syncFrequency === freq.value ? 'text-blue-700' : 'text-gray-700'
-                }`}>
+                <Text className={`font-medium ${settings.syncFrequency === freq.value ? 'text-blue-700' : 'text-gray-700'
+                  }`}>
                   {freq.label}
                 </Text>
               </TouchableOpacity>
@@ -214,14 +212,12 @@ export default function CalendarSettingsScreen() {
             {CONFLICT_RESOLUTIONS.map((res) => (
               <TouchableOpacity
                 key={res.value}
-                className={`p-3 rounded-xl mb-2 last:mb-0 ${
-                  settings.conflictResolution === res.value ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50'
-                }`}
+                className={`p-3 rounded-xl mb-2 last:mb-0 ${settings.conflictResolution === res.value ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50'
+                  }`}
                 onPress={() => setSettings({ ...settings, conflictResolution: res.value as any })}
               >
-                <Text className={`font-medium ${
-                  settings.conflictResolution === res.value ? 'text-blue-700' : 'text-gray-700'
-                }`}>
+                <Text className={`font-medium ${settings.conflictResolution === res.value ? 'text-blue-700' : 'text-gray-700'
+                  }`}>
                   {res.label}
                 </Text>
                 <Text className="text-sm text-gray-500 mt-1">{res.desc}</Text>

@@ -102,7 +102,7 @@ export const applicationApi = api.injectEndpoints({
     updateApplication: builder.mutation<Application, { id: number; data: ApplicationUpdateData }>({
       query: ({ id, data }) => ({
         url: `/applications/${id}`,
-        method: 'PATCH',
+        method: 'PUT',
         body: data,
       }),
       invalidatesTags: ['Application'],

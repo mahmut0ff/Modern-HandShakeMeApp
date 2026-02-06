@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { addManualTimeEntry, TaskType } from '../../../services/timeTrackingApi';
+import { safeNavigate } from '../../../hooks/useNavigation';
 
 const TASK_TYPES: { value: TaskType; label: string; icon: string }[] = [
   { value: 'WORK', label: 'Работа', icon: 'hammer-outline' },
@@ -74,7 +75,7 @@ export default function ManualEntryScreen() {
       Alert.alert('Успешно', 'Запись добавлена', [
         {
           text: 'OK',
-          onPress: () => router.back(),
+          onPress: () => safeNavigate.back(),
         },
       ]);
     } catch (error: any) {
@@ -117,11 +118,10 @@ export default function ManualEntryScreen() {
                   className="w-1/2 px-1 mb-2"
                 >
                   <View
-                    className={`flex-row items-center p-3 rounded-xl border-2 ${
-                      taskType === type.value
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-200 bg-white'
-                    }`}
+                    className={`flex-row items-center p-3 rounded-xl border-2 ${taskType === type.value
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-gray-200 bg-white'
+                      }`}
                   >
                     <Ionicons
                       name={type.icon as any}
@@ -129,9 +129,8 @@ export default function ManualEntryScreen() {
                       color={taskType === type.value ? '#3B82F6' : '#6B7280'}
                     />
                     <Text
-                      className={`text-sm font-medium ml-2 ${
-                        taskType === type.value ? 'text-blue-600' : 'text-gray-700'
-                      }`}
+                      className={`text-sm font-medium ml-2 ${taskType === type.value ? 'text-blue-600' : 'text-gray-700'
+                        }`}
                     >
                       {type.label}
                     </Text>
@@ -278,7 +277,7 @@ export default function ManualEntryScreen() {
           value={startDate}
           mode="datetime"
           display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={(event, selectedDate) => {
+          onChange={(event: any, selectedDate?: Date) => {
             setShowStartPicker(Platform.OS === 'ios');
             if (selectedDate) {
               setStartDate(selectedDate);
@@ -292,7 +291,7 @@ export default function ManualEntryScreen() {
           value={endDate}
           mode="datetime"
           display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={(event, selectedDate) => {
+          onChange={(event: any, selectedDate?: Date) => {
             setShowEndPicker(Platform.OS === 'ios');
             if (selectedDate) {
               setEndDate(selectedDate);

@@ -1,476 +1,386 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Alert, Image, ActivityIndicator } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
-import {
-  useGetVerificationStatusQuery,
-  useGetVerificationDocumentsQuery,
-  useGetVerificationRequirementsQuery,
+import { useState } from 'react'
+import { View, Text, TouchableOpacity, ScrollView, Image, Alert, ActivityIndicator } from 'react-native'
+import { StatusBar } from 'expo-status-bar'
+import { Ionicons } from '@expo/vector-icons'
+import { router } from 'expo-router'
+import * as ImagePicker from 'expo-image-picker'
+import { useSelector } from 'react-redux'
+import { RootState } from '../../store'
+import { 
+  useGetVerificationStatusQuery, 
   useUploadVerificationDocumentMutation,
-  useSubmitForReviewMutation,
-  useDeleteVerificationDocumentMutation,
-  type VerificationDocument,
-  type VerificationRequirement,
-} from '../../services/verificationApi';
+  useSubmitForReviewMutation 
+} from '../../services/verificationApi'
+import { safeNavigate } from '../../hooks/useNavigation'
 
-interface VerificationStep {
-  id: string;
-  title: string;
-  description: string;
-  status: 'pending' | 'in_review' | 'approved' | 'rejected';
-  required: boolean;
-  icon: string;
-  document?: VerificationDocument;
+type DocumentType = 'passport' | 'selfie'
+
+interface UploadedDoc {
+  type: DocumentType
+  uri: string
+  uploaded: boolean
 }
 
-export default function MasterVerificationPage() {
-  const [selectedImages, setSelectedImages] = useState<{ [key: string]: string }>({});
+export default function VerificationScreen() {
+  const accessToken = useSelector((state: RootState) => state.auth.accessToken)
+  const { data: verificationStatus, refetch } = useGetVerificationStatusQuery()
+  const [uploadDocument] = useUploadVerificationDocumentMutation()
+  const [submitForReview] = useSubmitForReviewMutation()
+  
+  const [documents, setDocuments] = useState<UploadedDoc[]>([])
+  const [isUploading, setIsUploading] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [step, setStep] = useState<'passport' | 'selfie' | 'review'>('passport')
 
-  // API queries
-  const {
-    data: statusData,
-    isLoading: statusLoading,
-    error: statusError,
-    refetch: refetchStatus
-  } = useGetVerificationStatusQuery();
+  const passportDoc = documents.find(d => d.type === 'passport')
+  const selfieDoc = documents.find(d => d.type === 'selfie')
+  
+  // Check if already verified or in review
+  const isVerified = verificationStatus?.overall_status === 'verified'
+  const isInReview = verificationStatus?.overall_status === 'in_review'
 
-  const {
-    data: documentsData,
-    isLoading: documentsLoading,
-    refetch: refetchDocuments
-  } = useGetVerificationDocumentsQuery();
-
-  const {
-    data: requirementsData,
-    isLoading: requirementsLoading
-  } = useGetVerificationRequirementsQuery();
-
-  // Mutations
-  const [uploadDocumentMutation, { isLoading: uploadLoading }] = useUploadVerificationDocumentMutation();
-  const [submitForReview, { isLoading: submitLoading }] = useSubmitForReviewMutation();
-  const [deleteDocument] = useDeleteVerificationDocumentMutation();
-
-  const documents: VerificationDocument[] = Array.isArray(documentsData) ? documentsData : [];
-  const requirements: VerificationRequirement[] = Array.isArray(requirementsData) ? requirementsData : [];
-  const status = statusData;
-
-  // Create verification steps from requirements and documents
-  const verificationSteps: VerificationStep[] = requirements.map(req => {
-    const document = documents.find(doc => doc.document_type === req.document_type);
-    return {
-      id: req.document_type,
-      title: req.title,
-      description: req.description,
-      status: document?.status || 'pending',
-      required: req.is_required,
-      icon: req.icon,
-      document,
-    };
-  });
-
-  const overallStatus = status?.overall_status || 'unverified';
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'approved': return { bg: 'bg-green-100', text: 'text-green-700', icon: 'checkmark-circle' };
-      case 'in_review': return { bg: 'bg-orange-100', text: 'text-orange-700', icon: 'time' };
-      case 'rejected': return { bg: 'bg-red-100', text: 'text-red-700', icon: 'close-circle' };
-      default: return { bg: 'bg-gray-100', text: 'text-gray-700', icon: 'ellipse-outline' };
+  const pickImage = async (type: DocumentType) => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync()
+    if (status !== 'granted') {
+      Alert.alert('Ошибка', 'Нужен доступ к камере для загрузки документов')
+      return
     }
-  };
 
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'approved': return 'Одобрено';
-      case 'in_review': return 'На проверке';
-      case 'rejected': return 'Отклонено';
-      default: return 'Ожидает';
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: type === 'passport' ? [4, 3] : [1, 1],
+      quality: 0.8,
+    })
+
+    if (!result.canceled && result.assets[0]) {
+      const newDoc: UploadedDoc = {
+        type,
+        uri: result.assets[0].uri,
+        uploaded: false,
+      }
+      
+      setDocuments(prev => [...prev.filter(d => d.type !== type), newDoc])
+      
+      if (type === 'passport') {
+        setStep('selfie')
+      } else {
+        setStep('review')
+      }
     }
-  };
+  }
 
-  const pickImage = async (stepId: string) => {
+  const handleSubmit = async () => {
+    if (!passportDoc || !selfieDoc) {
+      Alert.alert('Ошибка', 'Загрузите оба документа')
+      return
+    }
+
+    setIsSubmitting(true)
+
     try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Ошибка', 'Необходимо разрешение для доступа к галерее');
-        return;
-      }
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.8,
-      });
-
-      if (!result.canceled && result.assets[0]) {
-        await uploadDocumentFile(stepId, result.assets[0].uri);
-      }
-    } catch (error) {
-      Alert.alert('Ошибка', 'Не удалось выбрать изображение');
-    }
-  };
-
-  const takePhoto = async (stepId: string) => {
-    try {
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Ошибка', 'Необходимо разрешение для доступа к камере');
-        return;
-      }
-
-      const result = await ImagePicker.launchCameraAsync({
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.8,
-      });
-
-      if (!result.canceled && result.assets[0]) {
-        await uploadDocumentFile(stepId, result.assets[0].uri);
-      }
-    } catch (error) {
-      Alert.alert('Ошибка', 'Не удалось сделать фото');
-    }
-  };
-
-  const uploadDocumentFile = async (documentType: string, fileUri: string) => {
-    try {
-      const requirement = requirements.find(req => req.document_type === documentType);
-      if (!requirement) return;
-
-      const formData = new FormData();
-      formData.append('file', {
-        uri: fileUri,
+      // Upload passport
+      const passportFormData = new FormData()
+      passportFormData.append('file', {
+        uri: passportDoc.uri,
         type: 'image/jpeg',
-        name: `${documentType}.jpg`,
-      } as any);
-      formData.append('document_type', documentType);
-      formData.append('title', requirement.title);
-      formData.append('description', requirement.description);
+        name: `passport_${Date.now()}.jpg`,
+      } as any)
+      
+      await uploadDocument({ documentType: 'PASSPORT', file: passportFormData }).unwrap()
 
-      await uploadDocumentMutation({
-        document_type: documentType,
-        title: requirement.title,
-        description: requirement.description,
-        file: formData,
-      }).unwrap();
+      // Upload selfie as OTHER type
+      const selfieFormData = new FormData()
+      selfieFormData.append('file', {
+        uri: selfieDoc.uri,
+        type: 'image/jpeg',
+        name: `selfie_${Date.now()}.jpg`,
+      } as any)
+      
+      await uploadDocument({ documentType: 'OTHER', file: selfieFormData }).unwrap()
 
-      setSelectedImages(prev => ({
-        ...prev,
-        [documentType]: fileUri
-      }));
+      // Submit for review
+      await submitForReview({}).unwrap()
+      
+      // Refetch status
+      await refetch()
 
-      refetchDocuments();
-      refetchStatus();
-
-      Alert.alert('Успех', 'Документ загружен и отправлен на проверку');
+      Alert.alert(
+        'Успешно!',
+        'Документы отправлены на проверку. Обычно это занимает 1-2 рабочих дня.',
+        [{ text: 'OK', onPress: () => safeNavigate.back() }]
+      )
     } catch (error: any) {
-      console.error('Failed to upload document:', error);
-      Alert.alert('Ошибка', error?.data?.message || 'Не удалось загрузить документ');
+      console.error('Submit error:', error)
+      Alert.alert('Ошибка', error.data?.message || 'Не удалось отправить документы. Попробуйте позже.')
+    } finally {
+      setIsSubmitting(false)
     }
-  };
+  }
+  
+  // Show verified status
+  if (isVerified) {
+    return (
+      <View className="flex-1 bg-gray-100">
+        <StatusBar style="dark" />
+        <ScrollView className="flex-1 px-4 pt-12">
+          <View className="flex-row items-center mb-6">
+            <TouchableOpacity onPress={() => router.back()} className="mr-3">
+              <Ionicons name="arrow-back" size={24} color="#374151" />
+            </TouchableOpacity>
+            <Text className="text-xl font-bold text-gray-900">Верификация</Text>
+          </View>
+          
+          <View className="bg-white rounded-2xl p-6 items-center">
+            <View className="w-20 h-20 bg-green-100 rounded-full items-center justify-center mb-4">
+              <Ionicons name="checkmark-circle" size={48} color="#10B981" />
+            </View>
+            <Text className="text-xl font-bold text-gray-900 text-center mb-2">
+              Верификация пройдена!
+            </Text>
+            <Text className="text-gray-600 text-center">
+              Ваша личность подтверждена. Вы можете получать заказы без ограничений.
+            </Text>
+          </View>
+        </ScrollView>
+      </View>
+    )
+  }
+  
+  // Show in review status
+  if (isInReview) {
+    return (
+      <View className="flex-1 bg-gray-100">
+        <StatusBar style="dark" />
+        <ScrollView className="flex-1 px-4 pt-12">
+          <View className="flex-row items-center mb-6">
+            <TouchableOpacity onPress={() => router.back()} className="mr-3">
+              <Ionicons name="arrow-back" size={24} color="#374151" />
+            </TouchableOpacity>
+            <Text className="text-xl font-bold text-gray-900">Верификация</Text>
+          </View>
+          
+          <View className="bg-white rounded-2xl p-6 items-center">
+            <View className="w-20 h-20 bg-blue-100 rounded-full items-center justify-center mb-4">
+              <Ionicons name="time" size={48} color="#3B82F6" />
+            </View>
+            <Text className="text-xl font-bold text-gray-900 text-center mb-2">
+              Документы на проверке
+            </Text>
+            <Text className="text-gray-600 text-center">
+              Мы проверяем ваши документы. Обычно это занимает 1-2 рабочих дня.
+            </Text>
+          </View>
+        </ScrollView>
+      </View>
+    )
+  }
 
-  const uploadDocument = (stepId: string) => {
-    Alert.alert(
-      'Загрузить документ',
-      'Выберите способ загрузки',
-      [
-        { text: 'Отмена', style: 'cancel' },
-        { text: 'Галерея', onPress: () => pickImage(stepId) },
-        { text: 'Камера', onPress: () => takePhoto(stepId) }
-      ]
-    );
-  };
-
-  const handleSubmitForReview = async () => {
-    const requiredSteps = verificationSteps.filter(step => step.required);
-    const completedRequired = requiredSteps.filter(step =>
-      step.status === 'approved' || step.status === 'in_review'
-    );
-
-    if (completedRequired.length < requiredSteps.length) {
-      Alert.alert('Внимание', 'Заполните все обязательные поля для верификации');
-      return;
-    }
-
-    try {
-      await submitForReview().unwrap();
-      refetchStatus();
-      Alert.alert('Успех', 'Документы отправлены на проверку');
-    } catch (error: any) {
-      console.error('Failed to submit for review:', error);
-      Alert.alert('Ошибка', error?.data?.message || 'Не удалось отправить документы');
-    }
-  };
-
-  const handleDeleteDocument = async (documentId: number) => {
-    Alert.alert(
-      'Удалить документ',
-      'Вы уверены, что хотите удалить этот документ?',
-      [
-        { text: 'Отмена', style: 'cancel' },
-        {
-          text: 'Удалить',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteDocument(documentId).unwrap();
-              refetchDocuments();
-              refetchStatus();
-              Alert.alert('Успех', 'Документ удален');
-            } catch (error: any) {
-              console.error('Failed to delete document:', error);
-              Alert.alert('Ошибка', 'Не удалось удалить документ');
-            }
-          }
-        }
-      ]
-    );
-  };
-
-  return (
-    <SafeAreaView className="flex-1 bg-[#F8F7FC]">
-      <ScrollView className="flex-1 px-4">
-        {/* Header */}
-        <View className="flex-row items-center gap-4 mb-6">
-          <TouchableOpacity
-            onPress={() => router.back()}
-            className="w-10 h-10 bg-white rounded-2xl items-center justify-center shadow-sm border border-gray-100"
-          >
-            <Ionicons name="arrow-back" size={20} color="#6B7280" />
-          </TouchableOpacity>
-          <Text className="text-2xl font-bold text-gray-900">Верификация</Text>
+  const renderPassportStep = () => (
+    <View className="flex-1">
+      <View className="bg-white rounded-2xl p-6 mb-4">
+        <View className="items-center mb-6">
+          <View className="w-20 h-20 bg-blue-100 rounded-full items-center justify-center mb-4">
+            <Ionicons name="id-card" size={40} color="#3B82F6" />
+          </View>
+          <Text className="text-xl font-bold text-gray-900 text-center">
+            Фото паспорта
+          </Text>
+          <Text className="text-gray-600 text-center mt-2">
+            Сфотографируйте разворот паспорта с вашим фото
+          </Text>
         </View>
 
-        {/* Loading state */}
-        {(statusLoading || documentsLoading || requirementsLoading) && (
-          <View className="bg-white rounded-3xl p-8 items-center shadow-sm border border-gray-100 mb-6">
-            <ActivityIndicator size="large" color="#0165FB" />
-            <Text className="text-gray-500 mt-2">Загрузка данных верификации...</Text>
-          </View>
-        )}
+        <View className="bg-amber-50 p-4 rounded-xl mb-6">
+          <Text className="text-amber-800 text-sm">
+            ⚠️ Убедитесь, что:
+          </Text>
+          <Text className="text-amber-700 text-sm mt-2">• Все данные хорошо читаемы</Text>
+          <Text className="text-amber-700 text-sm">• Фото не размыто</Text>
+          <Text className="text-amber-700 text-sm">• Нет бликов и теней</Text>
+        </View>
 
-        {/* Error state */}
-        {statusError && (
-          <View className="bg-white rounded-3xl p-8 items-center shadow-sm border border-gray-100 mb-6">
-            <View className="w-16 h-16 bg-red-100 rounded-full items-center justify-center mb-4">
-              <Ionicons name="alert-circle" size={32} color="#EF4444" />
-            </View>
-            <Text className="text-gray-900 font-semibold mb-2">Ошибка загрузки</Text>
-            <Text className="text-gray-500 text-center mb-4">
-              Не удалось загрузить данные верификации
-            </Text>
+        {passportDoc ? (
+          <View className="items-center">
+            <Image 
+              source={{ uri: passportDoc.uri }} 
+              className="w-full h-48 rounded-xl mb-4"
+              resizeMode="cover"
+            />
             <TouchableOpacity
-              onPress={() => refetchStatus()}
-              className="bg-[#0165FB] px-6 py-2 rounded-xl"
+              onPress={() => pickImage('passport')}
+              className="flex-row items-center"
             >
-              <Text className="text-white font-medium">Повторить</Text>
+              <Ionicons name="refresh" size={20} color="#3B82F6" />
+              <Text className="text-blue-500 ml-2">Переснять</Text>
             </TouchableOpacity>
           </View>
-        )}
-
-        {/* Overall Status */}
-        {!statusLoading && !statusError && status && (
-          <View className={`rounded-3xl p-5 mb-6 ${overallStatus === 'verified' ? 'bg-green-500' :
-              overallStatus === 'in_review' ? 'bg-orange-500' : 'bg-[#0165FB]'
-            }`}>
-            <View className="flex-row items-center gap-4">
-              <View className="w-16 h-16 bg-white/20 rounded-full items-center justify-center">
-                <Ionicons
-                  name={
-                    overallStatus === 'verified' ? 'shield-checkmark' :
-                      overallStatus === 'in_review' ? 'shield-half' : 'shield'
-                  }
-                  size={32}
-                  color="white"
-                />
-              </View>
-              <View className="flex-1">
-                <Text className="text-white text-xl font-bold">
-                  {overallStatus === 'verified' ? 'Верифицирован' :
-                    overallStatus === 'in_review' ? 'На проверке' : 'Требуется верификация'}
-                </Text>
-                <Text className="text-white/80 text-sm">
-                  {overallStatus === 'verified'
-                    ? 'Ваш аккаунт полностью верифицирован'
-                    : overallStatus === 'in_review'
-                      ? 'Документы проверяются модераторами'
-                      : 'Пройдите верификацию для повышения доверия'
-                  }
-                </Text>
-                <Text className="text-white/60 text-xs mt-1">
-                  Документов: {status.approved_documents_count}/{status.documents_count}
-                </Text>
-              </View>
-            </View>
-          </View>
-        )}
-
-        {/* Benefits */}
-        <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-6">
-          <Text className="text-lg font-bold text-gray-900 mb-4">Преимущества верификации</Text>
-          <View className="flex flex-col gap-3">
-            <View className="flex-row items-center gap-3">
-              <View className="w-8 h-8 bg-green-100 rounded-full items-center justify-center">
-                <Ionicons name="checkmark" size={16} color="#059669" />
-              </View>
-              <Text className="text-gray-700">Повышенное доверие клиентов</Text>
-            </View>
-            <View className="flex-row items-center gap-3">
-              <View className="w-8 h-8 bg-green-100 rounded-full items-center justify-center">
-                <Ionicons name="checkmark" size={16} color="#059669" />
-              </View>
-              <Text className="text-gray-700">Приоритет в поиске</Text>
-            </View>
-            <View className="flex-row items-center gap-3">
-              <View className="w-8 h-8 bg-green-100 rounded-full items-center justify-center">
-                <Ionicons name="checkmark" size={16} color="#059669" />
-              </View>
-              <Text className="text-gray-700">Доступ к премиум заказам</Text>
-            </View>
-            <View className="flex-row items-center gap-3">
-              <View className="w-8 h-8 bg-green-100 rounded-full items-center justify-center">
-                <Ionicons name="checkmark" size={16} color="#059669" />
-              </View>
-              <Text className="text-gray-700">Значок "Проверенный мастер"</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Verification Steps */}
-        {!statusLoading && !documentsLoading && !requirementsLoading && (
-          <View className="flex flex-col gap-4 mb-6">
-            {verificationSteps.map((step) => {
-              const statusStyle = getStatusColor(step.status);
-              const hasImage = selectedImages[step.id] || step.document?.file_url;
-
-              return (
-                <View key={step.id} className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100">
-                  <View className="flex-row items-start gap-4">
-                    <View className={`w-12 h-12 rounded-2xl items-center justify-center ${step.status === 'approved' ? 'bg-green-100' :
-                        step.status === 'in_review' ? 'bg-orange-100' :
-                          step.status === 'rejected' ? 'bg-red-100' : 'bg-gray-100'
-                      }`}>
-                      <Ionicons
-                        name={step.icon as any}
-                        size={24}
-                        color={
-                          step.status === 'approved' ? '#059669' :
-                            step.status === 'in_review' ? '#F59E0B' :
-                              step.status === 'rejected' ? '#EF4444' : '#6B7280'
-                        }
-                      />
-                    </View>
-
-                    <View className="flex-1">
-                      <View className="flex-row items-center gap-2 mb-1">
-                        <Text className="font-semibold text-gray-900">{step.title}</Text>
-                        {step.required && (
-                          <View className="px-2 py-1 bg-red-100 rounded-full">
-                            <Text className="text-xs font-medium text-red-700">Обязательно</Text>
-                          </View>
-                        )}
-                      </View>
-
-                      <Text className="text-sm text-gray-600 mb-3">{step.description}</Text>
-
-                      {step.status === 'rejected' && step.document?.rejection_reason && (
-                        <View className="bg-red-50 p-3 rounded-2xl mb-3">
-                          <View className="flex-row items-center gap-1">
-                            <Ionicons name="alert-circle" size={14} color="#EF4444" />
-                            <Text className="text-sm text-red-700">
-                              Причина отклонения: {step.document.rejection_reason}
-                            </Text>
-                          </View>
-                        </View>
-                      )}
-
-                      <View className="flex-row items-center justify-between">
-                        <View className={`px-3 py-1 rounded-full ${statusStyle.bg}`}>
-                          <View className="flex-row items-center gap-1">
-                            <Ionicons name={statusStyle.icon as any} size={14} color={statusStyle.text.replace('text-', '#')} />
-                            <Text className={`text-xs font-medium ${statusStyle.text}`}>
-                              {getStatusText(step.status)}
-                            </Text>
-                          </View>
-                        </View>
-
-                        <View className="flex-row gap-2">
-                          {step.status !== 'approved' && (
-                            <TouchableOpacity
-                              onPress={() => uploadDocument(step.id)}
-                              disabled={uploadLoading}
-                              className={`px-4 py-2 rounded-xl ${uploadLoading ? 'bg-gray-400' : 'bg-[#0165FB]'
-                                }`}
-                            >
-                              <Text className="text-white text-sm font-medium">
-                                {uploadLoading ? 'Загрузка...' : hasImage ? 'Изменить' : 'Загрузить'}
-                              </Text>
-                            </TouchableOpacity>
-                          )}
-
-                          {step.document && (
-                            <TouchableOpacity
-                              onPress={() => handleDeleteDocument(step.document!.id)}
-                              className="px-3 py-2 bg-red-100 rounded-xl"
-                            >
-                              <Ionicons name="trash" size={14} color="#EF4444" />
-                            </TouchableOpacity>
-                          )}
-                        </View>
-                      </View>
-
-                      {hasImage && (
-                        <View className="mt-3">
-                          <Image
-                            source={{ uri: step.document?.file_url || selectedImages[step.id] }}
-                            className="w-full h-32 rounded-2xl"
-                            resizeMode="cover"
-                          />
-                        </View>
-                      )}
-                    </View>
-                  </View>
-                </View>
-              );
-            })}
-          </View>
-        )}
-
-        {/* Submit Button */}
-        {!statusLoading && overallStatus !== 'verified' && verificationSteps.length > 0 && (
+        ) : (
           <TouchableOpacity
-            onPress={handleSubmitForReview}
-            disabled={submitLoading}
-            className={`py-4 rounded-2xl shadow-lg mb-6 ${submitLoading ? 'bg-gray-400' : 'bg-[#0165FB]'
-              }`}
+            onPress={() => pickImage('passport')}
+            className="bg-blue-500 py-4 rounded-xl flex-row items-center justify-center"
           >
-            <Text className="text-center font-semibold text-white text-lg">
-              {submitLoading ? 'Отправка...' : 'Отправить на проверку'}
-            </Text>
+            <Ionicons name="camera" size={24} color="white" />
+            <Text className="text-white font-bold ml-2">Сделать фото</Text>
           </TouchableOpacity>
         )}
+      </View>
+    </View>
+  )
 
-        {/* Help */}
-        <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-6">
-          <View className="flex-row items-center gap-2 mb-3">
-            <Ionicons name="help-circle" size={20} color="#0165FB" />
-            <Text className="font-semibold text-gray-900">Нужна помощь?</Text>
+  const renderSelfieStep = () => (
+    <View className="flex-1">
+      <View className="bg-white rounded-2xl p-6 mb-4">
+        <View className="items-center mb-6">
+          <View className="w-20 h-20 bg-green-100 rounded-full items-center justify-center mb-4">
+            <Ionicons name="person-circle" size={40} color="#10B981" />
           </View>
-          <Text className="text-sm text-gray-600 mb-3">
-            Если у вас возникли вопросы по верификации, обратитесь в службу поддержки.
+          <Text className="text-xl font-bold text-gray-900 text-center">
+            Селфи с документом
           </Text>
-          <TouchableOpacity
-            onPress={() => router.push('/(master)/settings/support')}
-            className="flex-row items-center gap-2 py-3 px-4 bg-gray-50 rounded-2xl"
-          >
-            <Ionicons name="chatbubbles" size={16} color="#0165FB" />
-            <Text className="text-[#0165FB] font-medium">Связаться с поддержкой</Text>
-          </TouchableOpacity>
+          <Text className="text-gray-600 text-center mt-2">
+            Сделайте фото, держа паспорт рядом с лицом
+          </Text>
         </View>
+
+        <View className="bg-blue-50 p-4 rounded-xl mb-6">
+          <Text className="text-blue-800 text-sm">
+            📸 Советы для хорошего фото:
+          </Text>
+          <Text className="text-blue-700 text-sm mt-2">• Лицо и документ должны быть видны</Text>
+          <Text className="text-blue-700 text-sm">• Хорошее освещение</Text>
+          <Text className="text-blue-700 text-sm">• Смотрите в камеру</Text>
+        </View>
+
+        {selfieDoc ? (
+          <View className="items-center">
+            <Image 
+              source={{ uri: selfieDoc.uri }} 
+              className="w-48 h-48 rounded-full mb-4"
+              resizeMode="cover"
+            />
+            <TouchableOpacity
+              onPress={() => pickImage('selfie')}
+              className="flex-row items-center"
+            >
+              <Ionicons name="refresh" size={20} color="#3B82F6" />
+              <Text className="text-blue-500 ml-2">Переснять</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity
+            onPress={() => pickImage('selfie')}
+            className="bg-green-500 py-4 rounded-xl flex-row items-center justify-center"
+          >
+            <Ionicons name="camera" size={24} color="white" />
+            <Text className="text-white font-bold ml-2">Сделать селфи</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      <TouchableOpacity
+        onPress={() => setStep('passport')}
+        className="py-3"
+      >
+        <Text className="text-gray-600 text-center">← Вернуться к паспорту</Text>
+      </TouchableOpacity>
+    </View>
+  )
+
+  const renderReviewStep = () => (
+    <View className="flex-1">
+      <View className="bg-white rounded-2xl p-6 mb-4">
+        <Text className="text-xl font-bold text-gray-900 text-center mb-6">
+          Проверьте документы
+        </Text>
+
+        <View className="flex-row mb-6">
+          <View className="flex-1 mr-2">
+            <Text className="text-sm text-gray-600 mb-2 text-center">Паспорт</Text>
+            {passportDoc && (
+              <Image 
+                source={{ uri: passportDoc.uri }} 
+                className="w-full h-32 rounded-xl"
+                resizeMode="cover"
+              />
+            )}
+          </View>
+          <View className="flex-1 ml-2">
+            <Text className="text-sm text-gray-600 mb-2 text-center">Селфи</Text>
+            {selfieDoc && (
+              <Image 
+                source={{ uri: selfieDoc.uri }} 
+                className="w-full h-32 rounded-xl"
+                resizeMode="cover"
+              />
+            )}
+          </View>
+        </View>
+
+        <View className="bg-gray-50 p-4 rounded-xl mb-6">
+          <View className="flex-row items-center mb-2">
+            <Ionicons name="shield-checkmark" size={20} color="#10B981" />
+            <Text className="text-gray-900 font-medium ml-2">Безопасность данных</Text>
+          </View>
+          <Text className="text-gray-600 text-sm">
+            Ваши документы будут использованы только для верификации и надёжно защищены
+          </Text>
+        </View>
+
+        <TouchableOpacity
+          onPress={handleSubmit}
+          disabled={isSubmitting}
+          className={`py-4 rounded-xl flex-row items-center justify-center ${
+            isSubmitting ? 'bg-gray-400' : 'bg-blue-500'
+          }`}
+        >
+          {isSubmitting ? (
+            <ActivityIndicator color="white" />
+          ) : (
+            <>
+              <Ionicons name="checkmark-circle" size={24} color="white" />
+              <Text className="text-white font-bold ml-2">Отправить на проверку</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      <TouchableOpacity
+        onPress={() => setStep('selfie')}
+        className="py-3"
+      >
+        <Text className="text-gray-600 text-center">← Изменить фото</Text>
+      </TouchableOpacity>
+    </View>
+  )
+
+  return (
+    <View className="flex-1 bg-gray-100">
+      <StatusBar style="dark" />
+      
+      <ScrollView className="flex-1 px-4 pt-12" showsVerticalScrollIndicator={false}>
+        {/* Header */}
+        <View className="flex-row items-center mb-6">
+          <TouchableOpacity onPress={() => router.back()} className="mr-3">
+            <Ionicons name="arrow-back" size={24} color="#374151" />
+          </TouchableOpacity>
+          <View className="flex-1">
+            <Text className="text-xl font-bold text-gray-900">Верификация</Text>
+            <Text className="text-gray-600 text-sm">Подтверждение личности</Text>
+          </View>
+        </View>
+
+        {/* Progress */}
+        <View className="flex-row mb-6">
+          <View className={`flex-1 h-1 rounded-full mx-1 ${step === 'passport' || step === 'selfie' || step === 'review' ? 'bg-blue-500' : 'bg-gray-300'}`} />
+          <View className={`flex-1 h-1 rounded-full mx-1 ${step === 'selfie' || step === 'review' ? 'bg-blue-500' : 'bg-gray-300'}`} />
+          <View className={`flex-1 h-1 rounded-full mx-1 ${step === 'review' ? 'bg-blue-500' : 'bg-gray-300'}`} />
+        </View>
+
+        {step === 'passport' && renderPassportStep()}
+        {step === 'selfie' && renderSelfieStep()}
+        {step === 'review' && renderReviewStep()}
       </ScrollView>
-    </SafeAreaView>
-  );
+    </View>
+  )
 }

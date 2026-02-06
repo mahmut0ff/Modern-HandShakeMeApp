@@ -1,6 +1,6 @@
-import api from './api';
+import { api } from './api';
 
-export type JobType = 
+export type JobType =
   | 'RATING_CALCULATION'
   | 'RECOMMENDATION_GENERATION'
   | 'DATA_EXPORT'
@@ -8,7 +8,7 @@ export type JobType =
   | 'NOTIFICATION_BATCH'
   | 'ANALYTICS_PROCESSING';
 
-export type JobStatus = 
+export type JobStatus =
   | 'PENDING'
   | 'PROCESSING'
   | 'COMPLETED'
@@ -41,58 +41,60 @@ export interface JobsResponse {
   failedCount: number;
 }
 
-class BackgroundJobsApi {
-  /**
-   * Get all background jobs for current user
-   */
-  async getJobs(params?: {
-    status?: JobStatus;
-    type?: JobType;
-    limit?: number;
-  }): Promise<JobsResponse> {
-    const response = await api.get<JobsResponse>('/workers/jobs', { params });
-    return response.data;
-  }
+export const backgroundJobsApi = api.injectEndpoints({
+  endpoints: (builder) => ({
+    getJobs: builder.query<JobsResponse, { status?: JobStatus; type?: JobType; limit?: number } | void>({
+      query: (params) => ({
+        url: '/workers/jobs',
+        params: params || {},
+      }),
+      providesTags: ['BackgroundCheck'],
+    }),
+    getJob: builder.query<BackgroundJob, string>({
+      query: (jobId) => `/workers/jobs/${jobId}`,
+      providesTags: ['BackgroundCheck'],
+    }),
+    cancelJob: builder.mutation<void, string>({
+      query: (jobId) => ({
+        url: `/workers/jobs/${jobId}/cancel`,
+        method: 'POST',
+      }),
+      invalidatesTags: ['BackgroundCheck'],
+    }),
+    retryJob: builder.mutation<BackgroundJob, string>({
+      query: (jobId) => ({
+        url: `/workers/jobs/${jobId}/retry`,
+        method: 'POST',
+      }),
+      invalidatesTags: ['BackgroundCheck'],
+    }),
+    triggerRatingCalculation: builder.mutation<BackgroundJob, void>({
+      query: () => ({
+        url: '/workers/rating-calculation/trigger',
+        method: 'POST',
+      }),
+      invalidatesTags: ['BackgroundCheck'],
+    }),
+    triggerRecommendationGeneration: builder.mutation<BackgroundJob, void>({
+      query: () => ({
+        url: '/workers/recommendations/trigger',
+        method: 'POST',
+      }),
+      invalidatesTags: ['BackgroundCheck'],
+    }),
+  }),
+});
 
-  /**
-   * Get specific job by ID
-   */
-  async getJob(jobId: string): Promise<BackgroundJob> {
-    const response = await api.get<BackgroundJob>(`/workers/jobs/${jobId}`);
-    return response.data;
-  }
+export const {
+  useGetJobsQuery,
+  useGetJobQuery,
+  useCancelJobMutation,
+  useRetryJobMutation,
+  useTriggerRatingCalculationMutation,
+  useTriggerRecommendationGenerationMutation,
+} = backgroundJobsApi;
 
-  /**
-   * Cancel a job
-   */
-  async cancelJob(jobId: string): Promise<void> {
-    await api.post(`/workers/jobs/${jobId}/cancel`);
-  }
-
-  /**
-   * Retry a failed job
-   */
-  async retryJob(jobId: string): Promise<BackgroundJob> {
-    const response = await api.post<BackgroundJob>(`/workers/jobs/${jobId}/retry`);
-    return response.data;
-  }
-
-  /**
-   * Trigger rating recalculation
-   */
-  async triggerRatingCalculation(): Promise<BackgroundJob> {
-    const response = await api.post<BackgroundJob>('/workers/rating-calculation/trigger');
-    return response.data;
-  }
-
-  /**
-   * Trigger recommendation generation
-   */
-  async triggerRecommendationGeneration(): Promise<BackgroundJob> {
-    const response = await api.post<BackgroundJob>('/workers/recommendations/trigger');
-    return response.data;
-  }
-
+class BackgroundJobsHelpers {
   /**
    * Get job type display info
    */
@@ -211,4 +213,5 @@ class BackgroundJobsApi {
   }
 }
 
-export default new BackgroundJobsApi();
+export const backgroundJobsHelpers = new BackgroundJobsHelpers();
+export default backgroundJobsHelpers;

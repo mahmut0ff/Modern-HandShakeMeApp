@@ -1,71 +1,45 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import jwt from 'jsonwebtoken';
+import type { APIGatewayProxyResult } from 'aws-lambda';
+import { success, notFound, forbidden, badRequest } from '../shared/utils/response';
+import { withAuth, AuthenticatedEvent } from '../shared/middleware/auth';
+import { withErrorHandler } from '../shared/middleware/errorHandler';
 import { ProjectRepository } from '../shared/repositories/project.repository';
 import { OrderRepository } from '../shared/repositories/order.repository';
+import { logger } from '../shared/utils/logger';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const projectRepo = new ProjectRepository();
+const orderRepo = new OrderRepository();
 
-export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
-  try {
-    const authHeader = event.headers.Authorization || event.headers.authorization;
-    if (!authHeader) {
-      return {
-        statusCode: 401,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Authorization header required' })
-      };
-    }
+async function completeProjectHandler(event: AuthenticatedEvent): Promise<APIGatewayProxyResult> {
+  const { userId } = event.auth;
+  const projectId = event.pathParameters?.id;
 
-    const token = authHeader.replace('Bearer ', '');
-    
-    // Verify token
-    let decoded: any;
-    try {
-      decoded = jwt.verify(token, JWT_SECRET);
-    } catch (error) {
-      return {
-        statusCode: 401,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Invalid or expired token' })
-      };
-    }
-
-    const projectId = event.pathParameters?.id;
-
-    if (!projectId) {
-      return { statusCode: 400, body: JSON.stringify({ error: 'Project ID required' }) };
-    }
-
-    const projectRepo = new ProjectRepository();
-    const project = await projectRepo.findById(projectId);
-
-    if (!project) {
-      return { statusCode: 404, body: JSON.stringify({ error: 'Project not found' }) };
-    }
-
-    if (project.clientId !== decoded.userId) {
-      return { statusCode: 403, body: JSON.stringify({ error: 'Only client can complete project' }) };
-    }
-
-    const updated = await projectRepo.update(projectId, {
-      status: 'COMPLETED',
-      progress: 100,
-      completedAt: new Date().toISOString(),
-    });
-
-    // Update order status
-    const orderRepo = new OrderRepository();
-    await orderRepo.update(project.orderId, { status: 'COMPLETED' });
-
-    return {
-      statusCode: 200,
-      body: JSON.stringify(updated),
-    };
-  } catch (error: any) {
-    console.error('Complete project error:', error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: error.message }),
-    };
+  if (!projectId) {
+    return badRequest('Project ID required');
   }
+
+  logger.info('Complete project request', { userId, projectId });
+
+  const project = await projectRepo.findById(projectId);
+
+  if (!project) {
+    return notFound('Project not found');
+  }
+
+  if (project.clientId !== userId) {
+    return forbidden('Only client can complete project');
+  }
+
+  const updated = await projectRepo.update(projectId, {
+    status: 'COMPLETED',
+    progress: 100,
+    completedAt: new Date().toISOString(),
+  });
+
+  await orderRepo.update(project.orderId, { status: 'COMPLETED' });
+
+  logger.info('Project completed', { userId, projectId });
+
+  return success(updated);
 }
+
+export const handler = withErrorHandler(withAuth(completeProjectHandler, { roles: ['CLIENT'] }));

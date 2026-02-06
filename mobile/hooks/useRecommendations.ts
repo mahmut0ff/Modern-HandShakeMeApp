@@ -1,8 +1,9 @@
-import { useState, useCallback, useEffect } from 'react';
-import recommendationsApi, {
+import { useState, useCallback, useMemo } from 'react';
+import {
   RecommendedOrder,
   RecommendationStats,
   MasterProfileSummary,
+  useGetRecommendedOrdersQuery,
 } from '../services/recommendationsApi';
 
 interface UseRecommendationsOptions {
@@ -14,43 +15,27 @@ interface UseRecommendationsOptions {
 export const useRecommendations = (options: UseRecommendationsOptions = {}) => {
   const { autoLoad = true, limit = 50, includeReasons = true } = options;
 
-  const [recommendations, setRecommendations] = useState<RecommendedOrder[]>([]);
-  const [stats, setStats] = useState<RecommendationStats | null>(null);
-  const [masterProfile, setMasterProfile] = useState<MasterProfileSummary | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const {
+    data,
+    isLoading: loading,
+    error: queryError,
+    refetch,
+    isSuccess
+  } = useGetRecommendedOrdersQuery({ limit, includeReasons }, { skip: !autoLoad });
 
-  /**
-   * Load recommendations
-   */
-  const loadRecommendations = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const recommendations = useMemo(() => data?.recommendations || [], [data]);
+  const stats = useMemo(() => data?.stats || null, [data]);
+  const masterProfile = useMemo(() => data?.masterProfile || null, [data]);
 
-    try {
-      const response = await recommendationsApi.getRecommendedOrders({
-        limit,
-        includeReasons,
-      });
-
-      setRecommendations(response.recommendations);
-      setStats(response.stats);
-      setMasterProfile(response.masterProfile);
-      setLastUpdated(new Date());
-    } catch (err: any) {
-      setError(err.message || 'Не удалось загрузить рекомендации');
-    } finally {
-      setLoading(false);
-    }
-  }, [limit, includeReasons]);
+  const error = queryError ? 'Не удалось загрузить рекомендации' : null;
+  const lastUpdated = useMemo(() => isSuccess ? new Date() : null, [isSuccess, data]);
 
   /**
    * Refresh recommendations
    */
   const refresh = useCallback(async () => {
-    await loadRecommendations();
-  }, [loadRecommendations]);
+    await refetch();
+  }, [refetch]);
 
   /**
    * Filter recommendations by score
@@ -158,13 +143,6 @@ export const useRecommendations = (options: UseRecommendationsOptions = {}) => {
     return Date.now() - lastUpdated.getTime() > thirtyMinutes;
   }, [lastUpdated]);
 
-  // Auto-load on mount if enabled
-  useEffect(() => {
-    if (autoLoad) {
-      loadRecommendations();
-    }
-  }, [autoLoad, loadRecommendations]);
-
   return {
     recommendations,
     stats,
@@ -172,7 +150,7 @@ export const useRecommendations = (options: UseRecommendationsOptions = {}) => {
     loading,
     error,
     lastUpdated,
-    loadRecommendations,
+    loadRecommendations: refresh, // Alias for compatibility
     refresh,
     filterByScore,
     getByCategory,

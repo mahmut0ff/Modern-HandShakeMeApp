@@ -1,7 +1,6 @@
 // Upload verification documents Lambda function
 
 import type { APIGatewayProxyResult } from 'aws-lambda';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { success, badRequest, forbidden } from '../shared/utils/response';
 import { withAuth, AuthenticatedEvent } from '../shared/middleware/auth';
 import { withErrorHandler } from '../shared/middleware/errorHandler';
@@ -10,12 +9,22 @@ import { logger } from '../shared/utils/logger';
 import { VerificationRepository } from '../shared/repositories/verification.repository';
 import { UserRepository } from '../shared/repositories/user.repository';
 import { z } from 'zod';
+import * as fs from 'fs';
+import * as path from 'path';
 
-const s3Client = new S3Client({
-  region: process.env.AWS_REGION || 'us-east-1'
-});
+// S3 client - only used in production
+let s3Client: any = null;
+const isLocalDev = process.env.NODE_ENV === 'development' || !process.env.S3_BUCKET_NAME;
+
+if (!isLocalDev) {
+  const { S3Client } = require('@aws-sdk/client-s3');
+  s3Client = new S3Client({
+    region: process.env.AWS_REGION || 'us-east-1'
+  });
+}
 
 const BUCKET_NAME = process.env.S3_BUCKET_NAME || 'handshake-uploads';
+const UPLOAD_PATH = process.env.UPLOAD_PATH || './uploads';
 
 const uploadDocumentsSchema = z.object({
   document_type: z.enum(['PASSPORT', 'ID_CARD', 'DRIVER_LICENSE', 'CERTIFICATE', 'DIPLOMA', 'OTHER']),
@@ -43,16 +52,35 @@ async function uploadDocumentsHandler(
     return forbidden('User not found');
   }
   
-  // Parse base64 encoded body
+  // Parse base64 encoded body or multipart form data
   if (!event.body) {
     return badRequest('No file provided');
   }
   
   let fileBuffer: Buffer;
   try {
-    fileBuffer = event.isBase64Encoded 
-      ? Buffer.from(event.body, 'base64')
-      : Buffer.from(event.body, 'utf-8');
+    // Check if it's multipart form data
+    const contentType = event.headers['content-type'] || event.headers['Content-Type'] || '';
+    
+    if (contentType.includes('multipart/form-data')) {
+      // For multipart, the body might already be processed by local server
+      // Try to extract file from parsed body
+      const body = typeof event.body === 'string' ? JSON.parse(event.body) : event.body;
+      if (body.fileBuffer) {
+        fileBuffer = Buffer.from(body.fileBuffer, 'base64');
+      } else if (body.file) {
+        fileBuffer = Buffer.from(body.file, 'base64');
+      } else {
+        // Fallback: treat body as base64
+        fileBuffer = event.isBase64Encoded 
+          ? Buffer.from(event.body, 'base64')
+          : Buffer.from(event.body, 'utf-8');
+      }
+    } else {
+      fileBuffer = event.isBase64Encoded 
+        ? Buffer.from(event.body, 'base64')
+        : Buffer.from(event.body, 'utf-8');
+    }
   } catch (error: any) {
     logger.error('Failed to parse file data', error);
     return badRequest('Invalid file data');
@@ -71,45 +99,60 @@ async function uploadDocumentsHandler(
   // Parse query parameters for document metadata
   const queryParams = event.queryStringParameters || {};
   const metadataResult = uploadDocumentsSchema.safeParse({
-    document_type: queryParams.document_type?.toUpperCase(),
+    document_type: queryParams.document_type?.toUpperCase() || 'OTHER',
     document_number: queryParams.document_number,
     description: queryParams.description
   });
   
   if (!metadataResult.success) {
-    return badRequest('Invalid document metadata');
+    return badRequest('Invalid document metadata: ' + metadataResult.error.message);
   }
   
   const metadata = metadataResult.data;
   
-  // Validate file type
-  const contentType = event.headers['content-type'] || event.headers['Content-Type'] || 'application/pdf';
-  const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-  
-  if (!allowedTypes.some(type => contentType.includes(type))) {
-    return badRequest('Invalid file type. Only PDF and image files are allowed.');
-  }
-  
-  // Upload document to S3
+  // Determine file extension from content or default to jpg
+  const contentType = event.headers['content-type'] || event.headers['Content-Type'] || 'image/jpeg';
   const fileExtension = getFileExtension(contentType);
   const fileName = `${Date.now()}_${metadata.document_type.toLowerCase()}${fileExtension}`;
-  const key = `verification/${userId}/${fileName}`;
+  
+  let fileUrl: string;
   
   try {
-    await s3Client.send(new PutObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: key,
-      Body: fileBuffer,
-      ContentType: contentType,
-      Metadata: {
-        userId,
-        documentType: metadata.document_type,
-        documentNumber: metadata.document_number || '',
-        uploadedAt: new Date().toISOString()
+    if (isLocalDev) {
+      // Local development: save to filesystem
+      const uploadsDir = path.join(UPLOAD_PATH, 'verification', userId);
+      
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
       }
-    }));
-    
-    const fileUrl = `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${key}`;
+      
+      const filePath = path.join(uploadsDir, fileName);
+      fs.writeFileSync(filePath, fileBuffer);
+      
+      // Return local URL
+      fileUrl = `/uploads/verification/${userId}/${fileName}`;
+      
+      logger.info('Document saved locally', { filePath, fileUrl });
+    } else {
+      // Production: upload to S3
+      const { PutObjectCommand } = require('@aws-sdk/client-s3');
+      const key = `verification/${userId}/${fileName}`;
+      
+      await s3Client.send(new PutObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: key,
+        Body: fileBuffer,
+        ContentType: contentType,
+        Metadata: {
+          userId,
+          documentType: metadata.document_type,
+          documentNumber: metadata.document_number || '',
+          uploadedAt: new Date().toISOString()
+        }
+      }));
+      
+      fileUrl = `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${key}`;
+    }
     
     const verificationRepository = new VerificationRepository();
     
@@ -147,24 +190,16 @@ async function uploadDocumentsHandler(
     return success(response);
   } catch (error: any) {
     logger.error('Document upload failed', error);
-    return badRequest('Failed to upload document to S3');
+    return badRequest('Failed to upload document: ' + error.message);
   }
 }
 
 function getFileExtension(contentType: string): string {
-  switch (contentType) {
-    case 'application/pdf':
-      return '.pdf';
-    case 'image/jpeg':
-    case 'image/jpg':
-      return '.jpg';
-    case 'image/png':
-      return '.png';
-    case 'image/webp':
-      return '.webp';
-    default:
-      return '.pdf';
-  }
+  if (contentType.includes('pdf')) return '.pdf';
+  if (contentType.includes('png')) return '.png';
+  if (contentType.includes('webp')) return '.webp';
+  if (contentType.includes('jpeg') || contentType.includes('jpg')) return '.jpg';
+  return '.jpg'; // Default to jpg for images
 }
 
 export const handler = withErrorHandler(

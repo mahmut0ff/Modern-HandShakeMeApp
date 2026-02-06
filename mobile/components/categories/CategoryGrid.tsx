@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, FlatList } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useListCategoriesQuery, Category } from '../../services/categoryApi';
-import LoadingSpinner from '../LoadingSpinner';
+import { LoadingSpinner } from '../LoadingSpinner';
 
 interface CategoryGridProps {
   onCategoryPress?: (category: Category) => void;

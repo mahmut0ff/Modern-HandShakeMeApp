@@ -86,11 +86,12 @@ export const FileProcessingScreen: React.FC<FileProcessingScreenProps> = ({ orde
       copyToCacheDirectory: true,
     });
 
-    if (result.type === 'success') {
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      const asset = result.assets[0];
       await uploadFile({
-        uri: result.uri,
-        name: result.name,
-        type: result.mimeType || 'application/octet-stream',
+        uri: asset.uri,
+        name: asset.name,
+        type: asset.mimeType || 'application/octet-stream',
       });
     }
   };

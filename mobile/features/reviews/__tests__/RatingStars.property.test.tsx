@@ -18,23 +18,23 @@ describe('RatingStars - Property-Based Tests', () => {
    */
   it('Property 1: Rating Range Validation - rating must be 1-5', () => {
     fc.assert(
-      fc.property(fc.integer(), (rating) => {
+      fc.property(fc.integer(), (rating: number) => {
         const isValidRange = rating >= 1 && rating <= 5;
-        
+
         // Test that component renders without crashing for any integer
         const { UNSAFE_root } = render(
           <RatingStars rating={rating} />
         );
-        
+
         expect(UNSAFE_root).toBeTruthy();
-        
+
         // For valid ratings, verify the component displays correctly
         if (isValidRange) {
           // Component should render 5 stars
           const stars = UNSAFE_root.findAllByType('View');
           expect(stars.length).toBeGreaterThan(0);
         }
-        
+
         return true;
       }),
       { numRuns: 100 }
@@ -51,18 +51,18 @@ describe('RatingStars - Property-Based Tests', () => {
       fc.property(
         fc.integer({ min: 1, max: 5 }),
         fc.constantFrom(0, 0.5, 1),
-        (whole, decimal) => {
+        (whole: number, decimal: number) => {
           const rating = whole + (decimal === 1 ? 0 : decimal);
-          
+
           // Ensure rating doesn't exceed 5
           const finalRating = Math.min(rating, 5);
-          
+
           const { UNSAFE_root } = render(
             <RatingStars rating={finalRating} />
           );
-          
+
           expect(UNSAFE_root).toBeTruthy();
-          
+
           return true;
         }
       ),
@@ -79,19 +79,19 @@ describe('RatingStars - Property-Based Tests', () => {
     fc.assert(
       fc.property(
         fc.integer({ min: 1, max: 5 }),
-        (initialRating) => {
+        (initialRating: number) => {
           const onChange = jest.fn();
-          
+
           const { UNSAFE_root } = render(
-            <RatingStars 
-              rating={initialRating} 
+            <RatingStars
+              rating={initialRating}
               interactive={true}
               onChange={onChange}
             />
           );
-          
+
           expect(UNSAFE_root).toBeTruthy();
-          
+
           // Component should render without errors
           return true;
         }

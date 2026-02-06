@@ -1,38 +1,52 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, TextInput, Alert, Image, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { useAppSelector } from '../../hooks/redux';
+import { 
+  useGetMyMasterProfileQuery, 
+  useUpdateMasterProfileMutation 
+} from '../../services/profileApi';
+import { useUploadAvatarMutation, useDeleteAvatarMutation } from '../../services/authApi';
+import { LoadingSpinner } from '../../components/LoadingSpinner';
 
 export default function EditMasterProfilePage() {
   const { user } = useAppSelector((state) => state.auth);
   const [loading, setLoading] = useState(false);
+  
+  // API hooks
+  const { data: profile, isLoading: profileLoading } = useGetMyMasterProfileQuery();
+  const [updateProfile] = useUpdateMasterProfileMutation();
+  const [uploadAvatar] = useUploadAvatarMutation();
+  const [deleteAvatar] = useDeleteAvatarMutation();
+  
   const [formData, setFormData] = useState({
     // Basic info
-    first_name: user?.firstName || '',
-    last_name: user?.lastName || '',
-    phone: user?.phone || '',
+    first_name: '',
+    last_name: '',
+    phone: '',
     
     // Professional info
-    company_name: 'ИП Мастер Сервис',
-    description: 'Профессиональный мастер с опытом работы более 10 лет. Выполняю качественные работы в срок.',
-    experience_years: '10',
+    company_name: '',
+    description: '',
+    experience_years: '',
     
     // Location
-    city: 'Бишкек',
-    address: 'ул. Примерная, д. 15',
-    travel_radius: '25',
+    city: '',
+    address: '',
+    travel_radius: '',
     
     // Work conditions
-    has_transport: true,
-    has_tools: true,
+    has_transport: false,
+    has_tools: false,
     can_purchase_materials: false,
     
     // Rates
-    hourly_rate: '1500',
-    daily_rate: '12000',
-    min_order_cost: '3000',
+    hourly_rate: '',
+    daily_rate: '',
+    min_order_cost: '',
     
     // Working hours
     working_hours: {
@@ -46,9 +60,43 @@ export default function EditMasterProfilePage() {
     },
     
     // Categories and skills
-    categories: ['Сантехника', 'Электрика', 'Мелкий ремонт'],
-    skills: ['Установка смесителей', 'Замена труб', 'Монтаж розеток'],
+    categories: [] as string[],
+    skills: [] as string[],
   });
+
+  // Initialize form data from profile
+  useEffect(() => {
+    if (profile) {
+      setFormData({
+        first_name: profile.user?.first_name || user?.firstName || '',
+        last_name: profile.user?.last_name || user?.lastName || '',
+        phone: profile.user?.phone || user?.phone || '',
+        company_name: profile.company_name || '',
+        description: profile.bio || '',
+        experience_years: profile.experience_years?.toString() || '',
+        city: profile.city || '',
+        address: profile.address || '',
+        travel_radius: profile.work_radius?.toString() || '',
+        has_transport: profile.has_transport || false,
+        has_tools: profile.has_tools || false,
+        can_purchase_materials: false,
+        hourly_rate: profile.hourly_rate || '',
+        daily_rate: '',
+        min_order_cost: profile.min_order_amount || '',
+        working_hours: profile.work_schedule ? JSON.parse(profile.work_schedule) : {
+          mon: '09:00-18:00',
+          tue: '09:00-18:00',
+          wed: '09:00-18:00',
+          thu: '09:00-18:00',
+          fri: '09:00-18:00',
+          sat: '10:00-16:00',
+          sun: 'Выходной'
+        },
+        categories: profile.categories_list?.map(c => c.name) || [],
+        skills: profile.skills_list?.map(s => s.name) || [],
+      });
+    }
+  }, [profile, user]);
 
   const availableCategories = [
     'Сантехника', 'Электрика', 'Ремонт', 'Отделка', 'Мебель', 
@@ -85,12 +133,31 @@ export default function EditMasterProfilePage() {
 
     setLoading(true);
     try {
-      // TODO: Implement API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await updateProfile({
+        first_name: formData.first_name,
+        last_name: formData.last_name,
+        company_name: formData.company_name,
+        description: formData.description,
+        experience_years: formData.experience_years,
+        city: formData.city,
+        address: formData.address,
+        travel_radius: formData.travel_radius,
+        has_transport: formData.has_transport,
+        has_tools: formData.has_tools,
+        can_purchase_materials: formData.can_purchase_materials,
+        hourly_rate: formData.hourly_rate,
+        daily_rate: formData.daily_rate,
+        min_order_cost: formData.min_order_cost,
+        working_hours: formData.working_hours,
+        categories: formData.categories,
+        skills: formData.skills,
+      }).unwrap();
+      
       Alert.alert('Успех', 'Профиль обновлён!');
       router.back();
-    } catch (error) {
-      Alert.alert('Ошибка', 'Не удалось обновить профиль');
+    } catch (error: any) {
+      console.error('Update profile error:', error);
+      Alert.alert('Ошибка', error.data?.message || 'Не удалось обновить профиль');
     } finally {
       setLoading(false);
     }
@@ -102,9 +169,80 @@ export default function EditMasterProfilePage() {
       'Выберите действие',
       [
         { text: 'Отмена', style: 'cancel' },
-        { text: 'Выбрать из галереи', onPress: () => {/* TODO: Open image picker */} },
-        { text: 'Сделать фото', onPress: () => {/* TODO: Open camera */} },
-        { text: 'Удалить фото', style: 'destructive', onPress: () => {/* TODO: Delete avatar */} },
+        { 
+          text: 'Выбрать из галереи', 
+          onPress: async () => {
+            try {
+              const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.8,
+              });
+              
+              if (!result.canceled && result.assets[0]) {
+                const formData = new FormData();
+                formData.append('avatar', {
+                  uri: result.assets[0].uri,
+                  type: 'image/jpeg',
+                  name: 'avatar.jpg',
+                } as any);
+                
+                await uploadAvatar(formData).unwrap();
+                Alert.alert('Успех', 'Фото профиля обновлено');
+              }
+            } catch (error: any) {
+              console.error('Avatar upload error:', error);
+              Alert.alert('Ошибка', 'Не удалось загрузить фото');
+            }
+          }
+        },
+        { 
+          text: 'Сделать фото', 
+          onPress: async () => {
+            try {
+              const { status } = await ImagePicker.requestCameraPermissionsAsync();
+              if (status !== 'granted') {
+                Alert.alert('Ошибка', 'Нужен доступ к камере');
+                return;
+              }
+              
+              const result = await ImagePicker.launchCameraAsync({
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.8,
+              });
+              
+              if (!result.canceled && result.assets[0]) {
+                const formData = new FormData();
+                formData.append('avatar', {
+                  uri: result.assets[0].uri,
+                  type: 'image/jpeg',
+                  name: 'avatar.jpg',
+                } as any);
+                
+                await uploadAvatar(formData).unwrap();
+                Alert.alert('Успех', 'Фото профиля обновлено');
+              }
+            } catch (error: any) {
+              console.error('Camera error:', error);
+              Alert.alert('Ошибка', 'Не удалось сделать фото');
+            }
+          }
+        },
+        { 
+          text: 'Удалить фото', 
+          style: 'destructive', 
+          onPress: async () => {
+            try {
+              await deleteAvatar().unwrap();
+              Alert.alert('Успех', 'Фото профиля удалено');
+            } catch (error: any) {
+              console.error('Delete avatar error:', error);
+              Alert.alert('Ошибка', 'Не удалось удалить фото');
+            }
+          }
+        },
       ]
     );
   };
@@ -126,6 +264,10 @@ export default function EditMasterProfilePage() {
         : [...prev.skills, skill]
     }));
   };
+
+  if (profileLoading) {
+    return <LoadingSpinner fullScreen text="Загрузка профиля..." />;
+  }
 
   return (
     <SafeAreaView className="flex-1 bg-[#F8F7FC]">

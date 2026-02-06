@@ -10,9 +10,9 @@ import {
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useGetCategorySkillsQuery } from '../../services/categoryApi';
-import LoadingSpinner from '../../components/LoadingSpinner';
-import ErrorMessage from '../../components/ErrorMessage';
-import EmptyState from '../../components/EmptyState';
+import { LoadingSpinner } from '../../components/LoadingSpinner';
+import { ErrorMessage } from '../../components/ErrorMessage';
+import { EmptyState } from '../../components/EmptyState';
 
 export default function CategoryDetailScreen() {
   const { categoryId } = useLocalSearchParams<{ categoryId: string }>();
@@ -24,7 +24,9 @@ export default function CategoryDetailScreen() {
     isLoading,
     error,
     refetch,
-  } = useGetCategorySkillsQuery(categoryId);
+  } = useGetCategorySkillsQuery(categoryId ? Number(categoryId) : 0, {
+    skip: !categoryId,
+  });
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -41,13 +43,13 @@ export default function CategoryDetailScreen() {
   }
 
   if (!categoryData) {
-    return <EmptyState icon="apps-outline" title="Категория не найдена" />;
+    return <EmptyState icon="apps-outline" title="Категория не найдена" description="" />;
   }
 
   const filteredSkills = searchQuery.trim()
     ? categoryData.skills.filter((skill) =>
-        skill.name.toLowerCase().includes(searchQuery.toLowerCase())
-      )
+      skill.name.toLowerCase().includes(searchQuery.toLowerCase())
+    )
     : categoryData.skills;
 
   return (
@@ -94,7 +96,7 @@ export default function CategoryDetailScreen() {
             <EmptyState
               icon="search-outline"
               title="Навыки не найдены"
-              message={
+              description={
                 searchQuery
                   ? 'Попробуйте изменить поисковый запрос'
                   : 'В этой категории пока нет навыков'

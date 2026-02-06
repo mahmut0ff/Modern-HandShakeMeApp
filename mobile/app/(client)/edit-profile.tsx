@@ -1,21 +1,49 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, TextInput, Alert, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { useAppSelector } from '../../hooks/redux';
+import { 
+  useGetMyClientProfileQuery, 
+  useUpdateClientProfileMutation 
+} from '../../services/profileApi';
+import { useUploadAvatarMutation, useDeleteAvatarMutation } from '../../services/authApi';
+import { LoadingSpinner } from '../../components/LoadingSpinner';
 
 export default function EditClientProfilePage() {
   const { user } = useAppSelector((state) => state.auth);
   const [loading, setLoading] = useState(false);
+  
+  // API hooks
+  const { data: profile, isLoading: profileLoading } = useGetMyClientProfileQuery();
+  const [updateProfile] = useUpdateClientProfileMutation();
+  const [uploadAvatar] = useUploadAvatarMutation();
+  const [deleteAvatar] = useDeleteAvatarMutation();
+  
   const [formData, setFormData] = useState({
-    first_name: user?.firstName || '',
-    last_name: user?.lastName || '',
-    phone: user?.phone || '',
+    first_name: '',
+    last_name: '',
+    phone: '',
     city: '',
     address: '',
     about: '',
   });
+
+  // Initialize form data from profile
+  useEffect(() => {
+    if (profile) {
+      setFormData({
+        first_name: profile.user?.first_name || user?.firstName || '',
+        last_name: profile.user?.last_name || user?.lastName || '',
+        phone: profile.user?.phone || user?.phone || '',
+        city: profile.city || '',
+        address: profile.address || '',
+        about: profile.bio || '',
+      });
+    }
+  }, [profile, user]);
 
   const handleSave = async () => {
     if (!formData.first_name.trim() || !formData.last_name.trim()) {
@@ -25,12 +53,19 @@ export default function EditClientProfilePage() {
 
     setLoading(true);
     try {
-      // TODO: Implement API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await updateProfile({
+        first_name: formData.first_name,
+        last_name: formData.last_name,
+        city: formData.city,
+        address: formData.address,
+        about: formData.about,
+      }).unwrap();
+      
       Alert.alert('Успех', 'Профиль обновлён!');
       router.back();
-    } catch (error) {
-      Alert.alert('Ошибка', 'Не удалось обновить профиль');
+    } catch (error: any) {
+      console.error('Update profile error:', error);
+      Alert.alert('Ошибка', error.data?.message || 'Не удалось обновить профиль');
     } finally {
       setLoading(false);
     }
@@ -42,12 +77,87 @@ export default function EditClientProfilePage() {
       'Выберите действие',
       [
         { text: 'Отмена', style: 'cancel' },
-        { text: 'Выбрать из галереи', onPress: () => {/* TODO: Open image picker */} },
-        { text: 'Сделать фото', onPress: () => {/* TODO: Open camera */} },
-        { text: 'Удалить фото', style: 'destructive', onPress: () => {/* TODO: Delete avatar */} },
+        { 
+          text: 'Выбрать из галереи', 
+          onPress: async () => {
+            try {
+              const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.8,
+              });
+              
+              if (!result.canceled && result.assets[0]) {
+                const formData = new FormData();
+                formData.append('avatar', {
+                  uri: result.assets[0].uri,
+                  type: 'image/jpeg',
+                  name: 'avatar.jpg',
+                } as any);
+                
+                await uploadAvatar(formData).unwrap();
+                Alert.alert('Успех', 'Фото профиля обновлено');
+              }
+            } catch (error: any) {
+              console.error('Avatar upload error:', error);
+              Alert.alert('Ошибка', 'Не удалось загрузить фото');
+            }
+          }
+        },
+        { 
+          text: 'Сделать фото', 
+          onPress: async () => {
+            try {
+              const { status } = await ImagePicker.requestCameraPermissionsAsync();
+              if (status !== 'granted') {
+                Alert.alert('Ошибка', 'Нужен доступ к камере');
+                return;
+              }
+              
+              const result = await ImagePicker.launchCameraAsync({
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.8,
+              });
+              
+              if (!result.canceled && result.assets[0]) {
+                const formData = new FormData();
+                formData.append('avatar', {
+                  uri: result.assets[0].uri,
+                  type: 'image/jpeg',
+                  name: 'avatar.jpg',
+                } as any);
+                
+                await uploadAvatar(formData).unwrap();
+                Alert.alert('Успех', 'Фото профиля обновлено');
+              }
+            } catch (error: any) {
+              console.error('Camera error:', error);
+              Alert.alert('Ошибка', 'Не удалось сделать фото');
+            }
+          }
+        },
+        { 
+          text: 'Удалить фото', 
+          style: 'destructive', 
+          onPress: async () => {
+            try {
+              await deleteAvatar().unwrap();
+              Alert.alert('Успех', 'Фото профиля удалено');
+            } catch (error: any) {
+              console.error('Delete avatar error:', error);
+              Alert.alert('Ошибка', 'Не удалось удалить фото');
+            }
+          }
+        },
       ]
     );
   };
+
+  if (profileLoading) {
+    return <LoadingSpinner fullScreen text="Загрузка профиля..." />;
+  }
 
   return (
     <SafeAreaView className="flex-1 bg-[#F8F7FC]">

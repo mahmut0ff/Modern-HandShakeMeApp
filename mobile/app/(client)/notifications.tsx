@@ -3,13 +3,14 @@ import { View, Text, ScrollView, TouchableOpacity, FlatList, Switch, ActivityInd
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { 
-  useGetNotificationsQuery, 
+import {
+  useGetNotificationsQuery,
   useMarkNotificationReadMutation,
   useMarkAllNotificationsReadMutation,
   useGetNotificationSettingsQuery,
   useUpdateNotificationSettingsMutation,
-  useGetUnreadCountQuery
+  useGetUnreadCountQuery,
+  Notification as ApiNotification
 } from '../../services/notificationApi';
 
 export default function NotificationsPage() {
@@ -54,7 +55,7 @@ export default function NotificationsPage() {
     }
   };
 
-  const handleNotificationClick = async (notification: typeof notifications[0]) => {
+  const handleNotificationClick = async (notification: ApiNotification) => {
     // Mark as read
     if (!notification.is_read) {
       try {
@@ -113,11 +114,11 @@ export default function NotificationsPage() {
   };
 
   const groupedNotifications = useMemo(() => {
-    const filtered = filterTab === 'unread' 
+    const filtered = filterTab === 'unread'
       ? notifications.filter(n => !n.is_read)
       : notifications;
 
-    const groups: Record<string, Notification[]> = {
+    const groups: Record<string, ApiNotification[]> = {
       today: [],
       yesterday: [],
       thisWeek: [],
@@ -149,19 +150,18 @@ export default function NotificationsPage() {
     return groups;
   }, [notifications, filterTab]);
 
-  const NotificationItem = ({ notification }: { notification: typeof notifications[0] }) => (
+  const NotificationItem = ({ notification }: { notification: ApiNotification }) => (
     <TouchableOpacity
       onPress={() => handleNotificationClick(notification)}
       className={`p-4 rounded-2xl mb-2 ${!notification.is_read ? 'bg-[#0165FB]/5' : 'bg-white'}`}
     >
       <View className="flex-row items-start gap-3">
-        <View className={`w-12 h-12 rounded-2xl items-center justify-center ${
-          notificationColors[notification.notification_type] || 'bg-gray-500'
-        }`}>
-          <Ionicons 
-            name={notificationIcons[notification.notification_type] || 'notifications'} 
-            size={20} 
-            color="white" 
+        <View className={`w-12 h-12 rounded-2xl items-center justify-center ${notificationColors[notification.notification_type] || 'bg-gray-500'
+          }`}>
+          <Ionicons
+            name={notificationIcons[notification.notification_type] || 'notifications'}
+            size={20}
+            color="white"
           />
         </View>
         <View className="flex-1 min-w-0">
@@ -266,23 +266,20 @@ export default function NotificationsPage() {
         <View className="flex-row gap-2 mb-4 mt-4">
           <TouchableOpacity
             onPress={() => setActiveTab('all')}
-            className={`flex-1 flex-row items-center justify-center gap-2 py-3 rounded-2xl ${
-              activeTab === 'all'
-                ? 'bg-[#0165FB] shadow-lg'
-                : 'bg-white border border-gray-100'
-            }`}
+            className={`flex-1 flex-row items-center justify-center gap-2 py-3 rounded-2xl ${activeTab === 'all'
+              ? 'bg-[#0165FB] shadow-lg'
+              : 'bg-white border border-gray-100'
+              }`}
           >
             <Ionicons name="notifications" size={16} color={activeTab === 'all' ? 'white' : '#6B7280'} />
             <Text className={`font-medium ${activeTab === 'all' ? 'text-white' : 'text-gray-600'}`}>
               Все
             </Text>
             {unreadCount > 0 && (
-              <View className={`px-2 py-0.5 rounded-full ${
-                activeTab === 'all' ? 'bg-white/20' : 'bg-[#0165FB]/10'
-              }`}>
-                <Text className={`text-xs font-bold ${
-                  activeTab === 'all' ? 'text-white' : 'text-[#0165FB]'
+              <View className={`px-2 py-0.5 rounded-full ${activeTab === 'all' ? 'bg-white/20' : 'bg-[#0165FB]/10'
                 }`}>
+                <Text className={`text-xs font-bold ${activeTab === 'all' ? 'text-white' : 'text-[#0165FB]'
+                  }`}>
                   {unreadCount}
                 </Text>
               </View>
@@ -290,11 +287,10 @@ export default function NotificationsPage() {
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => setActiveTab('settings')}
-            className={`flex-1 flex-row items-center justify-center gap-2 py-3 rounded-2xl ${
-              activeTab === 'settings'
-                ? 'bg-[#0165FB] shadow-lg'
-                : 'bg-white border border-gray-100'
-            }`}
+            className={`flex-1 flex-row items-center justify-center gap-2 py-3 rounded-2xl ${activeTab === 'settings'
+              ? 'bg-[#0165FB] shadow-lg'
+              : 'bg-white border border-gray-100'
+              }`}
           >
             <Ionicons name="settings" size={16} color={activeTab === 'settings' ? 'white' : '#6B7280'} />
             <Text className={`font-medium ${activeTab === 'settings' ? 'text-white' : 'text-gray-600'}`}>
@@ -311,25 +307,21 @@ export default function NotificationsPage() {
           <View className="flex-row bg-gray-100 p-0.5 rounded-xl mb-4 mt-4">
             <TouchableOpacity
               onPress={() => setFilterTab('all')}
-              className={`flex-1 py-1.5 px-3 rounded-lg ${
-                filterTab === 'all' ? 'bg-white shadow-sm' : ''
-              }`}
+              className={`flex-1 py-1.5 px-3 rounded-lg ${filterTab === 'all' ? 'bg-white shadow-sm' : ''
+                }`}
             >
-              <Text className={`text-xs font-medium text-center ${
-                filterTab === 'all' ? 'text-gray-900' : 'text-gray-500'
-              }`}>
+              <Text className={`text-xs font-medium text-center ${filterTab === 'all' ? 'text-gray-900' : 'text-gray-500'
+                }`}>
                 Все
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => setFilterTab('unread')}
-              className={`flex-1 py-1.5 px-3 rounded-lg ${
-                filterTab === 'unread' ? 'bg-white shadow-sm' : ''
-              }`}
+              className={`flex-1 py-1.5 px-3 rounded-lg ${filterTab === 'unread' ? 'bg-white shadow-sm' : ''
+                }`}
             >
-              <Text className={`text-xs font-medium text-center ${
-                filterTab === 'unread' ? 'text-gray-900' : 'text-gray-500'
-              }`}>
+              <Text className={`text-xs font-medium text-center ${filterTab === 'unread' ? 'text-gray-900' : 'text-gray-500'
+                }`}>
                 Непрочитанные
                 {unreadCount > 0 && (
                   <Text className="text-[#0165FB]"> ({unreadCount})</Text>

@@ -54,18 +54,18 @@ export const servicesApi = api.injectEndpoints({
   endpoints: (builder) => ({
     // Master services
     getMyServices: builder.query<Service[], void>({
-      query: () => '/masters/me/services',
+      query: () => '/services/my',
       providesTags: ['Service'],
     }),
 
     getMasterServices: builder.query<Service[], number>({
-      query: (masterId) => `/masters/${masterId}/services`,
+      query: (masterId) => `/services?masterId=${masterId}`,
       providesTags: ['Service'],
     }),
 
     createService: builder.mutation<Service, ServiceCreateData>({
       query: (data) => ({
-        url: '/masters/me/services',
+        url: '/services',
         method: 'POST',
         body: data,
       }),
@@ -74,8 +74,8 @@ export const servicesApi = api.injectEndpoints({
 
     updateService: builder.mutation<Service, { id: number; data: ServiceUpdateData }>({
       query: ({ id, data }) => ({
-        url: `/masters/me/services/${id}`,
-        method: 'PATCH',
+        url: `/services/${id}`,
+        method: 'PUT',
         body: data,
       }),
       invalidatesTags: ['Service'],
@@ -83,37 +83,40 @@ export const servicesApi = api.injectEndpoints({
 
     deleteService: builder.mutation<void, number>({
       query: (id) => ({
-        url: `/masters/me/services/${id}`,
+        url: `/services/${id}`,
         method: 'DELETE',
       }),
       invalidatesTags: ['Service'],
     }),
 
+    // Toggle service status - use PUT /services/:serviceId with is_active field
     toggleServiceStatus: builder.mutation<Service, number>({
       query: (id) => ({
-        url: `/masters/me/services/${id}/toggle-status`,
-        method: 'POST',
+        url: `/services/${id}`,
+        method: 'PUT',
+        body: { toggle_status: true },
       }),
       invalidatesTags: ['Service'],
     }),
 
+    // Reorder services - use PUT /services/:serviceId with order_num field
     reorderServices: builder.mutation<Service[], { service_ids: number[] }>({
       query: (data) => ({
-        url: '/masters/me/services/reorder',
-        method: 'POST',
-        body: data,
+        url: '/services',
+        method: 'PUT',
+        body: { reorder: data.service_ids },
       }),
       invalidatesTags: ['Service'],
     }),
 
-    // Service categories
+    // Service categories - Backend routes: GET /categories, GET /categories/:categoryId/skills
     getServiceCategories: builder.query<ServiceCategory[], void>({
-      query: () => '/service-categories',
+      query: () => '/categories',
       providesTags: ['ServiceCategory'],
     }),
 
     getServiceCategory: builder.query<ServiceCategory, number>({
-      query: (id) => `/service-categories/${id}`,
+      query: (id) => `/categories/${id}/skills`,
       providesTags: ['ServiceCategory'],
     }),
 

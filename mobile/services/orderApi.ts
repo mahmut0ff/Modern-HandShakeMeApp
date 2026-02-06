@@ -1,11 +1,12 @@
 import { api } from './api';
-import type { Order, Category, Skill, PaginatedResponse, OrderQueryParams } from '../types/api';
+import type { PaginatedResponse, OrderQueryParams } from '../types/api';
 import { normalizeOrder, normalizePaginatedResponse } from '../utils/normalizers';
 
+// Local types for this API (more specific than global types)
 export interface Category {
   id: number;
   name: string;
-  slug: string;
+  slug?: string;
   parent: number | null;
   icon: string;
   children?: Category[];
@@ -17,36 +18,38 @@ export interface Skill {
   category: number;
 }
 
+export interface OrderClient {
+  id: number;
+  name: string;
+  avatar: string | null;
+  rating: string;
+  phone?: string | null;
+}
+
 export interface Order {
   id: number;
-  client: {
-    id: number;
-    name: string;
-    avatar: string | null;
-    rating: string;
-    phone?: string | null;
-  };
+  client: OrderClient;
   client_name?: string;
   client_avatar?: string | null;
   client_rating?: string;
   client_phone?: string | null;
   category: number;
   category_name: string;
-  subcategory: number | null;
+  subcategory?: number | null;
   subcategory_name?: string;
-  required_skills: number[];
+  required_skills?: number[];
   skills_list?: { id: number; name: string }[];
   title: string;
   description: string;
   city: string;
   address?: string;
   hide_address?: boolean;
-  budget_type: 'fixed' | 'range' | 'negotiable';
-  budget_min: string | null;
-  budget_max: string | null;
+  budget_type?: 'fixed' | 'range' | 'negotiable';
+  budget_min?: string | number | null;
+  budget_max?: string | number | null;
   budget_display?: string;
-  start_date: string | null;
-  end_date: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
   is_urgent?: boolean;
   work_volume?: string;
   floor?: number;
@@ -72,16 +75,17 @@ export interface Order {
   created_at: string;
   updated_at?: string;
   expires_at?: string;
+  deadline?: string;
 }
 
 export interface OrderFile {
   id: number;
   file: string;
-  file_url: string;
+  file_url?: string;
   file_type: 'photo' | 'video' | 'document';
   thumbnail?: string;
-  order_num: number;
-  created_at: string;
+  order_num?: number;
+  created_at?: string;
 }
 
 export interface OrderCreateData {
@@ -138,7 +142,7 @@ export const orderApi = api.injectEndpoints({
         return response;
       },
     }),
-    getCategorySkills: builder.query<Skill[], number>({
+    getCategorySkillsForOrder: builder.query<Skill[], number>({
       query: (categoryId) => `/categories/${categoryId}/skills`,
     }),
 
@@ -165,7 +169,7 @@ export const orderApi = api.injectEndpoints({
     updateOrder: builder.mutation<Order, { id: number; data: Partial<OrderCreateData> }>({
       query: ({ id, data }) => ({
         url: `/orders/${id}`,
-        method: 'PATCH',
+        method: 'PUT',
         body: data,
       }),
       invalidatesTags: ['Order'],
@@ -181,14 +185,14 @@ export const orderApi = api.injectEndpoints({
     // Favorites
     addToFavorites: builder.mutation<void, number>({
       query: (orderId) => ({
-        url: `/orders/${orderId}/favorite`,
+        url: `/orders/${orderId}/favorites`,
         method: 'POST',
       }),
       invalidatesTags: ['Order'],
     }),
     removeFromFavorites: builder.mutation<void, number>({
       query: (orderId) => ({
-        url: `/orders/${orderId}/favorite`,
+        url: `/orders/${orderId}/favorites`,
         method: 'DELETE',
       }),
       invalidatesTags: ['Order'],
@@ -208,13 +212,13 @@ export const orderApi = api.injectEndpoints({
       },
       providesTags: ['Order'],
     }),
-    
+
     // Get single order
     getOrder: builder.query<Order, number>({
       query: (id) => `/orders/${id}`,
       providesTags: ['Order'],
     }),
-    
+
     // Order files
     getOrderFiles: builder.query<OrderFile[], number>({
       query: (orderId) => `/orders/${orderId}/files`,
@@ -229,10 +233,11 @@ export const orderApi = api.injectEndpoints({
       }),
       invalidatesTags: ['Order'],
     }),
-    deleteOrderFile: builder.mutation<void, number>({
-      query: (fileId) => ({
-        url: `/orders/files/${fileId}`,
+    deleteOrderFile: builder.mutation<void, { orderId: number; fileId: number }>({
+      query: ({ orderId, fileId }) => ({
+        url: `/orders/${orderId}/files`,
         method: 'DELETE',
+        body: { fileId },
       }),
       invalidatesTags: ['Order'],
     }),
@@ -241,7 +246,7 @@ export const orderApi = api.injectEndpoints({
 
 export const {
   useGetCategoriesQuery,
-  useGetCategorySkillsQuery,
+  useGetCategorySkillsForOrderQuery,
   useGetOrdersQuery,
   useGetOrderByIdQuery,
   useCreateOrderMutation,

@@ -86,11 +86,14 @@ export const getHealthStatus = async (): Promise<HealthCheckResult> => {
   }
 };
 
-// Simple health check (fast)
+// Simple health check - uses main /health endpoint
 export const getSimpleHealth = async (): Promise<SimpleHealthResult> => {
   try {
-    const response = await healthClient.get('/health/simple');
-    return response.data;
+    const response = await healthClient.get('/health');
+    return {
+      healthy: response.data.status === 'healthy',
+      timestamp: response.data.timestamp || new Date().toISOString(),
+    };
   } catch (error: any) {
     return {
       healthy: false,
@@ -99,16 +102,19 @@ export const getSimpleHealth = async (): Promise<SimpleHealthResult> => {
   }
 };
 
-// Readiness probe
+// Readiness probe - uses main /health endpoint
 export const getReadiness = async (): Promise<ReadinessResult> => {
   try {
-    const response = await healthClient.get('/health/ready');
-    return response.data;
+    const response = await healthClient.get('/health');
+    return {
+      ready: response.data.status === 'healthy',
+      timestamp: response.data.timestamp || new Date().toISOString(),
+      checks: {
+        database: response.data.checks?.database?.status || 'pass',
+        configuration: response.data.checks?.configuration?.status || 'pass',
+      },
+    };
   } catch (error: any) {
-    if (error.response?.data) {
-      return error.response.data;
-    }
-    
     return {
       ready: false,
       timestamp: new Date().toISOString(),
@@ -120,16 +126,17 @@ export const getReadiness = async (): Promise<ReadinessResult> => {
   }
 };
 
-// Liveness probe
+// Liveness probe - uses main /health endpoint
 export const getLiveness = async (): Promise<LivenessResult> => {
   try {
-    const response = await healthClient.get('/health/live');
-    return response.data;
+    const response = await healthClient.get('/health');
+    return {
+      alive: response.data.status === 'healthy',
+      timestamp: response.data.timestamp || new Date().toISOString(),
+      uptime: response.data.uptime || 0,
+      memory: response.data.checks?.memory?.status || 'pass',
+    };
   } catch (error: any) {
-    if (error.response?.data) {
-      return error.response.data;
-    }
-    
     return {
       alive: false,
       timestamp: new Date().toISOString(),

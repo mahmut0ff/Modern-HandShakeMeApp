@@ -161,7 +161,7 @@ export const BookingSettingsScreen: React.FC = () => {
                     style={[
                       styles.valueButtonText,
                       localSettings.maximumAdvanceBooking === days &&
-                        styles.valueButtonTextActive,
+                      styles.valueButtonTextActive,
                     ]}
                   >
                     {days}д
@@ -308,7 +308,7 @@ export const BookingSettingsScreen: React.FC = () => {
           disabled={updating}
         >
           {updating ? (
-            <LoadingSpinner size="small" color="#FFF" />
+            <LoadingSpinner size="small" />
           ) : (
             <>
               <MaterialIcons name="save" size={20} color="#FFF" />

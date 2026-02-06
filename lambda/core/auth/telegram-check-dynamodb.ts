@@ -49,7 +49,24 @@ async function telegramCheckHandler(
   }
   
   if (!session.userId) {
-    // Code confirmed but no user associated yet - shouldn't happen
+    // Code confirmed but no user associated yet
+    // This means the user is new and needs to complete registration
+    // Check if we have telegram data from the session
+    if (session.telegramId) {
+      return success({
+        authenticated: false,
+        needsRegistration: true,
+        telegramData: {
+          id: session.telegramId,
+          firstName: session.telegramFirstName || '',
+          lastName: session.telegramLastName || '',
+          username: session.telegramUsername || '',
+          photoUrl: session.telegramPhotoUrl || '',
+        },
+        message: 'New user - registration required',
+      });
+    }
+    
     return success({
       authenticated: false,
       message: 'Code confirmed but user not found',

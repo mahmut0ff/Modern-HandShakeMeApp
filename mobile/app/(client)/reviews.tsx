@@ -8,6 +8,7 @@ import {
   useDeleteReviewMutation,
   useMarkReviewHelpfulMutation,
   useRemoveReviewHelpfulMutation,
+  useUpdateReviewMutation,
   type Review as APIReview
 } from '../../services/reviewApi';
 import { ReviewList, Review } from '../../features/reviews';
@@ -28,6 +29,7 @@ export default function ClientReviewsPage() {
   const [deleteReview] = useDeleteReviewMutation();
   const [markHelpful] = useMarkReviewHelpfulMutation();
   const [removeHelpful] = useRemoveReviewHelpfulMutation();
+  const [updateReview] = useUpdateReviewMutation();
 
   const reviews: Review[] = (data?.results || []).map((review: APIReview) => ({
     id: review.id,
@@ -57,8 +59,38 @@ export default function ClientReviewsPage() {
   }));
 
   const handleEdit = (reviewId: number) => {
-    // TODO: Implement review editing - for now just show alert
-    Alert.alert('Редактирование', 'Функция редактирования отзыва в разработке');
+    const review = reviews.find(r => r.id === reviewId);
+    if (!review) return;
+    
+    Alert.prompt(
+      'Редактировать отзыв',
+      'Измените текст отзыва:',
+      [
+        { text: 'Отмена', style: 'cancel' },
+        {
+          text: 'Сохранить',
+          onPress: async (comment: string | undefined) => {
+            if (!comment || comment.trim().length === 0) {
+              Alert.alert('Ошибка', 'Введите текст отзыва');
+              return;
+            }
+            try {
+              await updateReview({ 
+                id: reviewId, 
+                data: { comment: comment.trim() } 
+              }).unwrap();
+              Alert.alert('Успех', 'Отзыв обновлён');
+              refetch();
+            } catch (error: any) {
+              console.error('Update review error:', error);
+              Alert.alert('Ошибка', error.data?.message || 'Не удалось обновить отзыв');
+            }
+          },
+        },
+      ],
+      'plain-text',
+      review.comment || ''
+    );
   };
 
   const handleDelete = (reviewId: number) => {

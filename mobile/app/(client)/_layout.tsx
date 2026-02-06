@@ -1,9 +1,12 @@
+import { View } from 'react-native'
 import { Stack } from 'expo-router'
+import MobileBottomNav from '../../components/MobileBottomNav'
 
 export default function ClientLayout() {
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="dashboard" />
-    </Stack>
+    <View style={{ flex: 1 }}>
+      <Stack screenOptions={{ headerShown: false }} />
+      <MobileBottomNav />
+    </View>
   )
 }

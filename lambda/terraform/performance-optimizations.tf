@@ -201,7 +201,4 @@ provider "aws" {
   region = var.replica_region
 }
 
-provider "aws" {
-  alias  = "us_west_2"
-  region = "us-west-2"
-}
+# Note: aws.us_west_2 provider is defined in main.tf

@@ -12,8 +12,11 @@ const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN || '';
 
 // Инициализация Sentry
 export const initializeErrorMonitoring = () => {
-  if (!SENTRY_DSN) {
-    console.warn('Sentry DSN not configured. Error monitoring disabled.');
+  // Skip if DSN is not configured or is a placeholder
+  if (!SENTRY_DSN || SENTRY_DSN === 'CHANGE_ME_IN_PRODUCTION' || SENTRY_DSN.includes('CHANGE_ME')) {
+    if (__DEV__) {
+      console.log('Sentry DSN not configured. Error monitoring disabled in development.');
+    }
     return;
   }
 

@@ -19,6 +19,7 @@ import {
   LocationTracking,
   LocationCoordinates,
 } from '../../../services/locationTrackingApi';
+import { safeNavigate } from '../../../hooks/useNavigation';
 
 export default function LiveTrackingScreen() {
   const [tracking, setTracking] = useState<LocationTracking | null>(null);
@@ -43,7 +44,7 @@ export default function LiveTrackingScreen() {
       const sessionsData = await getActiveSessions();
       if (sessionsData.sessions.length === 0) {
         Alert.alert('Ошибка', 'Нет активного отслеживания', [
-          { text: 'OK', onPress: () => router.back() },
+          { text: 'OK', onPress: () => safeNavigate.back() },
         ]);
         return;
       }

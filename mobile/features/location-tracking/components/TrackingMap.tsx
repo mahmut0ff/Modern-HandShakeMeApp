@@ -1,8 +1,27 @@
-import React, { useRef, useEffect } from 'react';
-import { View, StyleSheet, Dimensions } from 'react-native';
-import MapView, { Marker, Polyline, Circle, PROVIDER_GOOGLE } from 'react-native-maps';
+import React, { useRef, useEffect, useState } from 'react';
+import { View, StyleSheet, Dimensions, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LocationCoordinates } from '../../../services/locationTrackingApi';
+import { MapPlaceholder } from './MapPlaceholder';
+
+// Dynamically import react-native-maps to avoid crashes in Expo Go
+let MapView: any = null;
+let Marker: any = null;
+let Polyline: any = null;
+let Circle: any = null;
+let PROVIDER_GOOGLE: any = null;
+
+try {
+  const maps = require('react-native-maps');
+  MapView = maps.default;
+  Marker = maps.Marker;
+  Polyline = maps.Polyline;
+  Circle = maps.Circle;
+  PROVIDER_GOOGLE = maps.PROVIDER_GOOGLE;
+} catch (error) {
+  // react-native-maps not available (Expo Go)
+  console.log('Maps not available in this environment');
+}
 
 interface TrackingMapProps {
   currentLocation?: LocationCoordinates;
@@ -23,10 +42,16 @@ export const TrackingMap: React.FC<TrackingMapProps> = ({
   showGeofence = false,
   onMapReady,
 }) => {
-  const mapRef = useRef<MapView>(null);
+  const mapRef = useRef<any>(null);
+  const [mapsAvailable, setMapsAvailable] = useState(false);
 
   useEffect(() => {
-    if (currentLocation && mapRef.current) {
+    // Check if maps are available
+    setMapsAvailable(MapView !== null);
+  }, []);
+
+  useEffect(() => {
+    if (currentLocation && mapRef.current && mapsAvailable) {
       // Center map on current location
       mapRef.current.animateToRegion({
         latitude: currentLocation.latitude,
@@ -35,10 +60,10 @@ export const TrackingMap: React.FC<TrackingMapProps> = ({
         longitudeDelta: 0.01,
       }, 1000);
     }
-  }, [currentLocation]);
+  }, [currentLocation, mapsAvailable]);
 
   useEffect(() => {
-    if (locationHistory.length > 0 && mapRef.current) {
+    if (locationHistory.length > 0 && mapRef.current && mapsAvailable) {
       // Fit map to show entire route
       const coordinates = locationHistory.map(loc => ({
         latitude: loc.latitude,
@@ -59,21 +84,26 @@ export const TrackingMap: React.FC<TrackingMapProps> = ({
         });
       }
     }
-  }, [locationHistory, destination]);
+  }, [locationHistory, destination, mapsAvailable]);
+
+  // Show placeholder if maps are not available
+  if (!mapsAvailable) {
+    return <MapPlaceholder message="Location tracking requires a development build" />;
+  }
 
   const initialRegion = currentLocation
     ? {
-        latitude: currentLocation.latitude,
-        longitude: currentLocation.longitude,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
-      }
+      latitude: currentLocation.latitude,
+      longitude: currentLocation.longitude,
+      latitudeDelta: 0.01,
+      longitudeDelta: 0.01,
+    }
     : {
-        latitude: 42.8746, // Bishkek default
-        longitude: 74.5698,
-        latitudeDelta: 0.1,
-        longitudeDelta: 0.1,
-      };
+      latitude: 42.8746, // Bishkek default
+      longitude: 74.5698,
+      latitudeDelta: 0.1,
+      longitudeDelta: 0.1,
+    };
 
   return (
     <View style={styles.container}>

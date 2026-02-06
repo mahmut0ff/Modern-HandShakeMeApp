@@ -7,13 +7,14 @@ import * as ImagePicker from 'expo-image-picker';
 import {
   useCreateOrderMutation,
   useGetCategoriesQuery,
-  useGetCategorySkillsQuery,
   useAddOrderFileMutation,
   Category,
   Skill
 } from '../../services/orderApi';
+import { useGetCategorySkillsQuery } from '../../services/categoryApi';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { ErrorMessage } from '../../components/ErrorMessage';
+import { safeNavigate } from '../../hooks/useNavigation';
 
 const MATERIAL_STATUS_OPTIONS = [
   { value: '', label: 'Не указано' },
@@ -75,7 +76,7 @@ export default function CreateOrderPage() {
 
   // Handle both array and paginated responses
   const categories = (categoriesData || []) as Category[];
-  const skills = (skillsData || []) as Skill[];
+  const skills = (skillsData?.skills || []) as Skill[];
 
   const [createOrder, { isLoading: createLoading }] = useCreateOrderMutation();
   const [addOrderFile] = useAddOrderFileMutation();
@@ -163,7 +164,7 @@ export default function CreateOrderPage() {
       }
 
       Alert.alert('Успех', 'Заказ создан успешно', [
-        { text: 'OK', onPress: () => router.push('/(client)/orders') }
+        { text: 'OK', onPress: () => safeNavigate.push('/(client)/orders') }
       ]);
     } catch (error: any) {
       console.error('Create order error:', error);
@@ -286,8 +287,8 @@ export default function CreateOrderPage() {
                           }
                         }}
                         className={`px-3 py-2 rounded-full border ${formData.required_skills.includes(skill.id)
-                            ? 'bg-blue-500 border-blue-500'
-                            : 'bg-white border-gray-200'
+                          ? 'bg-blue-500 border-blue-500'
+                          : 'bg-white border-gray-200'
                           }`}
                       >
                         <Text className={`text-sm font-medium ${formData.required_skills.includes(skill.id) ? 'text-white' : 'text-gray-700'
@@ -445,8 +446,8 @@ export default function CreateOrderPage() {
                       key={option.label}
                       onPress={() => setFormData({ ...formData, has_elevator: option.value })}
                       className={`flex-1 p-3 rounded-xl border ${formData.has_elevator === option.value
-                          ? 'bg-[#0165FB]/10 border-[#0165FB]'
-                          : 'bg-gray-50 border-gray-200'
+                        ? 'bg-[#0165FB]/10 border-[#0165FB]'
+                        : 'bg-gray-50 border-gray-200'
                         }`}
                     >
                       <Text className={`text-center font-medium ${formData.has_elevator === option.value ? 'text-[#0165FB]' : 'text-gray-600'
@@ -466,8 +467,8 @@ export default function CreateOrderPage() {
                       key={option.value}
                       onPress={() => setFormData({ ...formData, material_status: option.value })}
                       className={`p-3 rounded-xl border ${formData.material_status === option.value
-                          ? 'bg-[#0165FB]/10 border-[#0165FB]'
-                          : 'bg-gray-50 border-gray-200'
+                        ? 'bg-[#0165FB]/10 border-[#0165FB]'
+                        : 'bg-gray-50 border-gray-200'
                         }`}
                     >
                       <Text className={`font-medium ${formData.material_status === option.value ? 'text-[#0165FB]' : 'text-gray-600'
@@ -513,8 +514,8 @@ export default function CreateOrderPage() {
                       key={option.value}
                       onPress={() => setFormData({ ...formData, budget_type: option.value as any })}
                       className={`p-3 rounded-xl border ${formData.budget_type === option.value
-                          ? 'bg-[#0165FB]/10 border-[#0165FB]'
-                          : 'bg-gray-50 border-gray-200'
+                        ? 'bg-[#0165FB]/10 border-[#0165FB]'
+                        : 'bg-gray-50 border-gray-200'
                         }`}
                     >
                       <Text className={`font-medium ${formData.budget_type === option.value ? 'text-[#0165FB]' : 'text-gray-600'

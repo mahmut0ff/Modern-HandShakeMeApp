@@ -12,6 +12,12 @@ export interface TelegramAuthSession {
   userId?: string;
   isUsed: boolean;
   expiresAt: string;
+  // Telegram user data (set when user confirms code in bot)
+  telegramId?: string;
+  telegramFirstName?: string;
+  telegramLastName?: string;
+  telegramUsername?: string;
+  telegramPhotoUrl?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -69,20 +75,30 @@ export class TelegramAuthSessionRepository {
   }
   
   async findByVisitorId(visitorId: string): Promise<TelegramAuthSession | null> {
+    // Find session by visitorId
     const items = await queryItems({
       IndexName: 'GSI2',
       KeyConditionExpression: 'GSI2PK = :pk',
-      FilterExpression: 'isUsed = :false AND expiresAt > :now',
+      FilterExpression: 'expiresAt > :now',
       ExpressionAttributeValues: {
         ':pk': `VISITOR#${visitorId}`,
-        ':false': false,
         ':now': new Date().toISOString(),
       },
       ScanIndexForward: false,
       Limit: 1,
     });
     
-    return items.length > 0 ? items[0] as TelegramAuthSession : null;
+    const session = items.length > 0 ? items[0] as TelegramAuthSession : null;
+    
+    // Return session if it has userId (confirmed by bot and user exists)
+    // or if it has telegramId (confirmed by bot but user needs registration)
+    if (session && (session.userId || session.telegramId)) {
+      return session;
+    }
+    
+    // Return null if no session or session not confirmed yet
+    // Mobile app will continue polling
+    return null;
   }
   
   async update(sessionId: string, data: Partial<TelegramAuthSession>): Promise<TelegramAuthSession> {

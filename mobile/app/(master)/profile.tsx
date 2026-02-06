@@ -5,9 +5,9 @@ import { StatusBar } from 'expo-status-bar'
 import { Ionicons } from '@expo/vector-icons'
 import { useAppDispatch, useAppSelector } from '../../hooks/redux'
 import { logout } from '../../features/auth/authSlice'
-import { 
+import {
   useGetMyMasterProfileQuery,
-  useUpdateMasterProfileMutation 
+  useUpdateMasterProfileMutation
 } from '../../services/profileApi'
 import { LoadingSpinner } from '../../components/LoadingSpinner'
 import { ErrorMessage } from '../../components/ErrorMessage'
@@ -15,16 +15,16 @@ import { ErrorMessage } from '../../components/ErrorMessage'
 export default function MasterProfilePage() {
   const dispatch = useAppDispatch()
   const { user } = useAppSelector((state) => state.auth)
-  
+
   const [isEditing, setIsEditing] = useState(false)
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
 
   // API queries
-  const { 
-    data: profile, 
-    isLoading, 
+  const {
+    data: profile,
+    isLoading,
     error,
-    refetch 
+    refetch
   } = useGetMyMasterProfileQuery();
 
   // Mutations
@@ -52,7 +52,7 @@ export default function MasterProfilePage() {
   }, [profile]);
 
   const availableSpecializations = [
-    'Сантехника', 'Электрика', 'Ремонт', 'Отделка', 'Мебель', 
+    'Сантехника', 'Электрика', 'Ремонт', 'Отделка', 'Мебель',
     'Клининг', 'Швейное дело', 'Столярные работы', 'Дизайн интерьера'
   ]
 
@@ -90,10 +90,20 @@ export default function MasterProfilePage() {
     setShowLogoutConfirm(true)
   }
 
-  const confirmLogout = () => {
-    dispatch(logout())
-    setShowLogoutConfirm(false)
-    router.replace('/')
+  const confirmLogout = async () => {
+    try {
+      // Dispatch logout action
+      dispatch(logout())
+      setShowLogoutConfirm(false)
+
+      // Force navigation to auth screen
+      router.replace('/(auth)/login')
+    } catch (error) {
+      console.error('Logout error:', error)
+      // Even if there's an error, force logout
+      setShowLogoutConfirm(false)
+      router.replace('/(auth)/login')
+    }
   }
 
   const handleAvatarPress = () => {
@@ -102,9 +112,9 @@ export default function MasterProfilePage() {
       'Выберите действие',
       [
         { text: 'Отмена', style: 'cancel' },
-        { text: 'Выбрать из галереи', onPress: () => {} },
-        { text: 'Сделать фото', onPress: () => {} },
-        ...(profile?.user?.avatar ? [{ text: 'Удалить фото', style: 'destructive' as const, onPress: () => {} }] : []),
+        { text: 'Выбрать из галереи', onPress: () => { } },
+        { text: 'Сделать фото', onPress: () => { } },
+        ...(profile?.user?.avatar ? [{ text: 'Удалить фото', style: 'destructive' as const, onPress: () => { } }] : []),
       ]
     )
   }
@@ -141,13 +151,13 @@ export default function MasterProfilePage() {
   return (
     <View className="flex-1 bg-gray-50">
       <StatusBar style="dark" />
-      
+
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View className="bg-blue-500 px-4 pt-12 pb-8">
           <View className="flex-row items-center justify-between mb-4">
             <Text className="text-white text-2xl font-bold">Профиль</Text>
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={isEditing ? handleSave : handleEdit}
               className="px-4 py-2 bg-white/20 rounded-2xl"
             >
@@ -156,7 +166,7 @@ export default function MasterProfilePage() {
               </Text>
             </TouchableOpacity>
           </View>
-          
+
           {/* Avatar and Basic Info */}
           <View className="flex-row items-center gap-4">
             <TouchableOpacity onPress={handleAvatarPress} className="relative">
@@ -173,7 +183,7 @@ export default function MasterProfilePage() {
                 <Ionicons name="camera" size={14} color="#3B82F6" />
               </View>
             </TouchableOpacity>
-            
+
             <View className="flex-1">
               {isEditing ? (
                 <View className="flex flex-col gap-2">
@@ -242,7 +252,7 @@ export default function MasterProfilePage() {
           {/* Profile Details */}
           <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100">
             <Text className="text-lg font-bold text-gray-900 mb-4">Информация о профиле</Text>
-            
+
             <View className="flex flex-col gap-4">
               <View>
                 <Text className="text-sm font-medium text-gray-700 mb-2">Город</Text>
@@ -257,7 +267,7 @@ export default function MasterProfilePage() {
                   <Text className="text-gray-900">{profile.city}</Text>
                 )}
               </View>
-              
+
               <View>
                 <Text className="text-sm font-medium text-gray-700 mb-2">Описание</Text>
                 {isEditing ? (
@@ -274,7 +284,7 @@ export default function MasterProfilePage() {
                   <Text className="text-gray-900">{profile.bio || 'Не указано'}</Text>
                 )}
               </View>
-              
+
               <View>
                 <Text className="text-sm font-medium text-gray-700 mb-2">Стоимость за час</Text>
                 {isEditing ? (
@@ -297,7 +307,7 @@ export default function MasterProfilePage() {
           {/* Specializations */}
           <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100">
             <Text className="text-lg font-bold text-gray-900 mb-4">Специализации</Text>
-            
+
             <View className="flex-row flex-wrap gap-2">
               {profile.categories_list?.map(category => (
                 <View key={category.id} className="px-3 py-2 bg-blue-100 rounded-full">
@@ -313,7 +323,7 @@ export default function MasterProfilePage() {
           {/* Quick Stats */}
           <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100">
             <Text className="text-lg font-bold text-gray-900 mb-4">Дополнительная информация</Text>
-            
+
             <View className="flex flex-col gap-3">
               <View className="flex-row items-center justify-between">
                 <Text className="text-gray-600">Опыт работы</Text>
@@ -336,7 +346,7 @@ export default function MasterProfilePage() {
 
           {/* Menu Items */}
           <View className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={() => router.push('/(master)/portfolio')}
               className="flex-row items-center p-4 border-b border-gray-100"
             >
@@ -349,8 +359,8 @@ export default function MasterProfilePage() {
               </View>
               <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
             </TouchableOpacity>
-            
-            <TouchableOpacity 
+
+            <TouchableOpacity
               onPress={() => router.push('/(master)/reviews')}
               className="flex-row items-center p-4 border-b border-gray-100"
             >
@@ -363,8 +373,8 @@ export default function MasterProfilePage() {
               </View>
               <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
             </TouchableOpacity>
-            
-            <TouchableOpacity 
+
+            <TouchableOpacity
               onPress={() => router.push('/(master)/wallet')}
               className="flex-row items-center p-4 border-b border-gray-100"
             >
@@ -377,8 +387,8 @@ export default function MasterProfilePage() {
               </View>
               <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
             </TouchableOpacity>
-            
-            <TouchableOpacity 
+
+            <TouchableOpacity
               onPress={() => router.push('/(master)/settings')}
               className="flex-row items-center p-4"
             >
@@ -395,7 +405,7 @@ export default function MasterProfilePage() {
 
           {/* Logout */}
           <View className="px-4 mb-6">
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={handleLogout}
               className="bg-white rounded-3xl p-4 shadow-sm border border-gray-100 flex-row items-center justify-center gap-3"
             >
@@ -417,15 +427,15 @@ export default function MasterProfilePage() {
           <View className="bg-white rounded-3xl p-6 w-full max-w-sm">
             <Text className="text-xl font-bold text-gray-900 mb-2">Выход из аккаунта</Text>
             <Text className="text-gray-600 mb-6">Вы уверены, что хотите выйти из аккаунта?</Text>
-            
+
             <View className="flex-row gap-3">
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={() => setShowLogoutConfirm(false)}
                 className="flex-1 bg-gray-100 py-3 rounded-2xl"
               >
                 <Text className="text-gray-700 font-semibold text-center">Отмена</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={confirmLogout}
                 className="flex-1 bg-red-500 py-3 rounded-2xl"
               >

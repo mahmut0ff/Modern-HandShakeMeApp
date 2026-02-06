@@ -25,7 +25,7 @@ describe('RatingDistribution - Property-Based Tests', () => {
           2: fc.integer({ min: 0, max: 100 }),
           1: fc.integer({ min: 0, max: 100 }),
         }),
-        (distribution) => {
+        (distribution: any) => {
           const totalReviews =
             distribution[5] +
             distribution[4] +
@@ -83,7 +83,7 @@ describe('RatingDistribution - Property-Based Tests', () => {
           2: fc.integer({ min: 0, max: 100 }),
           1: fc.integer({ min: 0, max: 100 }),
         }),
-        (distribution) => {
+        (distribution: any) => {
           const calculatedTotal =
             distribution[5] +
             distribution[4] +
@@ -125,7 +125,7 @@ describe('RatingDistribution - Property-Based Tests', () => {
           2: fc.integer({ min: 0, max: 100 }),
           1: fc.integer({ min: 0, max: 100 }),
         }),
-        (distribution) => {
+        (distribution: any) => {
           const totalReviews =
             distribution[5] +
             distribution[4] +

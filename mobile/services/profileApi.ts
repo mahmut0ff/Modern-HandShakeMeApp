@@ -11,7 +11,7 @@ export interface MasterProfile {
     first_name: string;
     last_name: string;
     full_name: string;
-    avatar: string | null;
+    avatar?: string;
     is_phone_verified: boolean;
     last_seen?: string;
     created_at: string;
@@ -29,6 +29,7 @@ export interface MasterProfile {
   categories_list?: { id: number; name: string }[];
   skills: number[];
   skills_list?: { id: number; name: string }[];
+  company_name?: string;
   bio?: string;
   experience_years?: number;
   hourly_rate?: string;
@@ -45,6 +46,8 @@ export interface MasterProfile {
   is_verified: boolean;
   is_available: boolean;
   is_premium: boolean;
+  has_transport: boolean;
+  has_tools: boolean;
   rating: string;
   reviews_count: number;
   completed_orders: number;
@@ -120,29 +123,69 @@ export interface PortfolioImage {
 }
 
 export interface MasterProfileUpdateData {
-  categories?: number[];
-  skills?: number[];
+  // Basic info
+  first_name?: string;
+  last_name?: string;
+  
+  // Professional info
+  company_name?: string;
+  description?: string;
   bio?: string;
-  experience_years?: number;
-  hourly_rate?: number;
-  min_order_amount?: number;
-  max_order_amount?: number;
+  experience_years?: string | number;
+  
+  // Location
   city?: string;
   address?: string;
+  travel_radius?: string | number;
+  
+  // Work conditions
+  has_transport?: boolean;
+  has_tools?: boolean;
+  can_purchase_materials?: boolean;
+  
+  // Rates
+  hourly_rate?: string | number;
+  daily_rate?: string | number;
+  min_order_cost?: string | number;
+  
+  // Working hours
+  working_hours?: Record<string, string>;
+  
+  // Categories and skills
+  categories?: (number | string)[];
+  skills?: (number | string)[];
+  
+  // Availability
+  is_available?: boolean;
+  
+  // Legacy fields for backward compatibility
+  min_order_amount?: number;
+  max_order_amount?: number;
   work_radius?: number;
   languages?: string[];
   certifications?: string[];
   education?: string;
   work_schedule?: string;
-  is_available?: boolean;
 }
 
 export interface ClientProfileUpdateData {
+  // Basic info
+  first_name?: string;
+  last_name?: string;
+  
+  // About - support both field names
+  about?: string;
   bio?: string;
+  
+  // Location
   city?: string;
   address?: string;
+  
+  // Company
   company_name?: string;
   company_type?: string;
+  
+  // Contact preferences
   preferred_contact_method?: 'phone' | 'chat' | 'email';
 }
 
@@ -195,7 +238,7 @@ export const profileApi = api.injectEndpoints({
     updateMasterProfile: builder.mutation<MasterProfile, MasterProfileUpdateData>({
       query: (data) => ({
         url: '/masters/me',
-        method: 'PATCH',
+        method: 'PUT',
         body: data,
       }),
       invalidatesTags: ['MasterProfile', 'User'],
@@ -246,26 +289,26 @@ export const profileApi = api.injectEndpoints({
     updateClientProfile: builder.mutation<ClientProfile, ClientProfileUpdateData>({
       query: (data) => ({
         url: '/clients/me',
-        method: 'PATCH',
+        method: 'PUT',
         body: data,
       }),
       invalidatesTags: ['ClientProfile', 'User'],
     }),
 
-    // Portfolio
+    // Portfolio - Backend routes: GET/POST /portfolio, PUT/DELETE /portfolio/:itemId
     getMasterPortfolio: builder.query<PortfolioItem[], number>({
-      query: (masterId) => `/masters/${masterId}/portfolio`,
+      query: (masterId) => `/portfolio?masterId=${masterId}`,
       providesTags: ['Portfolio'],
     }),
 
     getMyPortfolio: builder.query<PortfolioItem[], void>({
-      query: () => '/masters/me/portfolio',
+      query: () => '/portfolio',
       providesTags: ['Portfolio'],
     }),
 
     createPortfolioItem: builder.mutation<PortfolioItem, PortfolioItemCreateData>({
       query: (data) => ({
-        url: '/masters/me/portfolio',
+        url: '/portfolio',
         method: 'POST',
         body: data,
       }),
@@ -274,8 +317,8 @@ export const profileApi = api.injectEndpoints({
 
     updatePortfolioItem: builder.mutation<PortfolioItem, { id: number; data: PortfolioItemUpdateData }>({
       query: ({ id, data }) => ({
-        url: `/masters/me/portfolio/${id}`,
-        method: 'PATCH',
+        url: `/portfolio/${id}`,
+        method: 'PUT',
         body: data,
       }),
       invalidatesTags: ['Portfolio'],
@@ -283,16 +326,17 @@ export const profileApi = api.injectEndpoints({
 
     deletePortfolioItem: builder.mutation<void, number>({
       query: (id) => ({
-        url: `/masters/me/portfolio/${id}`,
+        url: `/portfolio/${id}`,
         method: 'DELETE',
       }),
       invalidatesTags: ['Portfolio'],
     }),
 
+    // Note: Image upload endpoints need to be added to backend if needed
     addPortfolioImage: builder.mutation<PortfolioImage, { itemId: number; image: FormData }>({
       query: ({ itemId, image }) => ({
-        url: `/masters/me/portfolio/${itemId}/images`,
-        method: 'POST',
+        url: `/portfolio/${itemId}`,
+        method: 'PUT',
         body: image,
         formData: true,
       }),
@@ -301,7 +345,7 @@ export const profileApi = api.injectEndpoints({
 
     deletePortfolioImage: builder.mutation<void, number>({
       query: (imageId) => ({
-        url: `/masters/me/portfolio/images/${imageId}`,
+        url: `/portfolio/${imageId}`,
         method: 'DELETE',
       }),
       invalidatesTags: ['Portfolio'],

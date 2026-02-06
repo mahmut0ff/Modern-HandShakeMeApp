@@ -4,20 +4,16 @@
  */
 
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, QueryCommand } from '@aws-sdk/lib-dynamodb';
-
-const client = new DynamoDBClient({});
-const docClient = DynamoDBDocumentClient.from(client);
-
-const ORDERS_TABLE = process.env.ORDERS_TABLE || 'orders';
-const MASTERS_TABLE = process.env.MASTERS_TABLE || 'masters';
+import { QueryCommand } from '@aws-sdk/lib-dynamodb';
+import { dynamodb, TABLE_NAME } from '../shared/db/dynamodb-client';
 
 export const handler = async (
   event: APIGatewayProxyEvent
 ): Promise<APIGatewayProxyResult> => {
   try {
-    const userId = event.requestContext.authorizer?.claims?.sub;
+    // Support both API Gateway authorizer formats
+    const userId = event.requestContext.authorizer?.claims?.sub 
+      || event.requestContext.authorizer?.userId;
 
     if (!userId) {
       return {
@@ -31,16 +27,17 @@ export const handler = async (
     }
 
     // Get active orders count
-    const activeOrdersResult = await docClient.send(
+    const activeOrdersResult = await dynamodb.send(
       new QueryCommand({
-        TableName: ORDERS_TABLE,
-        IndexName: 'ClientStatusIndex',
-        KeyConditionExpression: 'client_id = :clientId AND #status = :status',
+        TableName: TABLE_NAME,
+        IndexName: 'GSI1',
+        KeyConditionExpression: 'GSI1PK = :pk',
+        FilterExpression: '#status = :status',
         ExpressionAttributeNames: {
           '#status': 'status',
         },
         ExpressionAttributeValues: {
-          ':clientId': userId,
+          ':pk': `USER#${userId}#ORDERS`,
           ':status': 'active',
         },
         Select: 'COUNT',
@@ -48,16 +45,17 @@ export const handler = async (
     );
 
     // Get completed orders count
-    const completedOrdersResult = await docClient.send(
+    const completedOrdersResult = await dynamodb.send(
       new QueryCommand({
-        TableName: ORDERS_TABLE,
-        IndexName: 'ClientStatusIndex',
-        KeyConditionExpression: 'client_id = :clientId AND #status = :status',
+        TableName: TABLE_NAME,
+        IndexName: 'GSI1',
+        KeyConditionExpression: 'GSI1PK = :pk',
+        FilterExpression: '#status = :status',
         ExpressionAttributeNames: {
           '#status': 'status',
         },
         ExpressionAttributeValues: {
-          ':clientId': userId,
+          ':pk': `USER#${userId}#ORDERS`,
           ':status': 'completed',
         },
         Select: 'COUNT',
@@ -65,25 +63,26 @@ export const handler = async (
     );
 
     // Get all completed orders to calculate total spent
-    const completedOrders = await docClient.send(
+    const completedOrders = await dynamodb.send(
       new QueryCommand({
-        TableName: ORDERS_TABLE,
-        IndexName: 'ClientStatusIndex',
-        KeyConditionExpression: 'client_id = :clientId AND #status = :status',
+        TableName: TABLE_NAME,
+        IndexName: 'GSI1',
+        KeyConditionExpression: 'GSI1PK = :pk',
+        FilterExpression: '#status = :status',
         ExpressionAttributeNames: {
           '#status': 'status',
         },
         ExpressionAttributeValues: {
-          ':clientId': userId,
+          ':pk': `USER#${userId}#ORDERS`,
           ':status': 'completed',
         },
-        ProjectionExpression: 'budget_min, budget_max',
+        ProjectionExpression: 'budgetMin, budgetMax',
       })
     );
 
     // Calculate total spent (approximate from budgets)
     const totalSpent = (completedOrders.Items || []).reduce((sum, order) => {
-      const budget = order.budget_max || order.budget_min || 0;
+      const budget = order.budgetMax || order.budgetMin || 0;
       return sum + Number(budget);
     }, 0);
 

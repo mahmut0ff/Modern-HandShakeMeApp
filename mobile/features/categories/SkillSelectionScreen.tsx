@@ -14,8 +14,8 @@ import {
   useGetCategorySkillsQuery,
   Skill,
 } from '../../services/categoryApi';
-import LoadingSpinner from '../../components/LoadingSpinner';
-import ErrorMessage from '../../components/ErrorMessage';
+import { LoadingSpinner } from '../../components/LoadingSpinner';
+import { ErrorMessage } from '../../components/ErrorMessage';
 
 export default function SkillSelectionScreen() {
   const params = useLocalSearchParams<{
@@ -27,7 +27,7 @@ export default function SkillSelectionScreen() {
   const maxSkills = params.maxSkills ? parseInt(params.maxSkills) : 10;
   const initialSkills = params.selectedSkills ? JSON.parse(params.selectedSkills) : [];
 
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
   const [selectedSkills, setSelectedSkills] = useState<Skill[]>(initialSkills);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -36,7 +36,7 @@ export default function SkillSelectionScreen() {
     data: categorySkills,
     isLoading: loadingSkills,
     error: skillsError,
-  } = useGetCategorySkillsQuery(selectedCategory || '', {
+  } = useGetCategorySkillsQuery(selectedCategory || 0, {
     skip: !selectedCategory,
   });
 
@@ -115,20 +115,18 @@ export default function SkillSelectionScreen() {
           {categories?.map((category) => (
             <TouchableOpacity
               key={category.id}
-              className={`px-4 py-2 rounded-full mr-2 ${
-                selectedCategory === category.id
+              className={`px-4 py-2 rounded-full mr-2 ${selectedCategory === category.id
                   ? 'bg-blue-600'
                   : 'bg-gray-100'
-              }`}
+                }`}
               onPress={() => {
                 setSelectedCategory(category.id);
                 setSearchQuery('');
               }}
             >
               <Text
-                className={`font-medium ${
-                  selectedCategory === category.id ? 'text-white' : 'text-gray-700'
-                }`}
+                className={`font-medium ${selectedCategory === category.id ? 'text-white' : 'text-gray-700'
+                  }`}
               >
                 {category.icon} {category.name}
               </Text>
@@ -188,17 +186,15 @@ export default function SkillSelectionScreen() {
                 return (
                   <TouchableOpacity
                     key={skill.id}
-                    className={`px-4 py-2 rounded-full mr-2 mb-2 border ${
-                      isSelected
+                    className={`px-4 py-2 rounded-full mr-2 mb-2 border ${isSelected
                         ? 'bg-blue-600 border-blue-600'
                         : 'bg-white border-gray-300'
-                    }`}
+                      }`}
                     onPress={() => toggleSkill(skill)}
                   >
                     <Text
-                      className={`font-medium ${
-                        isSelected ? 'text-white' : 'text-gray-700'
-                      }`}
+                      className={`font-medium ${isSelected ? 'text-white' : 'text-gray-700'
+                        }`}
                     >
                       {skill.name}
                     </Text>

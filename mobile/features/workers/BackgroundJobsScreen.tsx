@@ -9,7 +9,7 @@ import {
   Alert,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import backgroundJobsApi, { BackgroundJob, JobStatus } from '../../services/backgroundJobsApi';
+import backgroundJobsHelpers, { BackgroundJob, useGetJobsQuery, useCancelJobMutation, useRetryJobMutation, useTriggerRatingCalculationMutation, useTriggerRecommendationGenerationMutation } from '../../services/backgroundJobsApi';
 import { BackgroundJobIndicator } from '../../components/workers/BackgroundJobIndicator';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { ErrorMessage } from '../../components/ErrorMessage';
@@ -17,44 +17,30 @@ import { ErrorMessage } from '../../components/ErrorMessage';
 type FilterType = 'all' | 'active' | 'completed' | 'failed';
 
 export const BackgroundJobsScreen: React.FC = () => {
-  const [jobs, setJobs] = useState<BackgroundJob[]>([]);
-  const [filteredJobs, setFilteredJobs] = useState<BackgroundJob[]>([]);
-  const [stats, setStats] = useState({ activeCount: 0, completedCount: 0, failedCount: 0 });
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [activeFilter, setActiveFilter] = useState<FilterType>('all');
+  const { data: jobsData, isLoading: loading, error: queryError, refetch } = useGetJobsQuery({ limit: 50 }, { pollingInterval: 5000 });
+  const [cancelJob] = useCancelJobMutation();
+  const [retryJob] = useRetryJobMutation();
+  const [triggerRating] = useTriggerRatingCalculationMutation();
+  const [triggerRecs] = useTriggerRecommendationGenerationMutation();
 
-  useEffect(() => {
-    loadJobs();
-    const interval = setInterval(loadJobs, 5000); // Poll every 5 seconds
-    return () => clearInterval(interval);
-  }, []);
+  const jobs = jobsData?.jobs || [];
+  const stats = {
+    activeCount: jobsData?.activeCount || 0,
+    completedCount: jobsData?.completedCount || 0,
+    failedCount: jobsData?.failedCount || 0,
+  };
+
+  const [filteredJobs, setFilteredJobs] = useState<BackgroundJob[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
+  const [activeFilter, setActiveFilter] = useState<FilterType>('all');
 
   useEffect(() => {
     applyFilter(activeFilter);
   }, [jobs, activeFilter]);
 
-  const loadJobs = async () => {
-    try {
-      setError(null);
-      const response = await backgroundJobsApi.getJobs({ limit: 50 });
-      setJobs(response.jobs);
-      setStats({
-        activeCount: response.activeCount,
-        completedCount: response.completedCount,
-        failedCount: response.failedCount,
-      });
-    } catch (err: any) {
-      setError(err.message || 'Не удалось загрузить задачи');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadJobs();
+    await refetch();
     setRefreshing(false);
   };
 
@@ -63,7 +49,7 @@ export const BackgroundJobsScreen: React.FC = () => {
 
     switch (filter) {
       case 'active':
-        filtered = filtered.filter((j) => backgroundJobsApi.isJobActive(j.status));
+        filtered = filtered.filter((j) => backgroundJobsHelpers.isJobActive(j.status));
         break;
       case 'completed':
         filtered = filtered.filter((j) => j.status === 'COMPLETED');
@@ -80,9 +66,9 @@ export const BackgroundJobsScreen: React.FC = () => {
   };
 
   const handleJobPress = (job: BackgroundJob) => {
-    const statusInfo = backgroundJobsApi.getJobStatusInfo(job.status);
-    const canCancel = backgroundJobsApi.canCancelJob(job.status);
-    const canRetry = backgroundJobsApi.canRetryJob(job.status);
+    const statusInfo = backgroundJobsHelpers.getJobStatusInfo(job.status);
+    const canCancel = backgroundJobsHelpers.canCancelJob(job.status);
+    const canRetry = backgroundJobsHelpers.canRetryJob(job.status);
 
     const buttons: any[] = [];
 
@@ -108,8 +94,7 @@ export const BackgroundJobsScreen: React.FC = () => {
 
   const handleCancelJob = async (jobId: string) => {
     try {
-      await backgroundJobsApi.cancelJob(jobId);
-      await loadJobs();
+      await cancelJob(jobId).unwrap();
     } catch (err: any) {
       Alert.alert('Ошибка', 'Не удалось отменить задачу');
     }
@@ -117,8 +102,7 @@ export const BackgroundJobsScreen: React.FC = () => {
 
   const handleRetryJob = async (jobId: string) => {
     try {
-      await backgroundJobsApi.retryJob(jobId);
-      await loadJobs();
+      await retryJob(jobId).unwrap();
     } catch (err: any) {
       Alert.alert('Ошибка', 'Не удалось повторить задачу');
     }
@@ -126,27 +110,27 @@ export const BackgroundJobsScreen: React.FC = () => {
 
   const handleTriggerRatingCalculation = async () => {
     try {
-      await backgroundJobsApi.triggerRatingCalculation();
-      await loadJobs();
+      await triggerRating().unwrap();
       Alert.alert('Успех', 'Расчет рейтинга запущен');
     } catch (err: any) {
-      Alert.alert('Ошибка', err.message);
+      Alert.alert('Ошибка', err.message || 'Ошибка запуска');
     }
   };
 
   const handleTriggerRecommendations = async () => {
     try {
-      await backgroundJobsApi.triggerRecommendationGeneration();
-      await loadJobs();
+      await triggerRecs().unwrap();
       Alert.alert('Успех', 'Генерация рекомендаций запущена');
     } catch (err: any) {
-      Alert.alert('Ошибка', err.message);
+      Alert.alert('Ошибка', err.message || 'Ошибка запуска');
     }
   };
 
   if (loading) {
     return <LoadingSpinner />;
   }
+
+  const error = queryError ? 'Не удалось загрузить задачи' : null;
 
   return (
     <View style={styles.container}>
@@ -196,10 +180,10 @@ export const BackgroundJobsScreen: React.FC = () => {
                   {filter === 'all'
                     ? 'Все'
                     : filter === 'active'
-                    ? 'Активные'
-                    : filter === 'completed'
-                    ? 'Завершенные'
-                    : 'С ошибками'}
+                      ? 'Активные'
+                      : filter === 'completed'
+                        ? 'Завершенные'
+                        : 'С ошибками'}
                 </Text>
               </TouchableOpacity>
             ))}

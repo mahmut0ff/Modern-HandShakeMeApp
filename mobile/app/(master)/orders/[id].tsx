@@ -3,7 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, Image, FlatList, Alert, Activ
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useGetOrderQuery } from '../../../services/orderApi';
+import { useGetOrderQuery, Order } from '../../../services/orderApi';
 import { useCreateApplicationMutation } from '../../../services/applicationApi';
 
 export default function MasterOrderDetailPage() {
@@ -13,7 +13,7 @@ export default function MasterOrderDetailPage() {
 
   const handleApply = async () => {
     if (!order) return;
-    
+
     Alert.alert(
       'Откликнуться на заказ',
       'Вы уверены, что хотите откликнуться на этот заказ?',
@@ -68,7 +68,7 @@ export default function MasterOrderDetailPage() {
     );
   }
 
-  const renderFile = ({ item }: { item: typeof order.files[0] }) => (
+  const renderFile = ({ item }: { item: NonNullable<typeof order.files>[0] }) => (
     <TouchableOpacity className="w-24 h-24 rounded-2xl overflow-hidden bg-gray-100 mr-2">
       {item.file_type === 'photo' ? (
         <Image source={{ uri: item.file_url || item.file }} className="w-full h-full" />
@@ -210,7 +210,7 @@ export default function MasterOrderDetailPage() {
                 <Text className="font-medium text-gray-900 text-sm">{order.category_name}</Text>
               </View>
             </View>
-            
+
             <View className="flex-row items-center gap-3 p-3 bg-gray-50 rounded-2xl">
               <View className="w-10 h-10 bg-[#0165FB]/10 rounded-xl items-center justify-center">
                 <Ionicons name="location" size={20} color="#0165FB" />
@@ -288,29 +288,27 @@ export default function MasterOrderDetailPage() {
             {conditions.map((item, index) => {
               const value = order[item.key as keyof Order] as boolean | undefined;
               return (
-                <View 
+                <View
                   key={item.key}
-                  className={`w-[30%] mb-3 p-3 rounded-2xl border ${
-                    value === true ? 'bg-green-50 border-green-200' : 
-                    value === false ? 'bg-red-50 border-red-200' : 
-                    'bg-gray-50 border-gray-200'
-                  }`}
+                  className={`w-[30%] mb-3 p-3 rounded-2xl border ${value === true ? 'bg-green-50 border-green-200' :
+                    value === false ? 'bg-red-50 border-red-200' :
+                      'bg-gray-50 border-gray-200'
+                    }`}
                 >
                   <View className="items-center">
-                    <Ionicons 
-                      name={item.icon as any} 
-                      size={24} 
+                    <Ionicons
+                      name={item.icon as any}
+                      size={24}
                       color={
-                        value === true ? '#059669' : 
-                        value === false ? '#DC2626' : 
-                        '#9CA3AF'
-                      } 
+                        value === true ? '#059669' :
+                          value === false ? '#DC2626' :
+                            '#9CA3AF'
+                      }
                     />
-                    <Text className={`text-xs font-medium text-center mt-2 ${
-                      value === true ? 'text-green-700' : 
-                      value === false ? 'text-red-700' : 
-                      'text-gray-400'
-                    }`}>
+                    <Text className={`text-xs font-medium text-center mt-2 ${value === true ? 'text-green-700' :
+                      value === false ? 'text-red-700' :
+                        'text-gray-400'
+                      }`}>
                       {item.label}
                     </Text>
                     {value === true && (
@@ -380,16 +378,15 @@ export default function MasterOrderDetailPage() {
           <TouchableOpacity
             onPress={handleApply}
             disabled={isApplying}
-            className={`py-4 rounded-2xl shadow-lg mb-6 ${
-              isApplying ? 'bg-gray-400' : 'bg-[#0165FB]'
-            }`}
+            className={`py-4 rounded-2xl shadow-lg mb-6 ${isApplying ? 'bg-gray-400' : 'bg-[#0165FB]'
+              }`}
           >
             <Text className="text-center font-semibold text-white text-lg">
               {isApplying ? 'Отправка...' : 'Откликнуться на заказ'}
             </Text>
           </TouchableOpacity>
         )}
-        
+
         {order.has_applied && (
           <View className="py-4 rounded-2xl bg-green-100 mb-6">
             <Text className="text-center font-semibold text-green-700 text-lg">

@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Alert } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, Alert, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useCreateDepositMutation } from '../../../services/walletApi';
+import { safeNavigate } from '../../../hooks/useNavigation';
 
 const QUICK_AMOUNTS = [500, 1000, 2000, 5000];
 
@@ -34,6 +36,8 @@ export default function DepositPage() {
   const [amount, setAmount] = useState('');
   const [selectedMethod, setSelectedMethod] = useState('card');
   const [loading, setLoading] = useState(false);
+  
+  const [createDeposit] = useCreateDepositMutation();
 
   const handleQuickAmount = (quickAmount: number) => {
     setAmount(quickAmount.toString());
@@ -66,16 +70,30 @@ export default function DepositPage() {
 
     setLoading(true);
     try {
-      // TODO: Implement payment processing
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate API call
+      const result = await createDeposit({
+        amount: parseFloat(amount),
+        payment_method_type: selectedMethod as 'card' | 'bank_account' | 'mobile_money',
+        return_url: 'handshake://wallet',
+      }).unwrap();
       
-      Alert.alert(
-        'Успех',
-        `Пополнение на сумму ${amount} сом успешно выполнено`,
-        [{ text: 'OK', onPress: () => router.back() }]
-      );
-    } catch (error) {
-      Alert.alert('Ошибка', 'Не удалось выполнить пополнение');
+      // If payment URL is returned, open it
+      if (result.payment_url) {
+        await Linking.openURL(result.payment_url);
+        Alert.alert(
+          'Перенаправление',
+          'Вы будете перенаправлены на страницу оплаты',
+          [{ text: 'OK', onPress: () => safeNavigate.back() }]
+        );
+      } else {
+        Alert.alert(
+          'Успех',
+          `Пополнение на сумму ${amount} сом успешно выполнено`,
+          [{ text: 'OK', onPress: () => safeNavigate.back() }]
+        );
+      }
+    } catch (error: any) {
+      console.error('Deposit error:', error);
+      Alert.alert('Ошибка', error.data?.message || 'Не удалось выполнить пополнение');
     } finally {
       setLoading(false);
     }

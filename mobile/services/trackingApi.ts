@@ -1,5 +1,13 @@
 import { api } from './api';
 
+// Backend routes:
+// POST /tracking/location - real-time location updates (start, update, stop, get)
+// GET /tracking/sessions/active - get active tracking sessions
+// GET /tracking/events - get tracking events
+// GET /tracking/statistics - get tracking statistics
+// POST /tracking/share - share tracking link
+// GET /tracking/shared/:token - get shared tracking
+
 export interface Coordinates {
   latitude: number;
   longitude: number;
@@ -112,21 +120,21 @@ export interface GetTrackingHistoryRequest {
 
 export const trackingApi = api.injectEndpoints({
   endpoints: (builder) => ({
-    // Start location tracking
+    // Start location tracking - Backend: POST /tracking/location
     startLocationTracking: builder.mutation<{
       tracking: LocationTracking;
       message: string;
       trackingUrl: string;
     }, StartTrackingRequest>({
       query: (data) => ({
-        url: '/tracking/real-time-location',
+        url: '/tracking/location',
         method: 'POST',
         body: data,
       }),
       invalidatesTags: ['Tracking'],
     }),
 
-    // Update current location
+    // Update current location - Backend: POST /tracking/location
     updateLocation: builder.mutation<{
       locationUpdate: {
         id: string;
@@ -136,41 +144,41 @@ export const trackingApi = api.injectEndpoints({
       message: string;
     }, UpdateLocationRequest>({
       query: (data) => ({
-        url: '/tracking/real-time-location',
+        url: '/tracking/location',
         method: 'POST',
         body: data,
       }),
       invalidatesTags: ['Tracking'],
     }),
 
-    // Stop location tracking
+    // Stop location tracking - Backend: POST /tracking/location
     stopLocationTracking: builder.mutation<{
       tracking: LocationTracking;
       message: string;
     }, StopTrackingRequest>({
       query: (data) => ({
-        url: '/tracking/real-time-location',
+        url: '/tracking/location',
         method: 'POST',
         body: data,
       }),
       invalidatesTags: ['Tracking'],
     }),
 
-    // Get current location
+    // Get current location - Backend: POST /tracking/location
     getCurrentLocation: builder.mutation<{
       tracking: LocationTracking;
       location?: LocationUpdate;
       message: string;
     }, GetLocationRequest>({
       query: (data) => ({
-        url: '/tracking/real-time-location',
+        url: '/tracking/location',
         method: 'POST',
         body: data,
       }),
       invalidatesTags: ['Tracking'],
     }),
 
-    // Get tracking history
+    // Get tracking history - Backend: POST /tracking/location
     getTrackingHistory: builder.mutation<{
       tracking: LocationTracking;
       locationHistory: LocationUpdate[];
@@ -178,26 +186,26 @@ export const trackingApi = api.injectEndpoints({
       message: string;
     }, GetTrackingHistoryRequest>({
       query: (data) => ({
-        url: '/tracking/real-time-location',
+        url: '/tracking/location',
         method: 'POST',
         body: data,
       }),
       invalidatesTags: ['Tracking'],
     }),
 
-    // Get active tracking sessions
+    // Get active tracking sessions - Backend: GET /tracking/sessions/active
     getActiveTrackingSessions: builder.query<{
       sessions: LocationTracking[];
       totalCount: number;
     }, { masterId?: string; clientId?: string }>({
       query: (params) => ({
-        url: '/tracking/active-sessions',
+        url: '/tracking/sessions/active',
         params,
       }),
       providesTags: ['Tracking'],
     }),
 
-    // Get tracking events
+    // Get tracking events - Backend: GET /tracking/events
     getTrackingEvents: builder.query<{
       events: TrackingEvent[];
       totalCount: number;
@@ -216,7 +224,7 @@ export const trackingApi = api.injectEndpoints({
       ],
     }),
 
-    // Get tracking statistics
+    // Get tracking statistics - Backend: GET /tracking/statistics
     getTrackingStatistics: builder.query<{
       totalSessions: number;
       totalDistance: number;
@@ -249,7 +257,7 @@ export const trackingApi = api.injectEndpoints({
       providesTags: ['Tracking'],
     }),
 
-    // Share tracking link
+    // Share tracking link - Backend: POST /tracking/share
     shareTrackingLink: builder.mutation<{
       trackingUrl: string;
       shareCode: string;
@@ -262,14 +270,14 @@ export const trackingApi = api.injectEndpoints({
       allowAnonymous?: boolean;
     }>({
       query: (data) => ({
-        url: '/tracking/share-link',
+        url: '/tracking/share',
         method: 'POST',
         body: data,
       }),
       invalidatesTags: ['Tracking'],
     }),
 
-    // Get shared tracking
+    // Get shared tracking - Backend: GET /tracking/shared/:token
     getSharedTracking: builder.query<{
       tracking: LocationTracking;
       location?: LocationUpdate;
@@ -283,9 +291,8 @@ export const trackingApi = api.injectEndpoints({
       shareCode: string;
       trackingId: string;
     }>({
-      query: (params) => ({
-        url: '/tracking/shared',
-        params,
+      query: ({ shareCode }) => ({
+        url: `/tracking/shared/${shareCode}`,
       }),
       providesTags: (result, error, { trackingId }) => [
         { type: 'Tracking', id: `shared-${trackingId}` },

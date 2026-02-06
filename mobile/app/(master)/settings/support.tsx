@@ -3,6 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, TextInput, Alert } from 'reac
 import { router } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
+import { safeNavigate } from '../../../hooks/useNavigation'
 
 export default function SupportPage() {
   const [subject, setSubject] = useState('')
@@ -24,7 +25,7 @@ export default function SupportPage() {
       Alert.alert(
         'Сообщение отправлено',
         'Ваше обращение получено. Мы свяжемся с вами в ближайшее время.',
-        [{ text: 'OK', onPress: () => router.back() }]
+        [{ text: 'OK', onPress: () => safeNavigate.back() }]
       )
     } catch (error) {
       Alert.alert('Ошибка', 'Не удалось отправить сообщение. Попробуйте позже.')

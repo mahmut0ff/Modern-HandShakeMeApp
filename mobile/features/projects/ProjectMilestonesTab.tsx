@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useGetProjectMilestonesQuery } from '../../services/projectApi';
-import LoadingSpinner from '../../components/LoadingSpinner';
+import { LoadingSpinner } from '../../components/LoadingSpinner';
 import MilestoneProgress from '../../components/projects/MilestoneProgress';
 import MilestonePaymentCard from '../../components/projects/MilestonePaymentCard';
 

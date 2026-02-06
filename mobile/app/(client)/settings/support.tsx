@@ -3,6 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, TextInput, Linking, Alert } f
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
+import { safeNavigate } from '../../../hooks/useNavigation'
 
 export default function SupportPage() {
   const [selectedCategory, setSelectedCategory] = useState('')
@@ -53,7 +54,7 @@ export default function SupportPage() {
     Alert.alert(
       'Сообщение отправлено',
       'Ваше обращение получено. Мы свяжемся с вами в ближайшее время.',
-      [{ text: 'OK', onPress: () => router.back() }]
+      [{ text: 'OK', onPress: () => safeNavigate.back() }]
     )
   }
 

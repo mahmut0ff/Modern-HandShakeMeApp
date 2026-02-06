@@ -50,7 +50,7 @@ locals {
 
 resource "aws_dynamodb_table" "main" {
   name         = "${local.name_prefix}-table"
-  billing_mode = "PAY_PER_REQUEST" # On-demand pricing
+  billing_mode = "PAY_PER_REQUEST"
 
   hash_key  = "PK"
   range_key = "SK"
@@ -85,7 +85,6 @@ resource "aws_dynamodb_table" "main" {
     type = "S"
   }
 
-  # GSI1: Jobs by category
   global_secondary_index {
     name            = "GSI1"
     hash_key        = "GSI1PK"
@@ -93,7 +92,6 @@ resource "aws_dynamodb_table" "main" {
     projection_type = "ALL"
   }
 
-  # GSI2: Jobs by status, Users by phone
   global_secondary_index {
     name            = "GSI2"
     hash_key        = "GSI2PK"
@@ -115,82 +113,25 @@ resource "aws_dynamodb_table" "main" {
 }
 
 # =============================================================================
-# IAM Role for Lambda Functions
+# IAM Role for Lambda Functions - DISABLED (requires IAM permissions)
 # =============================================================================
-
-resource "aws_iam_role" "lambda_role" {
-  name = "${local.name_prefix}-lambda-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "lambda.amazonaws.com"
-        }
-      }
-    ]
-  })
-}
-
-resource "aws_iam_role_policy" "lambda_policy" {
-  name = "${local.name_prefix}-lambda-policy"
-  role = aws_iam_role.lambda_role.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "logs:CreateLogGroup",
-          "logs:CreateLogStream",
-          "logs:PutLogEvents"
-        ]
-        Resource = "arn:aws:logs:*:*:*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "dynamodb:GetItem",
-          "dynamodb:PutItem",
-          "dynamodb:UpdateItem",
-          "dynamodb:DeleteItem",
-          "dynamodb:Query",
-          "dynamodb:Scan",
-          "dynamodb:BatchWriteItem"
-        ]
-        Resource = [
-          aws_dynamodb_table.main.arn,
-          "${aws_dynamodb_table.main.arn}/index/*"
-        ]
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "s3:GetObject",
-          "s3:PutObject",
-          "s3:DeleteObject"
-        ]
-        Resource = "arn:aws:s3:::${local.name_prefix}-uploads/*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "sns:Publish"
-        ]
-        Resource = "*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "ses:SendEmail",
-          "ses:SendRawEmail"
-        ]
-        Resource = "*"
-      }
-    ]
-  })
-}
+# Contact your AWS administrator to get IAM:CreateRole permissions.
+# Once you have permissions, uncomment the following resources:
+#
+# resource "aws_iam_role" "lambda_role" {
+#   name = "${local.name_prefix}-lambda-role"
+#   assume_role_policy = jsonencode({
+#     Version = "2012-10-17"
+#     Statement = [{
+#       Action = "sts:AssumeRole"
+#       Effect = "Allow"
+#       Principal = { Service = "lambda.amazonaws.com" }
+#     }]
+#   })
+# }
+#
+# resource "aws_iam_role_policy" "lambda_policy" {
+#   name = "${local.name_prefix}-lambda-policy"
+#   role = aws_iam_role.lambda_role.id
+#   policy = jsonencode({...})
+# }

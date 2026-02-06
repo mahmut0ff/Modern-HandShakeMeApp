@@ -71,7 +71,7 @@ export const ExportDataScreen: React.FC<ExportDataScreenProps> = ({ onBack }) =>
       Alert.alert('Успешно', 'Данные экспортированы. Вы можете скачать или поделиться ими.');
     } catch (error: any) {
       console.error('Export error:', error);
-      
+
       if (error.response?.status === 429) {
         Alert.alert(
           'Превышен лимит',
@@ -91,10 +91,12 @@ export const ExportDataScreen: React.FC<ExportDataScreenProps> = ({ onBack }) =>
     try {
       const content = await gdprApi.downloadExportedData(exportData, format);
       const filename = `handshakeme_export_${new Date().toISOString().split('T')[0]}.${format}`;
-      const fileUri = `${FileSystem.documentDirectory}${filename}`;
+      // Cast to any to avoid type errors with expo-file-system exports
+      const fs = FileSystem as any;
+      const fileUri = `${fs.documentDirectory}${filename}`;
 
-      await FileSystem.writeAsStringAsync(fileUri, content, {
-        encoding: FileSystem.EncodingType.UTF8,
+      await fs.writeAsStringAsync(fileUri, content, {
+        encoding: fs.EncodingType.UTF8,
       });
 
       const canShare = await Sharing.isAvailableAsync();
@@ -166,32 +168,28 @@ export const ExportDataScreen: React.FC<ExportDataScreenProps> = ({ onBack }) =>
                 <View className="flex-row space-x-3">
                   <TouchableOpacity
                     onPress={() => setFormat('json')}
-                    className={`flex-1 py-3 rounded-lg border-2 ${
-                      format === 'json'
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-200 bg-white'
-                    }`}
+                    className={`flex-1 py-3 rounded-lg border-2 ${format === 'json'
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-gray-200 bg-white'
+                      }`}
                   >
                     <Text
-                      className={`text-center font-medium ${
-                        format === 'json' ? 'text-blue-600' : 'text-gray-600'
-                      }`}
+                      className={`text-center font-medium ${format === 'json' ? 'text-blue-600' : 'text-gray-600'
+                        }`}
                     >
                       JSON
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={() => setFormat('csv')}
-                    className={`flex-1 py-3 rounded-lg border-2 ${
-                      format === 'csv'
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-200 bg-white'
-                    }`}
+                    className={`flex-1 py-3 rounded-lg border-2 ${format === 'csv'
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-gray-200 bg-white'
+                      }`}
                   >
                     <Text
-                      className={`text-center font-medium ${
-                        format === 'csv' ? 'text-blue-600' : 'text-gray-600'
-                      }`}
+                      className={`text-center font-medium ${format === 'csv' ? 'text-blue-600' : 'text-gray-600'
+                        }`}
                     >
                       CSV
                     </Text>
@@ -214,14 +212,12 @@ export const ExportDataScreen: React.FC<ExportDataScreenProps> = ({ onBack }) =>
                     </Text>
                   </View>
                   <View
-                    className={`w-12 h-7 rounded-full ${
-                      includeFiles ? 'bg-blue-500' : 'bg-gray-300'
-                    }`}
+                    className={`w-12 h-7 rounded-full ${includeFiles ? 'bg-blue-500' : 'bg-gray-300'
+                      }`}
                   >
                     <View
-                      className={`w-5 h-5 rounded-full bg-white mt-1 ${
-                        includeFiles ? 'ml-6' : 'ml-1'
-                      }`}
+                      className={`w-5 h-5 rounded-full bg-white mt-1 ${includeFiles ? 'ml-6' : 'ml-1'
+                        }`}
                     />
                   </View>
                 </TouchableOpacity>
@@ -255,11 +251,10 @@ export const ExportDataScreen: React.FC<ExportDataScreenProps> = ({ onBack }) =>
                     className="flex-row items-center py-3 border-b border-gray-100 last:border-b-0"
                   >
                     <View
-                      className={`w-6 h-6 rounded border-2 mr-3 items-center justify-center ${
-                        selectedSections.includes(section.key)
-                          ? 'border-blue-500 bg-blue-500'
-                          : 'border-gray-300'
-                      }`}
+                      className={`w-6 h-6 rounded border-2 mr-3 items-center justify-center ${selectedSections.includes(section.key)
+                        ? 'border-blue-500 bg-blue-500'
+                        : 'border-gray-300'
+                        }`}
                     >
                       {selectedSections.includes(section.key) && (
                         <Ionicons name="checkmark" size={16} color="white" />

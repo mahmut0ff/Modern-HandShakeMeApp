@@ -5,8 +5,17 @@ import websocketService from '../services/websocket';
 export function useWebSocket() {
   const [isConnected, setIsConnected] = useState(false);
   const { isAuthenticated } = useAppSelector(state => state.auth);
+  
+  // Disable WebSocket in development if WS_URL is not available
+  const isDevelopment = process.env.NODE_ENV === 'development';
+  const wsUrl = process.env.EXPO_PUBLIC_WS_URL;
+  const wsEnabled = !isDevelopment || (wsUrl && !wsUrl.includes('3001')); // Disable if using port 3001 in dev
 
   useEffect(() => {
+    if (!wsEnabled) {
+      console.log('WebSocket disabled in development mode');
+      return;
+    }
 
     if (isAuthenticated) {
       websocketService.connect();
@@ -23,7 +32,7 @@ export function useWebSocket() {
     return () => {
       websocketService.offConnection(handleConnection);
     };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, wsEnabled]);
 
   const sendMessage = useCallback((type: string, data: any) => {
     websocketService.send(type, data);

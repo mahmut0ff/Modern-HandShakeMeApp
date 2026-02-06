@@ -7,6 +7,7 @@ interface EmptyStateProps {
   title: string
   description: string
   actionText?: string
+  actionLabel?: string
   onAction?: () => void
 }
 
@@ -14,9 +15,11 @@ export function EmptyState({
   icon, 
   title, 
   description, 
-  actionText, 
+  actionText,
+  actionLabel,
   onAction 
 }: EmptyStateProps) {
+  const buttonText = actionText || actionLabel;
   return (
     <View className="items-center justify-center py-12">
       <View className="w-20 h-20 bg-gray-100 rounded-full items-center justify-center mb-4">
@@ -24,14 +27,17 @@ export function EmptyState({
       </View>
       <Text className="text-gray-500 text-lg font-medium mb-2 text-center">{title}</Text>
       <Text className="text-gray-400 text-center mb-4 px-4">{description}</Text>
-      {actionText && onAction && (
+      {buttonText && onAction && (
         <TouchableOpacity
           onPress={onAction}
           className="bg-blue-500 px-6 py-3 rounded-2xl"
         >
-          <Text className="text-white font-semibold">{actionText}</Text>
+          <Text className="text-white font-semibold">{buttonText}</Text>
         </TouchableOpacity>
       )}
     </View>
   )
 }
+
+
+export default EmptyState;

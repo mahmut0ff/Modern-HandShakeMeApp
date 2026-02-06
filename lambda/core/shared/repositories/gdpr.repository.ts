@@ -1,6 +1,6 @@
 // GDPR Repository for DynamoDB operations
 
-import AWS from 'aws-sdk';
+import * as AWS from 'aws-sdk';
 import { logger } from '../utils/logger';
 import { GDPRDeletionRecord, GDPROperationResult, AnonymizedUserData } from '../types/gdpr';
 
@@ -9,12 +9,22 @@ export class GDPRRepository {
   private tableName: string;
 
   constructor() {
-    this.dynamodb = new AWS.DynamoDB.DocumentClient();
-    this.tableName = process.env.DYNAMODB_TABLE_NAME!;
+    const isLocal = !!process.env.DYNAMODB_ENDPOINT;
     
-    if (!this.tableName) {
-      throw new Error('DYNAMODB_TABLE_NAME environment variable is required');
+    if (isLocal) {
+      this.dynamodb = new AWS.DynamoDB.DocumentClient({
+        endpoint: process.env.DYNAMODB_ENDPOINT,
+        region: process.env.AWS_REGION || 'us-east-1',
+        credentials: {
+          accessKeyId: 'local',
+          secretAccessKey: 'local'
+        }
+      });
+    } else {
+      this.dynamodb = new AWS.DynamoDB.DocumentClient();
     }
+    
+    this.tableName = process.env.DYNAMODB_TABLE || process.env.DYNAMODB_TABLE_NAME || 'handshakeme-local';
   }
 
   /**

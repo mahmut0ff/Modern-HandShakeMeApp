@@ -1,6 +1,7 @@
 import { useAppSelector, useAppDispatch } from './redux';
 import { logout } from '../features/auth/authSlice';
 import { useLogoutMutation } from '../services/authApi';
+import { router } from 'expo-router';
 
 export const useAuth = () => {
   const dispatch = useAppDispatch();
@@ -16,6 +17,8 @@ export const useAuth = () => {
       console.error('Logout error:', error);
     } finally {
       dispatch(logout());
+      // Redirect to login after logout
+      router.replace('/(auth)/login');
     }
   };
 

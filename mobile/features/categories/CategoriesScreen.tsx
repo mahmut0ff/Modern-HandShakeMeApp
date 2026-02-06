@@ -10,8 +10,8 @@ import {
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useListCategoriesQuery, Category } from '../../services/categoryApi';
-import LoadingSpinner from '../../components/LoadingSpinner';
-import ErrorMessage from '../../components/ErrorMessage';
+import { LoadingSpinner } from '../../components/LoadingSpinner';
+import { ErrorMessage } from '../../components/ErrorMessage';
 
 export default function CategoriesScreen() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -35,8 +35,8 @@ export default function CategoriesScreen() {
 
   const filteredCategories = searchQuery.trim()
     ? categories?.filter((cat) =>
-        cat.name.toLowerCase().includes(searchQuery.toLowerCase())
-      )
+      cat.name.toLowerCase().includes(searchQuery.toLowerCase())
+    )
     : categories;
 
   return (

@@ -1,4 +1,4 @@
-import AWS from 'aws-sdk';
+import { SESClient, SendEmailCommand, VerifyEmailIdentityCommand } from '@aws-sdk/client-ses';
 import { logger } from '../utils/logger';
 
 export interface EmailNotificationPayload {
@@ -14,10 +14,10 @@ export interface EmailTemplate {
 }
 
 export class EmailService {
-  private ses: AWS.SES;
+  private sesClient: SESClient;
 
   constructor() {
-    this.ses = new AWS.SES({
+    this.sesClient = new SESClient({
       region: process.env.AWS_REGION || 'us-east-1',
     });
   }
@@ -31,8 +31,8 @@ export class EmailService {
   ): Promise<boolean> {
     try {
       const template = this.getEmailTemplate(payload.template, payload.data);
-      
-      const params = {
+
+      const command = new SendEmailCommand({
         Source: process.env.SES_FROM_EMAIL || 'noreply@handshakeme.com',
         Destination: {
           ToAddresses: [email],
@@ -53,10 +53,10 @@ export class EmailService {
             },
           },
         },
-      };
+      });
 
-      const result = await this.ses.sendEmail(params).promise();
-      
+      const result = await this.sesClient.send(command);
+
       logger.info('Email notification sent successfully', {
         email,
         template: payload.template,
@@ -324,9 +324,11 @@ export class EmailService {
    */
   async verifyEmailAddress(email: string): Promise<boolean> {
     try {
-      await this.ses.verifyEmailIdentity({
+      const command = new VerifyEmailIdentityCommand({
         EmailAddress: email,
-      }).promise();
+      });
+
+      await this.sesClient.send(command);
 
       logger.info('Email address verification initiated', { email });
       return true;

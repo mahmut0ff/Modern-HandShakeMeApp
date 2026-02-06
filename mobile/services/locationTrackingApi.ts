@@ -12,7 +12,7 @@ const locationTrackingClient = axios.create({
 
 // Add auth interceptor
 locationTrackingClient.interceptors.request.use(
-  async (config) => {
+  async (config: any) => {
     try {
       const token = await AsyncStorage.getItem('accessToken');
       if (token) {
@@ -23,7 +23,7 @@ locationTrackingClient.interceptors.request.use(
     }
     return config;
   },
-  (error) => {
+  (error: any) => {
     return Promise.reject(error);
   }
 );

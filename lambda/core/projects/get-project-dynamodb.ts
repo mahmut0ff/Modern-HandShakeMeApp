@@ -1,60 +1,33 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import jwt from 'jsonwebtoken';
+import type { APIGatewayProxyResult } from 'aws-lambda';
+import { success, notFound, forbidden, badRequest } from '../shared/utils/response';
+import { withAuth, AuthenticatedEvent } from '../shared/middleware/auth';
+import { withErrorHandler } from '../shared/middleware/errorHandler';
 import { ProjectRepository } from '../shared/repositories/project.repository';
+import { logger } from '../shared/utils/logger';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const projectRepo = new ProjectRepository();
 
-export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
-  try {
-    const authHeader = event.headers.Authorization || event.headers.authorization;
-    if (!authHeader) {
-      return {
-        statusCode: 401,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Authorization header required' })
-      };
-    }
+async function getProjectHandler(event: AuthenticatedEvent): Promise<APIGatewayProxyResult> {
+  const { userId } = event.auth;
+  const projectId = event.pathParameters?.id;
 
-    const token = authHeader.replace('Bearer ', '');
-    
-    // Verify token
-    let decoded: any;
-    try {
-      decoded = jwt.verify(token, JWT_SECRET);
-    } catch (error) {
-      return {
-        statusCode: 401,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Invalid or expired token' })
-      };
-    }
-
-    const projectId = event.pathParameters?.id;
-
-    if (!projectId) {
-      return { statusCode: 400, body: JSON.stringify({ error: 'Project ID required' }) };
-    }
-
-    const projectRepo = new ProjectRepository();
-    const project = await projectRepo.findById(projectId);
-
-    if (!project) {
-      return { statusCode: 404, body: JSON.stringify({ error: 'Project not found' }) };
-    }
-
-    if (project.masterId !== decoded.userId && project.clientId !== decoded.userId) {
-      return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden' }) };
-    }
-
-    return {
-      statusCode: 200,
-      body: JSON.stringify(project),
-    };
-  } catch (error: any) {
-    console.error('Get project error:', error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: error.message }),
-    };
+  if (!projectId) {
+    return badRequest('Project ID required');
   }
+
+  logger.info('Get project', { userId, projectId });
+
+  const project = await projectRepo.findById(projectId);
+
+  if (!project) {
+    return notFound('Project not found');
+  }
+
+  if (project.masterId !== userId && project.clientId !== userId) {
+    return forbidden('You do not have access to this project');
+  }
+
+  return success(project);
 }
+
+export const handler = withErrorHandler(withAuth(getProjectHandler));

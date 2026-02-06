@@ -11,6 +11,10 @@
   ],
   "exclude": [
     "node_modules",
-    "__tests__"
+    "__tests__",
+    "e2e",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.property.test.tsx"
   ]
 }

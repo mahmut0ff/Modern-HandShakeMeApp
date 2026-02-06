@@ -1,0 +1,7 @@
+{
+  "queryStringParameters": {
+    "visitorId": "test123"
+  },
+  "httpMethod": "GET",
+  "path": "/auth/telegram/code"
+}

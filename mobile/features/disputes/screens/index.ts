@@ -1,2 +1,3 @@
 // Disputes screens exports
-// Screens will be created as needed
+export { DisputesListScreen } from './DisputesListScreen';
+export { DisputeDetailScreen } from './DisputeDetailScreen';

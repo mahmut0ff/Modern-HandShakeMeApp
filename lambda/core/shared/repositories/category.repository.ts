@@ -1,10 +1,8 @@
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, PutCommand, GetCommand, UpdateCommand, QueryCommand, BatchWriteCommand } from '@aws-sdk/lib-dynamodb';
+import { PutCommand, GetCommand, UpdateCommand, QueryCommand, BatchWriteCommand } from '@aws-sdk/lib-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
 import { Category, Skill } from '../types';
+import { dynamodb as docClient } from '../db/dynamodb-client';
 
-const client = new DynamoDBClient({});
-const docClient = DynamoDBDocumentClient.from(client);
 const TABLE_NAME = process.env.DYNAMODB_TABLE || 'handshake-table';
 
 export class CategoryRepository {
@@ -108,7 +106,7 @@ export class CategoryRepository {
       const currentCategory = await this.getCategory(id);
       const newOrder = updates.order !== undefined ? updates.order : currentCategory?.order || 0;
       const newIsActive = updates.isActive !== undefined ? updates.isActive : currentCategory?.isActive || true;
-      
+
       updateExpressions.push('GSI2SK = :gsi2sk');
       expressionAttributeValues[':gsi2sk'] = `${newIsActive ? 'ACTIVE' : 'INACTIVE'}#${newOrder.toString().padStart(3, '0')}`;
     }
@@ -204,8 +202,8 @@ export class CategoryRepository {
     }
 
     if (filters?.search) {
-      filterExpression = filterExpression ? 
-        `${filterExpression} AND contains(#name, :search)` : 
+      filterExpression = filterExpression ?
+        `${filterExpression} AND contains(#name, :search)` :
         'contains(#name, :search)';
       expressionAttributeValues[':search'] = filters.search.toLowerCase();
     }
@@ -265,8 +263,8 @@ export class CategoryRepository {
     }
 
     if (filters?.search) {
-      filterExpression = filterExpression ? 
-        `${filterExpression} AND contains(#name, :search)` : 
+      filterExpression = filterExpression ?
+        `${filterExpression} AND contains(#name, :search)` :
         'contains(#name, :search)';
       expressionAttributeValues[':search'] = filters.search.toLowerCase();
     }
@@ -315,7 +313,7 @@ export class CategoryRepository {
       const currentSkill = await this.getSkill(id, categoryId);
       const newName = updates.name !== undefined ? updates.name : currentSkill?.name || '';
       const newIsActive = updates.isActive !== undefined ? updates.isActive : currentSkill?.isActive || true;
-      
+
       updateExpressions.push('GSI2SK = :gsi2sk');
       expressionAttributeValues[':gsi2sk'] = `${newIsActive ? 'ACTIVE' : 'INACTIVE'}#${newName}`;
     }
@@ -359,7 +357,7 @@ export class CategoryRepository {
     const batchSize = 25;
     for (let i = 0; i < categories.length; i += batchSize) {
       const batch = categories.slice(i, i + batchSize);
-      
+
       const writeRequests = batch.map(categoryData => {
         const id = uuidv4();
         const now = new Date().toISOString();

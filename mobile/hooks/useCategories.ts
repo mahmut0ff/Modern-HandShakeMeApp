@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   useListCategoriesQuery,
   useGetCategorySkillsQuery,
@@ -99,7 +99,7 @@ export const useSkillSelection = (
   initialSkills: Skill[] = [],
   maxSkills: number = 10
 ) => {
-  const [selectedSkills, setSelectedSkills] = React.useState<Skill[]>(initialSkills);
+  const [selectedSkills, setSelectedSkills] = useState<Skill[]>(initialSkills);
 
   const toggleSkill = (skill: Skill) => {
     const isSelected = selectedSkills.some((s) => s.id === skill.id);

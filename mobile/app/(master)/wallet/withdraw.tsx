@@ -3,19 +3,29 @@ import { View, Text, ScrollView, TouchableOpacity, TextInput, Alert } from 'reac
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { safeNavigate } from '../../../hooks/useNavigation';
+import { 
+  useGetWalletQuery, 
+  useGetPaymentMethodsQuery, 
+  useCreateWithdrawalMutation 
+} from '../../../services/walletApi';
+import { LoadingSpinner } from '../../../components/LoadingSpinner';
 
 export default function WithdrawPage() {
   const [amount, setAmount] = useState('');
-  const [selectedCard, setSelectedCard] = useState<string | null>(null);
+  const [selectedCard, setSelectedCard] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const availableBalance = 42750;
+  // API hooks
+  const { data: wallet, isLoading: walletLoading } = useGetWalletQuery();
+  const { data: paymentMethods, isLoading: methodsLoading } = useGetPaymentMethodsQuery();
+  const [createWithdrawal] = useCreateWithdrawalMutation();
+
+  const availableBalance = parseFloat(wallet?.balance || '0');
   const minWithdraw = 1000;
 
-  const cards = [
-    { id: '1', number: '**** 1234', bank: 'Оптима Банк', type: 'visa' },
-    { id: '2', number: '**** 5678', bank: 'KICB', type: 'mastercard' },
-  ];
+  // Filter only card payment methods
+  const cards = (paymentMethods || []).filter(m => m.method_type === 'card');
 
   const handleWithdraw = async () => {
     const withdrawAmount = parseFloat(amount);
@@ -42,17 +52,26 @@ export default function WithdrawPage() {
 
     setLoading(true);
     try {
-      // TODO: Implement API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await createWithdrawal({
+        amount: withdrawAmount,
+        payment_method_id: selectedCard,
+        description: 'Вывод средств на карту',
+      }).unwrap();
+      
       Alert.alert('Успех', 'Заявка на вывод средств принята!', [
-        { text: 'OK', onPress: () => router.back() }
+        { text: 'OK', onPress: () => safeNavigate.back() }
       ]);
-    } catch (error) {
-      Alert.alert('Ошибка', 'Не удалось создать заявку на вывод');
+    } catch (error: any) {
+      console.error('Withdrawal error:', error);
+      Alert.alert('Ошибка', error.data?.message || 'Не удалось создать заявку на вывод');
     } finally {
       setLoading(false);
     }
   };
+
+  if (walletLoading || methodsLoading) {
+    return <LoadingSpinner fullScreen text="Загрузка..." />;
+  }
 
   return (
     <SafeAreaView className="flex-1 bg-[#F8F7FC]">
@@ -110,7 +129,7 @@ export default function WithdrawPage() {
           <Text className="font-semibold text-gray-900 mb-4">Выберите карту</Text>
           
           <View className="flex flex-col gap-3">
-            {cards.map(card => (
+            {cards.length > 0 ? cards.map(card => (
               <TouchableOpacity
                 key={card.id}
                 onPress={() => setSelectedCard(card.id)}
@@ -122,20 +141,22 @@ export default function WithdrawPage() {
               >
                 <View className="flex-row items-center gap-3">
                   <View className={`w-12 h-12 rounded-2xl items-center justify-center ${
-                    card.type === 'visa' ? 'bg-blue-500' : 'bg-red-500'
+                    card.provider?.toLowerCase().includes('visa') ? 'bg-blue-500' : 'bg-red-500'
                   }`}>
                     <Ionicons name="card" size={24} color="white" />
                   </View>
                   <View className="flex-1">
-                    <Text className="font-semibold text-gray-900">{card.number}</Text>
-                    <Text className="text-sm text-gray-500">{card.bank}</Text>
+                    <Text className="font-semibold text-gray-900">{card.name}</Text>
+                    <Text className="text-sm text-gray-500">{card.provider}</Text>
                   </View>
                   {selectedCard === card.id && (
                     <Ionicons name="checkmark-circle" size={24} color="#0165FB" />
                   )}
                 </View>
               </TouchableOpacity>
-            ))}
+            )) : (
+              <Text className="text-gray-500 text-center py-4">Нет сохранённых карт</Text>
+            )}
             
             <TouchableOpacity 
               onPress={() => router.push('/(master)/wallet/cards/add')}

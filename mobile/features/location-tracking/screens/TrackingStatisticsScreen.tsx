@@ -78,7 +78,7 @@ export const TrackingStatisticsScreen: React.FC<TrackingStatisticsScreenProps> =
   const formatDuration = (seconds: number) => {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
-    
+
     if (hours > 0) {
       return `${hours} ч ${minutes} мин`;
     }
@@ -134,14 +134,12 @@ export const TrackingStatisticsScreen: React.FC<TrackingStatisticsScreenProps> =
         <View className="flex-row space-x-2">
           <TouchableOpacity
             onPress={() => setPeriod('week')}
-            className={`flex-1 py-2 rounded-lg ${
-              period === 'week' ? 'bg-blue-500' : 'bg-gray-100'
-            }`}
+            className={`flex-1 py-2 rounded-lg ${period === 'week' ? 'bg-blue-500' : 'bg-gray-100'
+              }`}
           >
             <Text
-              className={`text-center text-sm font-medium ${
-                period === 'week' ? 'text-white' : 'text-gray-600'
-              }`}
+              className={`text-center text-sm font-medium ${period === 'week' ? 'text-white' : 'text-gray-600'
+                }`}
             >
               Неделя
             </Text>
@@ -149,14 +147,12 @@ export const TrackingStatisticsScreen: React.FC<TrackingStatisticsScreenProps> =
 
           <TouchableOpacity
             onPress={() => setPeriod('month')}
-            className={`flex-1 py-2 rounded-lg ${
-              period === 'month' ? 'bg-blue-500' : 'bg-gray-100'
-            }`}
+            className={`flex-1 py-2 rounded-lg ${period === 'month' ? 'bg-blue-500' : 'bg-gray-100'
+              }`}
           >
             <Text
-              className={`text-center text-sm font-medium ${
-                period === 'month' ? 'text-white' : 'text-gray-600'
-              }`}
+              className={`text-center text-sm font-medium ${period === 'month' ? 'text-white' : 'text-gray-600'
+                }`}
             >
               Месяц
             </Text>
@@ -164,14 +160,12 @@ export const TrackingStatisticsScreen: React.FC<TrackingStatisticsScreenProps> =
 
           <TouchableOpacity
             onPress={() => setPeriod('year')}
-            className={`flex-1 py-2 rounded-lg ${
-              period === 'year' ? 'bg-blue-500' : 'bg-gray-100'
-            }`}
+            className={`flex-1 py-2 rounded-lg ${period === 'year' ? 'bg-blue-500' : 'bg-gray-100'
+              }`}
           >
             <Text
-              className={`text-center text-sm font-medium ${
-                period === 'year' ? 'text-white' : 'text-gray-600'
-              }`}
+              className={`text-center text-sm font-medium ${period === 'year' ? 'text-white' : 'text-gray-600'
+                }`}
             >
               Год
             </Text>
@@ -291,6 +285,8 @@ export const TrackingStatisticsScreen: React.FC<TrackingStatisticsScreenProps> =
                   }}
                   fromZero
                   showValuesOnTopOfBars
+                  yAxisLabel=""
+                  yAxisSuffix=""
                 />
               </View>
             )}
@@ -366,12 +362,11 @@ export const TrackingStatisticsScreen: React.FC<TrackingStatisticsScreenProps> =
               <Text className="text-white text-sm leading-6">
                 {statistics.totalSessions > 0
                   ? `В среднем вы проезжаете ${formatDistance(
-                      statistics.totalDistance / statistics.totalSessions
-                    )} за сессию. ${
-                      statistics.sessionsThisWeek > statistics.sessionsThisMonth / 4
-                        ? 'На этой неделе активность выше среднего!'
-                        : 'Продолжайте в том же духе!'
-                    }`
+                    statistics.totalDistance / statistics.totalSessions
+                  )} за сессию. ${statistics.sessionsThisWeek > statistics.sessionsThisMonth / 4
+                    ? 'На этой неделе активность выше среднего!'
+                    : 'Продолжайте в том же духе!'
+                  }`
                   : 'Начните отслеживание, чтобы увидеть аналитику'}
               </Text>
             </View>

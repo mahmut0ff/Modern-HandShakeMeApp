@@ -1,10 +1,12 @@
+import { View } from 'react-native'
 import { Stack } from 'expo-router'
+import MobileBottomNav from '../../components/MobileBottomNav'
 
 export default function MasterLayout() {
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="dashboard" />
-      <Stack.Screen name="time-tracking" />
-    </Stack>
+    <View style={{ flex: 1 }}>
+      <Stack screenOptions={{ headerShown: false }} />
+      <MobileBottomNav />
+    </View>
   )
 }

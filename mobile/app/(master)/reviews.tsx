@@ -9,6 +9,8 @@ import {
   useRemoveReviewHelpfulMutation,
   useDeleteReviewResponseMutation,
   useReportReviewMutation,
+  useRespondToReviewMutation,
+  useUpdateReviewResponseMutation,
   type Review as APIReview,
 } from '../../services/reviewApi';
 import { usePagination } from '../../hooks/usePagination';
@@ -69,6 +71,8 @@ export default function MasterReviewsPage() {
   const [removeHelpful] = useRemoveReviewHelpfulMutation();
   const [deleteResponse] = useDeleteReviewResponseMutation();
   const [reportReview] = useReportReviewMutation();
+  const [respondToReview] = useRespondToReviewMutation();
+  const [updateReviewResponse] = useUpdateReviewResponseMutation();
 
   const apiReviews = reviewsData?.results ?? [];
   const totalCount = reviewsData?.count ?? 0;
@@ -135,9 +139,14 @@ export default function MasterReviewsPage() {
               Alert.alert('Ошибка', 'Введите текст ответа');
               return;
             }
-            // TODO: Implement respond to review API call
-            Alert.alert('Успех', 'Ответ отправлен');
-            refetchReviews();
+            try {
+              await respondToReview({ id: reviewId, data: { response: response.trim() } }).unwrap();
+              Alert.alert('Успех', 'Ответ отправлен');
+              refetchReviews();
+            } catch (error: any) {
+              console.error('Respond to review error:', error);
+              Alert.alert('Ошибка', error.data?.message || 'Не удалось отправить ответ');
+            }
           },
         },
       ],
@@ -159,9 +168,14 @@ export default function MasterReviewsPage() {
               Alert.alert('Ошибка', 'Введите текст ответа');
               return;
             }
-            // TODO: Implement update response API call
-            Alert.alert('Успех', 'Ответ обновлён');
-            refetchReviews();
+            try {
+              await updateReviewResponse({ id: reviewId, data: { response: response.trim() } }).unwrap();
+              Alert.alert('Успех', 'Ответ обновлён');
+              refetchReviews();
+            } catch (error: any) {
+              console.error('Update response error:', error);
+              Alert.alert('Ошибка', error.data?.message || 'Не удалось обновить ответ');
+            }
           },
         },
       ],

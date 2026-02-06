@@ -549,17 +549,21 @@ export const analyticsApi = api.injectEndpoints({
       providesTags: ['Analytics'],
     }),
 
-    // Generate analytics report
+    // Generate analytics report - Note: advanced-analytics not in routes.json
+    // Using existing analytics endpoints instead
     generateAnalyticsReport: builder.mutation<AnalyticsReport, AnalyticsRequest>({
       query: (data) => ({
-        url: '/analytics/advanced-analytics',
-        method: 'POST',
-        body: data,
+        url: '/analytics/master',
+        params: {
+          startDate: data.timeRange.startDate,
+          endDate: data.timeRange.endDate,
+          granularity: data.timeRange.granularity,
+        },
       }),
       invalidatesTags: ['Analytics'],
     }),
 
-    // Get business overview
+    // Get business overview - uses master analytics
     getBusinessOverview: builder.query<BusinessOverviewReport, {
       timeRange: {
         startDate: string;
@@ -571,17 +575,17 @@ export const analyticsApi = api.injectEndpoints({
       };
     }>({
       query: (params) => ({
-        url: '/analytics/advanced-analytics',
-        method: 'POST',
-        body: {
-          reportType: 'BUSINESS_OVERVIEW',
-          ...params,
+        url: '/analytics/master',
+        params: {
+          startDate: params.timeRange.startDate,
+          endDate: params.timeRange.endDate,
+          granularity: params.timeRange.granularity,
         },
       }),
       providesTags: ['Analytics'],
     }),
 
-    // Get revenue analysis
+    // Get revenue analysis - uses financial analytics
     getRevenueAnalysis: builder.query<RevenueAnalysisReport, {
       timeRange: {
         startDate: string;
@@ -591,17 +595,16 @@ export const analyticsApi = api.injectEndpoints({
       filters?: AnalyticsRequest['filters'];
     }>({
       query: (params) => ({
-        url: '/analytics/advanced-analytics',
-        method: 'POST',
-        body: {
-          reportType: 'REVENUE_ANALYSIS',
-          ...params,
+        url: '/analytics/financial',
+        params: {
+          startDate: params.timeRange.startDate,
+          endDate: params.timeRange.endDate,
         },
       }),
       providesTags: ['Analytics'],
     }),
 
-    // Get customer insights
+    // Get customer insights - uses order analytics
     getCustomerInsights: builder.query<CustomerInsightsReport, {
       timeRange: {
         startDate: string;
@@ -613,15 +616,17 @@ export const analyticsApi = api.injectEndpoints({
       };
     }>({
       query: (params) => ({
-        url: '/analytics/advanced-analytics',
-        method: 'POST',
-        body: {
-          reportType: 'CUSTOMER_INSIGHTS',
-          ...params,
+        url: '/analytics/orders',
+        params: {
+          startDate: params.timeRange.startDate,
+          endDate: params.timeRange.endDate,
         },
       }),
       providesTags: ['Analytics'],
     }),
+
+    // Note: Export, dashboard, insights, real-time endpoints not in routes.json
+    // These are placeholder implementations that may need backend routes
 
     // Export analytics report
     exportAnalyticsReport: builder.mutation<{
@@ -633,9 +638,12 @@ export const analyticsApi = api.injectEndpoints({
       exportFormat: 'CSV' | 'PDF' | 'EXCEL';
     }>({
       query: (data) => ({
-        url: '/analytics/export',
-        method: 'POST',
-        body: data,
+        url: '/analytics/financial',
+        params: {
+          startDate: data.timeRange.startDate,
+          endDate: data.timeRange.endDate,
+          export: data.exportFormat,
+        },
       }),
       invalidatesTags: ['Analytics'],
     }),
@@ -658,13 +666,13 @@ export const analyticsApi = api.injectEndpoints({
       };
     }>({
       query: (params) => ({
-        url: '/analytics/dashboard',
-        params,
+        url: '/analytics/master',
+        params: params.timeRange,
       }),
       providesTags: ['Analytics'],
     }),
 
-    // Save custom analytics dashboard
+    // Save custom analytics dashboard - not implemented in backend
     saveAnalyticsDashboard: builder.mutation<{
       dashboardId: string;
       message: string;
@@ -685,9 +693,8 @@ export const analyticsApi = api.injectEndpoints({
       isDefault?: boolean;
     }>({
       query: (data) => ({
-        url: '/analytics/dashboard',
-        method: 'POST',
-        body: data,
+        url: '/analytics/master',
+        method: 'GET',
       }),
       invalidatesTags: ['Analytics'],
     }),
@@ -716,8 +723,11 @@ export const analyticsApi = api.injectEndpoints({
       categories?: string[];
     }>({
       query: (params) => ({
-        url: '/analytics/insights',
-        params,
+        url: '/analytics/master',
+        params: {
+          startDate: params.timeRange.startDate,
+          endDate: params.timeRange.endDate,
+        },
       }),
       providesTags: ['Analytics'],
     }),
@@ -743,7 +753,7 @@ export const analyticsApi = api.injectEndpoints({
       }>;
     }, void>({
       query: () => ({
-        url: '/analytics/real-time',
+        url: '/analytics/master',
       }),
       providesTags: ['Analytics'],
     }),

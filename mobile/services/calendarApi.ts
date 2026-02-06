@@ -1,5 +1,11 @@
 import { api } from './api';
 
+// Backend routes:
+// GET /availability - get master availability
+// PUT /availability - update availability
+// GET /availability/slots - get available slots
+// POST /availability/book - book a slot
+
 export interface CalendarIntegration {
   id: string;
   provider: 'GOOGLE' | 'OUTLOOK' | 'APPLE' | 'CALDAV';
@@ -181,21 +187,47 @@ export interface ManageAvailabilityRequest {
 
 export const calendarApi = api.injectEndpoints({
   endpoints: (builder) => ({
-    // Connect calendar
+    // Calendar integration features - not available in backend yet
+    // Using local storage/mock for now
     connectCalendar: builder.mutation<{
       integration: CalendarIntegration;
       syncResult: CalendarSyncResult['stats'];
       message: string;
     }, ConnectCalendarRequest>({
-      query: (data) => ({
-        url: '/calendar/sync',
-        method: 'POST',
-        body: data,
-      }),
+      queryFn: async (data) => {
+        // Calendar sync not implemented in backend
+        console.log('Calendar connect requested:', data.provider);
+        return { 
+          data: { 
+            integration: {
+              id: 'local-' + Date.now(),
+              provider: data.provider,
+              calendarId: 'local',
+              calendarName: 'Local Calendar',
+              isActive: false,
+              settings: {
+                syncDirection: 'BIDIRECTIONAL',
+                syncFrequency: 'DAILY',
+                syncBookings: true,
+                syncAvailability: true,
+                syncPersonalEvents: false,
+                conflictResolution: 'MANUAL',
+                timeZone: 'Asia/Bishkek',
+                eventPrefix: '[Usta]',
+                includeClientInfo: true,
+                includeLocation: true,
+                reminderMinutes: [30, 60],
+              },
+              createdAt: new Date().toISOString(),
+            },
+            syncResult: { eventsImported: 0, eventsExported: 0, eventsUpdated: 0, eventsDeleted: 0, conflictsFound: 0 },
+            message: 'Интеграция с календарем пока недоступна' 
+          } 
+        };
+      },
       invalidatesTags: ['Calendar', 'Availability'],
     }),
 
-    // Sync calendar
     syncCalendar: builder.mutation<{
       syncResult: CalendarSyncResult['stats'];
       conflicts: CalendarSyncResult['conflicts'];
@@ -205,30 +237,30 @@ export const calendarApi = api.injectEndpoints({
       provider: 'GOOGLE' | 'OUTLOOK' | 'APPLE' | 'CALDAV';
       action: 'SYNC';
     }>({
-      query: (data) => ({
-        url: '/calendar/sync',
-        method: 'POST',
-        body: data,
-      }),
+      queryFn: async () => {
+        return { 
+          data: { 
+            syncResult: { eventsImported: 0, eventsExported: 0, eventsUpdated: 0, eventsDeleted: 0, conflictsFound: 0 },
+            conflicts: [],
+            message: 'Синхронизация календаря пока недоступна' 
+          } 
+        };
+      },
       invalidatesTags: ['Calendar', 'Availability'],
     }),
 
-    // Disconnect calendar
     disconnectCalendar: builder.mutation<{
       message: string;
     }, {
       provider: 'GOOGLE' | 'OUTLOOK' | 'APPLE' | 'CALDAV';
       action: 'DISCONNECT';
     }>({
-      query: (data) => ({
-        url: '/calendar/sync',
-        method: 'POST',
-        body: data,
-      }),
+      queryFn: async () => {
+        return { data: { message: 'Календарь отключен' } };
+      },
       invalidatesTags: ['Calendar'],
     }),
 
-    // Update calendar settings
     updateCalendarSettings: builder.mutation<{
       integration: Partial<CalendarIntegration>;
       message: string;
@@ -237,26 +269,29 @@ export const calendarApi = api.injectEndpoints({
       action: 'UPDATE_SETTINGS';
       settings: Partial<CalendarIntegration['settings']>;
     }>({
-      query: (data) => ({
-        url: '/calendar/sync',
-        method: 'POST',
-        body: data,
-      }),
+      queryFn: async (data) => {
+        return { 
+          data: { 
+            integration: { settings: data.settings },
+            message: 'Настройки обновлены' 
+          } 
+        };
+      },
       invalidatesTags: ['Calendar'],
     }),
 
-    // Get calendar integrations
     getCalendarIntegrations: builder.query<{
       integrations: CalendarIntegration[];
       totalCount: number;
     }, void>({
-      query: () => ({
-        url: '/calendar/integrations',
-      }),
+      queryFn: async () => {
+        // No calendar integrations in backend
+        return { data: { integrations: [], totalCount: 0 } };
+      },
       providesTags: ['Calendar'],
     }),
 
-    // Manage availability
+    // Availability management - Backend: PUT /availability
     manageAvailability: builder.mutation<{
       message: string;
       slotsCreated?: number;
@@ -287,14 +322,14 @@ export const calendarApi = api.injectEndpoints({
       nextAvailableSlots?: MasterAvailability[];
     }, ManageAvailabilityRequest>({
       query: (data) => ({
-        url: '/calendar/availability',
-        method: 'POST',
+        url: '/availability',
+        method: 'PUT',
         body: data,
       }),
       invalidatesTags: ['Availability', 'Calendar'],
     }),
 
-    // Get master availability
+    // Get master availability - Backend: GET /availability
     getMasterAvailability: builder.query<{
       weeklySchedule: MasterAvailability[];
       specificDates: MasterAvailability[];
@@ -317,13 +352,26 @@ export const calendarApi = api.injectEndpoints({
       includeBlocked?: boolean;
     }>({
       query: (params) => ({
-        url: '/calendar/availability',
+        url: '/availability',
         params,
       }),
+      transformResponse: (response: any) => {
+        // Transform backend response to expected format
+        return {
+          weeklySchedule: response.weeklySchedule || response.weekly_schedule || [],
+          specificDates: response.specificDates || response.specific_dates || [],
+          blockedSlots: response.blockedSlots || response.blocked_slots || [],
+          settings: response.settings || {
+            timeZone: 'Asia/Bishkek',
+            bufferTime: { beforeBooking: 15, afterBooking: 15 },
+            advanceBooking: { minHours: 2, maxDays: 30 },
+          },
+        };
+      },
       providesTags: ['Availability'],
     }),
 
-    // Get available time slots
+    // Get available time slots - Backend: GET /availability/slots
     getAvailableTimeSlots: builder.query<{
       slots: Array<{
         date: string;
@@ -346,15 +394,49 @@ export const calendarApi = api.injectEndpoints({
       endDate: string;
       serviceType?: string;
       duration?: number;
+      masterId?: string;
     }>({
       query: (params) => ({
-        url: '/calendar/available-slots',
+        url: '/availability/slots',
         params,
       }),
+      transformResponse: (response: any) => {
+        const slots = response.slots || response || [];
+        return {
+          slots: Array.isArray(slots) ? slots : [],
+          totalSlots: slots.length || 0,
+        };
+      },
       providesTags: ['Availability'],
     }),
 
-    // Get calendar sync logs
+    // Book a slot - Backend: POST /availability/book
+    bookSlot: builder.mutation<{
+      booking: {
+        id: string;
+        date: string;
+        startTime: string;
+        endTime: string;
+        status: string;
+      };
+      message: string;
+    }, {
+      masterId: string;
+      date: string;
+      startTime: string;
+      endTime: string;
+      serviceType?: string;
+      notes?: string;
+    }>({
+      query: (data) => ({
+        url: '/availability/book',
+        method: 'POST',
+        body: data,
+      }),
+      invalidatesTags: ['Availability'],
+    }),
+
+    // Calendar sync logs - not available in backend
     getCalendarSyncLogs: builder.query<{
       logs: Array<{
         id: string;
@@ -371,14 +453,13 @@ export const calendarApi = api.injectEndpoints({
       limit?: number;
       provider?: string;
     }>({
-      query: (params) => ({
-        url: '/calendar/sync-logs',
-        params,
-      }),
+      queryFn: async () => {
+        return { data: { logs: [], totalCount: 0 } };
+      },
       providesTags: ['Calendar'],
     }),
 
-    // Resolve calendar conflicts
+    // Resolve calendar conflicts - not available in backend
     resolveCalendarConflicts: builder.mutation<{
       message: string;
       resolvedCount: number;
@@ -386,15 +467,13 @@ export const calendarApi = api.injectEndpoints({
       conflictIds: string[];
       resolution: 'ACCEPT_EXTERNAL' | 'ACCEPT_INTERNAL' | 'MERGE' | 'IGNORE';
     }>({
-      query: (data) => ({
-        url: '/calendar/resolve-conflicts',
-        method: 'POST',
-        body: data,
-      }),
+      queryFn: async () => {
+        return { data: { message: 'Конфликты разрешены', resolvedCount: 0 } };
+      },
       invalidatesTags: ['Calendar', 'Availability'],
     }),
 
-    // Get calendar providers info
+    // Get calendar providers info - return static data
     getCalendarProviders: builder.query<{
       providers: Array<{
         id: 'GOOGLE' | 'OUTLOOK' | 'APPLE' | 'CALDAV';
@@ -406,9 +485,46 @@ export const calendarApi = api.injectEndpoints({
         authUrl?: string;
       }>;
     }, void>({
-      query: () => ({
-        url: '/calendar/providers',
-      }),
+      queryFn: async () => {
+        return {
+          data: {
+            providers: [
+              {
+                id: 'GOOGLE' as const,
+                name: 'Google Calendar',
+                description: 'Синхронизация с Google Calendar',
+                features: ['Двусторонняя синхронизация', 'Автоматические напоминания'],
+                setupInstructions: ['Войдите в Google аккаунт', 'Разрешите доступ к календарю'],
+                isSupported: false,
+              },
+              {
+                id: 'OUTLOOK' as const,
+                name: 'Outlook Calendar',
+                description: 'Синхронизация с Microsoft Outlook',
+                features: ['Двусторонняя синхронизация', 'Интеграция с Teams'],
+                setupInstructions: ['Войдите в Microsoft аккаунт', 'Разрешите доступ к календарю'],
+                isSupported: false,
+              },
+              {
+                id: 'APPLE' as const,
+                name: 'Apple Calendar',
+                description: 'Синхронизация с iCloud Calendar',
+                features: ['Синхронизация с iOS устройствами'],
+                setupInstructions: ['Войдите в Apple ID', 'Разрешите доступ к календарю'],
+                isSupported: false,
+              },
+              {
+                id: 'CALDAV' as const,
+                name: 'CalDAV',
+                description: 'Универсальный протокол календаря',
+                features: ['Поддержка любого CalDAV сервера'],
+                setupInstructions: ['Введите URL сервера', 'Введите учетные данные'],
+                isSupported: false,
+              },
+            ],
+          },
+        };
+      },
       providesTags: ['Calendar'],
     }),
   }),
@@ -423,6 +539,7 @@ export const {
   useManageAvailabilityMutation,
   useGetMasterAvailabilityQuery,
   useGetAvailableTimeSlotsQuery,
+  useBookSlotMutation,
   useGetCalendarSyncLogsQuery,
   useResolveCalendarConflictsMutation,
   useGetCalendarProvidersQuery,

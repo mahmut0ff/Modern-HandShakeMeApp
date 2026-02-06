@@ -3,22 +3,28 @@ import { View, Text, ScrollView, TouchableOpacity, TextInput, Alert, FlatList } 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useCreateDisputeMutation } from '../../../services/disputeApi';
+import { useGetMyProjectsQuery } from '../../../services/projectApi';
+import { LoadingSpinner } from '../../../components/LoadingSpinner';
+import { safeNavigate } from '../../../hooks/useNavigation';
 
 interface Project {
   id: number;
   title: string;
-  master_name: string;
+  master_name?: string;
+  master?: { name?: string; full_name?: string };
   status: string;
-  amount: string;
+  budget?: string;
+  total_amount?: string;
 }
 
 const disputeReasons = [
-  'Некачественная работа',
-  'Нарушение сроков',
-  'Не соответствует договорённостям',
-  'Мастер не выходит на связь',
-  'Проблемы с оплатой',
-  'Другое'
+  { value: 'quality', label: 'Некачественная работа' },
+  { value: 'deadline', label: 'Нарушение сроков' },
+  { value: 'scope', label: 'Не соответствует договорённостям' },
+  { value: 'communication', label: 'Мастер не выходит на связь' },
+  { value: 'payment', label: 'Проблемы с оплатой' },
+  { value: 'other', label: 'Другое' }
 ];
 
 export default function CreateDisputePage() {
@@ -29,30 +35,21 @@ export default function CreateDisputePage() {
   const [amount, setAmount] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Mock data - replace with actual API calls
-  const projects: Project[] = [
-    {
-      id: 1,
-      title: 'Ремонт ванной комнаты',
-      master_name: 'Иван Петров',
-      status: 'in_progress',
-      amount: '28000'
-    },
-    {
-      id: 2,
-      title: 'Установка кондиционера',
-      master_name: 'Алексей Сидоров',
-      status: 'completed',
-      amount: '15000'
-    }
-  ];
+  // API hooks
+  const { data: projectsData, isLoading: projectsLoading } = useGetMyProjectsQuery({ status: 'in_progress' });
+  const [createDispute] = useCreateDisputeMutation();
+
+  // Get projects from response
+  const projects: Project[] = Array.isArray(projectsData) 
+    ? projectsData 
+    : (projectsData?.results || []);
 
   const handleSubmit = async () => {
     if (!selectedProject) {
       Alert.alert('Ошибка', 'Выберите проект');
       return;
     }
-    if (!selectedReason && !customReason) {
+    if (!selectedReason) {
       Alert.alert('Ошибка', 'Укажите причину спора');
       return;
     }
@@ -63,18 +60,34 @@ export default function CreateDisputePage() {
 
     setLoading(true);
     try {
-      // TODO: Implement API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await createDispute({
+        project: selectedProject.id,
+        reason: selectedReason,
+        description: selectedReason === 'other' && customReason 
+          ? `${customReason}: ${description}` 
+          : description,
+        amount_disputed: amount ? parseFloat(amount) : undefined,
+      }).unwrap();
+      
       Alert.alert(
         'Спор создан',
         'Ваш спор отправлен на рассмотрение. Мы свяжемся с вами в течение 24 часов.',
-        [{ text: 'OK', onPress: () => router.push('/(client)/disputes') }]
+        [{ text: 'OK', onPress: () => safeNavigate.push('/(client)/disputes') }]
       );
-    } catch (error) {
-      Alert.alert('Ошибка', 'Не удалось создать спор');
+    } catch (error: any) {
+      console.error('Create dispute error:', error);
+      Alert.alert('Ошибка', error.data?.message || 'Не удалось создать спор');
     } finally {
       setLoading(false);
     }
+  };
+
+  const getMasterName = (project: Project) => {
+    return project.master_name || project.master?.name || project.master?.full_name || 'Мастер';
+  };
+
+  const getProjectAmount = (project: Project) => {
+    return project.budget || project.total_amount || '0';
   };
 
   const renderProject = ({ item }: { item: Project }) => (
@@ -96,9 +109,9 @@ export default function CreateDisputePage() {
           <Ionicons name="checkmark-circle" size={20} color="#0165FB" />
         )}
       </View>
-      <Text className="text-sm text-gray-600 mb-1">Мастер: {item.master_name}</Text>
+      <Text className="text-sm text-gray-600 mb-1">Мастер: {getMasterName(item)}</Text>
       <View className="flex-row items-center justify-between">
-        <Text className="text-sm font-medium text-green-600">{item.amount} сом</Text>
+        <Text className="text-sm font-medium text-green-600">{getProjectAmount(item)} сом</Text>
         <View className={`px-2 py-1 rounded-full ${
           item.status === 'completed' ? 'bg-green-100' : 'bg-orange-100'
         }`}>
@@ -111,6 +124,10 @@ export default function CreateDisputePage() {
       </View>
     </TouchableOpacity>
   );
+
+  if (projectsLoading) {
+    return <LoadingSpinner fullScreen text="Загрузка проектов..." />;
+  }
 
   return (
     <SafeAreaView className="flex-1 bg-[#F8F7FC]">
@@ -166,24 +183,26 @@ export default function CreateDisputePage() {
           <View className="flex flex-col gap-2">
             {disputeReasons.map((reason) => (
               <TouchableOpacity
-                key={reason}
+                key={reason.value}
                 onPress={() => {
-                  setSelectedReason(reason);
-                  setCustomReason('');
+                  setSelectedReason(reason.value);
+                  if (reason.value !== 'other') {
+                    setCustomReason('');
+                  }
                 }}
                 className={`p-3 rounded-2xl border-2 ${
-                  selectedReason === reason
+                  selectedReason === reason.value
                     ? 'border-[#0165FB] bg-[#0165FB]/5'
                     : 'border-gray-200 bg-gray-50'
                 }`}
               >
                 <View className="flex-row items-center justify-between">
                   <Text className={`font-medium ${
-                    selectedReason === reason ? 'text-[#0165FB]' : 'text-gray-700'
+                    selectedReason === reason.value ? 'text-[#0165FB]' : 'text-gray-700'
                   }`}>
-                    {reason}
+                    {reason.label}
                   </Text>
-                  {selectedReason === reason && (
+                  {selectedReason === reason.value && (
                     <Ionicons name="checkmark-circle" size={20} color="#0165FB" />
                   )}
                 </View>
@@ -191,7 +210,7 @@ export default function CreateDisputePage() {
             ))}
           </View>
 
-          {selectedReason === 'Другое' && (
+          {selectedReason === 'other' && (
             <View className="mt-4">
               <Text className="text-sm font-medium text-gray-700 mb-2">Укажите причину:</Text>
               <TextInput

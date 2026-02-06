@@ -1,0 +1,334 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: HandShakeMe Lambda Functions - Local Development
+
+Globals:
+  Function:
+    Timeout: 30
+    Runtime: nodejs18.x
+    MemorySize: 512
+    CodeUri: ./build
+    Environment:
+      Variables:
+        NODE_ENV: development
+        JWT_SECRET: !Ref JwtSecret
+        DYNAMODB_TABLE: !Ref DynamoDBTable
+        DYNAMODB_ENDPOINT: http://host.docker.internal:8000
+        USERS_TABLE: !Ref UsersTable
+        AWS_REGION: !Ref AWS::Region
+
+Parameters:
+  JwtSecret:
+    Type: String
+    Default: local-dev-secret-key
+  DynamoDBTable:
+    Type: String
+    Default: handshakeme-local
+  DynamoDBEndpoint:
+    Type: String
+    Default: http://dynamodb-local:8000
+  UsersTable:
+    Type: String
+    Default: users-local
+
+Resources:
+  # ============================================
+  # AUTH ENDPOINTS
+  # ============================================
+  
+  TelegramCodeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: core/auth/telegram-code-dynamodb.handler
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /auth/telegram/code
+            Method: GET
+
+  TelegramCheckFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: core/auth/telegram-check-dynamodb.handler
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /auth/telegram/check
+            Method: GET
+
+  TelegramRegisterFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: core/auth/telegram-register-dynamodb.handler
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /auth/telegram/register
+            Method: POST
+
+  RefreshTokenFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: core/auth/refresh-token-dynamodb.handler
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /auth/refresh
+            Method: POST
+
+  LogoutFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: core/auth/logout-dynamodb.handler
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /auth/logout
+            Method: POST
+
+  # ============================================
+  # USER/PROFILE ENDPOINTS
+  # ============================================
+
+  GetCurrentUserFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: core/profiles/get-current-user-dynamodb.handler
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /users/me
+            Method: GET
+
+  UpdateCurrentUserFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: core/profiles/update-current-user-dynamodb.handler
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /users/me
+            Method: PUT
+
+  GetMasterProfileFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: core/profiles/get-master-profile-dynamodb.handler
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /masters/{masterId}
+            Method: GET
+
+  SearchMastersFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: core/profiles/search-masters-dynamodb.handler
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /masters/search
+            Method: GET
+
+  # ============================================
+  # ORDERS ENDPOINTS
+  # ============================================
+
+  CreateOrderFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: core/orders/create-order-dynamodb.handler
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /orders
+            Method: POST
+
+  ListOrdersFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: core/orders/list-orders-dynamodb.handler
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /orders
+            Method: GET
+
+  GetOrderFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: core/orders/get-order-dynamodb.handler
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /orders/{orderId}
+            Method: GET
+
+  UpdateOrderFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: core/orders/update-order-dynamodb.handler
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /orders/{orderId}
+            Method: PUT
+
+  DeleteOrderFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: core/orders/delete-order-dynamodb.handler
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /orders/{orderId}
+            Method: DELETE
+
+  # ============================================
+  # CATEGORIES ENDPOINTS
+  # ============================================
+
+  ListCategoriesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: core/categories/list-categories-dynamodb.handler
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /categories
+            Method: GET
+
+  # ============================================
+  # APPLICATIONS ENDPOINTS
+  # ============================================
+
+  CreateApplicationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: core/applications/create-application.handler
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /applications
+            Method: POST
+
+  ListApplicationsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: core/applications/list-applications-dynamodb.handler
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /applications
+            Method: GET
+
+  # ============================================
+  # CHAT ENDPOINTS
+  # ============================================
+
+  CreateChatRoomFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: core/chat/create-room-dynamodb.handler
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /chat/rooms
+            Method: POST
+
+  ListChatRoomsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: core/chat/list-rooms-dynamodb.handler
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /chat/rooms
+            Method: GET
+
+  GetChatMessagesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: core/chat/get-messages-dynamodb.handler
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /chat/rooms/{roomId}/messages
+            Method: GET
+
+  SendChatMessageFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: core/chat/send-message-dynamodb.handler
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /chat/rooms/{roomId}/messages
+            Method: POST
+
+  # ============================================
+  # NOTIFICATIONS ENDPOINTS
+  # ============================================
+
+  ListNotificationsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: core/notifications/list-notifications-dynamodb.handler
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /notifications
+            Method: GET
+
+  MarkNotificationReadFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: core/notifications/mark-read-dynamodb.handler
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /notifications/{notificationId}/read
+            Method: PUT
+
+  # ============================================
+  # HEALTH CHECK
+  # ============================================
+
+  HealthCheckFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: core/health/simple-health.handler
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /health
+            Method: GET
+
+Outputs:
+  ApiUrl:
+    Description: API Gateway endpoint URL
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"

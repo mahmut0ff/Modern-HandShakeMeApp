@@ -13,7 +13,7 @@ const timeTrackingClient = axios.create({
 
 // Add auth interceptor
 timeTrackingClient.interceptors.request.use(
-  async (config) => {
+  async (config: any) => {
     try {
       const token = await AsyncStorage.getItem('accessToken');
       if (token) {
@@ -24,7 +24,7 @@ timeTrackingClient.interceptors.request.use(
     }
     return config;
   },
-  (error) => {
+  (error: any) => {
     return Promise.reject(error);
   }
 );
@@ -367,4 +367,30 @@ export const timeTrackingApi = {
   getTimeTemplates,
   createTimeTemplate,
   deleteTimeTemplate,
+  
+  // Alias methods for screen compatibility
+  async getSessions(token: string, params?: { status?: string; limit?: number }): Promise<TimeTrackingSession[]> {
+    const response = await getTimeSessions(params);
+    return response.sessions;
+  },
+  
+  async startSession(token: string, data: any): Promise<TimeTrackingSession> {
+    const response = await startTimeSession(data);
+    return response.session || response;
+  },
+  
+  async pauseSession(token: string, sessionId: string, location?: TimeTrackingLocation): Promise<TimeTrackingSession> {
+    const response = await pauseTimeSession(sessionId, location);
+    return response.session || response;
+  },
+  
+  async resumeSession(token: string, sessionId: string, location?: TimeTrackingLocation): Promise<TimeTrackingSession> {
+    const response = await resumeTimeSession(sessionId, location);
+    return response.session || response;
+  },
+  
+  async stopSession(token: string, sessionId: string, data?: any): Promise<TimeTrackingSession> {
+    const response = await stopTimeSession({ sessionId, ...data });
+    return response.session || response;
+  }
 };

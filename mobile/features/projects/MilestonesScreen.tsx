@@ -14,9 +14,9 @@ import {
   useDeleteProjectMilestoneMutation,
   ProjectMilestone,
 } from '../../services/projectApi';
-import LoadingSpinner from '../../components/LoadingSpinner';
-import ErrorMessage from '../../components/ErrorMessage';
-import EmptyState from '../../components/EmptyState';
+import { LoadingSpinner } from '../../components/LoadingSpinner';
+import { ErrorMessage } from '../../components/ErrorMessage';
+import { EmptyState } from '../../components/EmptyState';
 
 export default function MilestonesScreen() {
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
@@ -48,7 +48,7 @@ export default function MilestonesScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await deleteMilestone(milestone.id).unwrap();
+              await deleteMilestone({ id: milestone.id, projectId: Number(projectId) }).unwrap();
               Alert.alert('Успешно', 'Веха удалена');
             } catch (err) {
               Alert.alert('Ошибка', 'Не удалось удалить веху');
@@ -138,7 +138,7 @@ export default function MilestonesScreen() {
           <EmptyState
             icon="flag-outline"
             title="Нет вех"
-            message="Добавьте вехи для отслеживания прогресса проекта"
+            description="Добавьте вехи для отслеживания прогресса проекта"
           />
         ) : (
           <View className="bg-white">

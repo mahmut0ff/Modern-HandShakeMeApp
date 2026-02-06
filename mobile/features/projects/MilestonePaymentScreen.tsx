@@ -13,8 +13,8 @@ import {
   useGetProjectMilestonesQuery,
   useGetProjectPaymentsQuery,
 } from '../../services/projectApi';
-import LoadingSpinner from '../../components/LoadingSpinner';
-import ErrorMessage from '../../components/ErrorMessage';
+import { LoadingSpinner } from '../../components/LoadingSpinner';
+import { ErrorMessage } from '../../components/ErrorMessage';
 import MilestonePaymentCard from '../../components/projects/MilestonePaymentCard';
 import MilestoneProgress from '../../components/projects/MilestoneProgress';
 
@@ -132,28 +132,26 @@ export default function MilestonePaymentScreen() {
                   </View>
                   <View className="flex-row items-center">
                     <View
-                      className={`px-2 py-1 rounded ${
-                        payment.status === 'COMPLETED'
+                      className={`px-2 py-1 rounded ${payment.status === 'COMPLETED'
                           ? 'bg-green-100'
                           : payment.status === 'PENDING'
-                          ? 'bg-yellow-100'
-                          : 'bg-red-100'
-                      }`}
+                            ? 'bg-yellow-100'
+                            : 'bg-red-100'
+                        }`}
                     >
                       <Text
-                        className={`text-xs ${
-                          payment.status === 'COMPLETED'
+                        className={`text-xs ${payment.status === 'COMPLETED'
                             ? 'text-green-800'
                             : payment.status === 'PENDING'
-                            ? 'text-yellow-800'
-                            : 'text-red-800'
-                        }`}
+                              ? 'text-yellow-800'
+                              : 'text-red-800'
+                          }`}
                       >
                         {payment.status === 'COMPLETED'
                           ? 'Выполнен'
                           : payment.status === 'PENDING'
-                          ? 'Ожидает'
-                          : 'Отменен'}
+                            ? 'Ожидает'
+                            : 'Отменен'}
                       </Text>
                     </View>
                   </View>

@@ -1,6 +1,6 @@
 // S3 Service for file operations
 
-import AWS from 'aws-sdk';
+import * as AWS from 'aws-sdk';
 import { logger } from '../utils/logger';
 import { FileReference } from '../types/gdpr';
 

@@ -9,49 +9,37 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import recommendationsApi, { RecommendedOrder } from '../../services/recommendationsApi';
+import { useRecommendations } from '../../hooks/useRecommendations';
+import { RecommendedOrder } from '../../services/recommendationsApi';
 import { RecommendedOrderCard } from '../../components/recommendations/RecommendedOrderCard';
 import { RecommendationStats } from '../../components/recommendations/RecommendationStats';
 import { RecommendationFilters } from '../../components/recommendations/RecommendationFilters';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { ErrorMessage } from '../../components/ErrorMessage';
 
+
 type FilterType = 'all' | 'excellent' | 'good' | 'fair';
 
 export const RecommendedOrdersScreen: React.FC = () => {
-  const [recommendations, setRecommendations] = useState<RecommendedOrder[]>([]);
-  const [filteredRecommendations, setFilteredRecommendations] = useState<RecommendedOrder[]>([]);
-  const [stats, setStats] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<FilterType>('all');
   const [showReasons, setShowReasons] = useState(true);
+  const [filteredRecommendations, setFilteredRecommendations] = useState<RecommendedOrder[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    loadRecommendations();
-  }, []);
+  const {
+    recommendations,
+    stats,
+    loading,
+    error,
+    refresh: loadRecommendations // Alias refresh to loadRecommendations for compatibility
+  } = useRecommendations({
+    limit: 50,
+    includeReasons: showReasons,
+  });
 
   useEffect(() => {
     applyFilter(activeFilter);
   }, [recommendations, activeFilter]);
-
-  const loadRecommendations = async () => {
-    try {
-      setError(null);
-      const response = await recommendationsApi.getRecommendedOrders({
-        limit: 50,
-        includeReasons: showReasons,
-      });
-
-      setRecommendations(response.recommendations);
-      setStats(response.stats);
-    } catch (err: any) {
-      setError(err.message || 'Не удалось загрузить рекомендации');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleRefresh = async () => {
     setRefreshing(true);

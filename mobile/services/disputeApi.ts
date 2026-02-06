@@ -133,11 +133,11 @@ export const disputeApi = api.injectEndpoints({
       invalidatesTags: ['Dispute', 'Project'],
     }),
 
-    // Update dispute
+    // Update dispute - Backend: PUT /disputes/:disputeId/status
     updateDispute: builder.mutation<Dispute, { id: number; data: DisputeUpdateData }>({
       query: ({ id, data }) => ({
-        url: `/disputes/${id}`,
-        method: 'PATCH',
+        url: `/disputes/${id}/status`,
+        method: 'PUT',
         body: data,
       }),
       invalidatesTags: ['Dispute'],
@@ -197,50 +197,61 @@ export const disputeApi = api.injectEndpoints({
       invalidatesTags: ['Dispute'],
     }),
 
-    // Delete evidence file
+    // Delete evidence file - use evidence endpoint with delete action
     deleteEvidenceFile: builder.mutation<void, { disputeId: number; fileId: number }>({
       query: ({ disputeId, fileId }) => ({
-        url: `/disputes/${disputeId}/evidence/${fileId}`,
-        method: 'DELETE',
+        url: `/disputes/${disputeId}/evidence`,
+        method: 'POST',
+        body: { action: 'delete', fileId },
       }),
       invalidatesTags: ['Dispute'],
     }),
 
-    // Accept resolution
+    // Accept resolution - Backend: POST /disputes/:disputeId/accept
     acceptResolution: builder.mutation<Dispute, number>({
       query: (id) => ({
-        url: `/disputes/${id}/accept-resolution`,
+        url: `/disputes/${id}/accept`,
         method: 'POST',
       }),
       invalidatesTags: ['Dispute', 'Project'],
     }),
 
-    // Reject resolution
+    // Reject resolution - use close endpoint with rejection
     rejectResolution: builder.mutation<Dispute, { id: number; reason: string }>({
       query: ({ id, reason }) => ({
-        url: `/disputes/${id}/reject-resolution`,
+        url: `/disputes/${id}/close`,
         method: 'POST',
-        body: { reason },
+        body: { resolution: 'rejected', reason },
       }),
       invalidatesTags: ['Dispute'],
     }),
 
-    // Request mediation
+    // Request mediation - Backend: POST /disputes/:disputeId/mediation
     requestMediation: builder.mutation<Dispute, number>({
       query: (id) => ({
-        url: `/disputes/${id}/request-mediation`,
+        url: `/disputes/${id}/mediation`,
         method: 'POST',
       }),
       invalidatesTags: ['Dispute'],
     }),
 
-    // Get dispute stats
+    // Get dispute stats - use disputes list with aggregation
     getDisputeStats: builder.query<DisputeStats, void>({
-      query: () => '/disputes/stats',
+      query: () => '/disputes',
+      transformResponse: (response: any) => {
+        const disputes = response.results || response || [];
+        const stats: DisputeStats = {
+          total_disputes: disputes.length,
+          open_disputes: disputes.filter((d: Dispute) => d.status === 'open').length,
+          in_mediation_disputes: disputes.filter((d: Dispute) => d.status === 'in_mediation').length,
+          resolved_disputes: disputes.filter((d: Dispute) => d.status === 'resolved').length,
+        };
+        return stats;
+      },
       providesTags: ['Dispute'],
     }),
 
-    // Get my disputes
+    // Get my disputes - use disputes list (backend filters by user automatically)
     getMyDisputes: builder.query<{ results: Dispute[]; count: number }, {
       status?: string;
       role?: 'initiator' | 'respondent';
@@ -248,7 +259,7 @@ export const disputeApi = api.injectEndpoints({
       page?: number;
     }>({
       query: (params) => ({
-        url: '/disputes/my',
+        url: '/disputes',
         params,
       }),
       providesTags: ['Dispute'],
@@ -273,3 +284,84 @@ export const {
   useGetDisputeStatsQuery,
   useGetMyDisputesQuery,
 } = disputeApi;
+
+
+// Direct API methods for screen compatibility
+import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const disputeClient = axios.create({
+  baseURL: process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001',
+  timeout: 30000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+disputeClient.interceptors.request.use(
+  async (config: any) => {
+    try {
+      const token = await AsyncStorage.getItem('accessToken');
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    } catch (error) {
+      console.error('Failed to get access token:', error);
+    }
+    return config;
+  },
+  (error: any) => Promise.reject(error)
+);
+
+// Direct methods for screens
+export const disputeApiDirect = {
+  async getDisputes(token: string, params?: { status?: string }): Promise<Dispute[]> {
+    const response = await disputeClient.get('/disputes', {
+      params,
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return response.data.results || response.data;
+  },
+
+  async getDispute(token: string, disputeId: string): Promise<Dispute> {
+    const response = await disputeClient.get(`/disputes/${disputeId}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return response.data;
+  },
+
+  async getDisputeMessages(token: string, disputeId: string): Promise<DisputeMessage[]> {
+    const response = await disputeClient.get(`/disputes/${disputeId}/messages`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return response.data.results || response.data;
+  },
+
+  async sendDisputeMessage(token: string, disputeId: string, content: string): Promise<DisputeMessage> {
+    const response = await disputeClient.post(`/disputes/${disputeId}/messages`, {
+      message: content
+    }, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return response.data;
+  },
+
+  async acceptResolution(token: string, disputeId: string): Promise<Dispute> {
+    const response = await disputeClient.post(`/disputes/${disputeId}/accept`, {}, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return response.data;
+  },
+
+  async escalateDispute(token: string, disputeId: string): Promise<Dispute> {
+    const response = await disputeClient.post(`/disputes/${disputeId}/escalate`, {
+      reason: 'User requested escalation'
+    }, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return response.data;
+  }
+};
+
+// Re-export for backward compatibility
+Object.assign(disputeApi, disputeApiDirect);

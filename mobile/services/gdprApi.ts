@@ -12,7 +12,7 @@ const gdprClient = axios.create({
 
 // Add auth interceptor
 gdprClient.interceptors.request.use(
-  async (config) => {
+  async (config: any) => {
     try {
       const token = await AsyncStorage.getItem('accessToken');
       if (token) {
@@ -23,7 +23,7 @@ gdprClient.interceptors.request.use(
     }
     return config;
   },
-  (error) => {
+  (error: any) => {
     return Promise.reject(error);
   }
 );
@@ -141,15 +141,15 @@ export const exportUserData = async (
   request: ExportDataRequest = {}
 ): Promise<GDPRExportData> => {
   const params = new URLSearchParams();
-  
+
   if (request.format) {
     params.append('format', request.format);
   }
-  
+
   if (request.includeFiles !== undefined) {
     params.append('includeFiles', String(request.includeFiles));
   }
-  
+
   if (request.sections && request.sections.length > 0) {
     params.append('sections', request.sections.join(','));
   }
@@ -178,7 +178,7 @@ export const getConsentSettings = async (): Promise<ConsentSettings> => {
   } catch (error) {
     console.error('Failed to get consent settings:', error);
   }
-  
+
   // Default consents
   return {
     marketing: false,
@@ -196,9 +196,9 @@ export const updateConsentSettings = async (
     ...consents,
     updatedAt: new Date().toISOString(),
   };
-  
+
   await AsyncStorage.setItem('gdpr_consents', JSON.stringify(updated));
-  
+
   // Optionally sync with backend
   try {
     await gdprClient.post('/gdpr/consents', updated);
@@ -230,7 +230,7 @@ export const downloadExportedData = async (
   format: 'json' | 'csv' = 'json'
 ): Promise<string> => {
   const filename = `handshakeme_data_export_${new Date().toISOString().split('T')[0]}.${format}`;
-  
+
   if (format === 'json') {
     const jsonString = JSON.stringify(data, null, 2);
     return jsonString;
@@ -244,7 +244,7 @@ export const downloadExportedData = async (
 // Helper function to convert data to CSV
 const convertToCSV = (data: GDPRExportData): string => {
   const lines: string[] = [];
-  
+
   // Add summary
   lines.push('Summary');
   lines.push('Category,Count');
@@ -252,7 +252,7 @@ const convertToCSV = (data: GDPRExportData): string => {
     lines.push(`${key},${value}`);
   });
   lines.push('');
-  
+
   // Add profile
   if (data.profile) {
     lines.push('Profile');
@@ -262,7 +262,7 @@ const convertToCSV = (data: GDPRExportData): string => {
     });
     lines.push('');
   }
-  
+
   return lines.join('\n');
 };
 

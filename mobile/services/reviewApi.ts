@@ -125,7 +125,7 @@ export const reviewApi = api.injectEndpoints({
     updateReview: builder.mutation<Review, { id: number; data: ReviewUpdateData }>({
       query: ({ id, data }) => ({
         url: `/reviews/${id}`,
-        method: 'PATCH',
+        method: 'PUT',
         body: data,
       }),
       invalidatesTags: ['Review', 'MasterProfile'],
@@ -169,7 +169,7 @@ export const reviewApi = api.injectEndpoints({
       invalidatesTags: ['Review'],
     }),
 
-    // Mark review as helpful
+    // Mark review as helpful - Backend only has POST
     markReviewHelpful: builder.mutation<{ is_helpful: boolean; helpful_count: number }, number>({
       query: (id) => ({
         url: `/reviews/${id}/helpful`,
@@ -178,24 +178,35 @@ export const reviewApi = api.injectEndpoints({
       invalidatesTags: ['Review'],
     }),
 
-    // Remove helpful mark
+    // Remove helpful mark - use same POST endpoint with toggle behavior
     removeReviewHelpful: builder.mutation<{ is_helpful: boolean; helpful_count: number }, number>({
       query: (id) => ({
         url: `/reviews/${id}/helpful`,
-        method: 'DELETE',
+        method: 'POST',
+        body: { remove: true },
       }),
       invalidatesTags: ['Review'],
     }),
 
-    // Get review stats for a master
+    // Get review stats for a master - use master stats endpoint
     getMasterReviewStats: builder.query<ReviewStats, number>({
-      query: (masterId) => `/masters/${masterId}/review-stats`,
+      query: (masterId) => `/masters/${masterId}/stats`,
+      transformResponse: (response: any) => ({
+        total_reviews: response.reviews_count || 0,
+        average_rating: response.rating || '0',
+        rating_distribution: response.rating_distribution || { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+        recent_reviews: response.recent_reviews || [],
+      }),
       providesTags: ['Review'],
     }),
 
-    // Get reviews that need response (for masters)
+    // Get reviews that need response - use my reviews with filter
     getReviewsNeedingResponse: builder.query<Review[], void>({
-      query: () => '/reviews/need-response',
+      query: () => ({
+        url: '/reviews/my',
+        params: { role: 'master', has_response: false },
+      }),
+      transformResponse: (response: any) => response.results || response,
       providesTags: ['Review'],
     }),
 

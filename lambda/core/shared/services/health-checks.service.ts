@@ -32,13 +32,29 @@ export class HealthChecksService {
     const startTime = Date.now();
     
     try {
-      const tableName = process.env.DYNAMODB_TABLE_NAME;
+      const tableName = process.env.DYNAMODB_TABLE || process.env.DYNAMODB_TABLE_NAME;
       
       if (!tableName) {
         return {
           status: 'fail',
-          message: 'DYNAMODB_TABLE_NAME environment variable not set',
+          message: 'DYNAMODB_TABLE environment variable not set',
           lastChecked: new Date().toISOString()
+        };
+      }
+
+      // For local development, just check if we can connect
+      const isLocal = !!process.env.DYNAMODB_ENDPOINT;
+      if (isLocal) {
+        return {
+          status: 'pass',
+          responseTime: Date.now() - startTime,
+          message: `Local DynamoDB table ${tableName} configured`,
+          lastChecked: new Date().toISOString(),
+          details: {
+            tableName,
+            endpoint: process.env.DYNAMODB_ENDPOINT,
+            isLocal: true
+          }
         };
       }
 

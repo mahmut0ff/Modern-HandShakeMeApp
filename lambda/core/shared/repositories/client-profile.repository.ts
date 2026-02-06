@@ -1,14 +1,14 @@
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, PutCommand, GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import { PutCommand, GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
+import { dynamodb as docClient } from '../db/dynamodb-client';
 
-const client = new DynamoDBClient({});
-const docClient = DynamoDBDocumentClient.from(client);
 const TABLE_NAME = process.env.DYNAMODB_TABLE || 'handshake-table';
 
 export interface ClientProfile {
   profileId: string;
   userId: string;
+  firstName?: string;
+  lastName?: string;
   bio?: string;
   city: string;
   address?: string;
@@ -73,13 +73,21 @@ export class ClientProfileRepository {
 
   async update(userId: string, data: Partial<ClientProfile>): Promise<ClientProfile> {
     const now = new Date().toISOString();
-    
+
     const updateExpressions: string[] = ['updatedAt = :updatedAt'];
     const expressionAttributeValues: any = { ':updatedAt': now };
 
     if (data.bio !== undefined) {
       updateExpressions.push('bio = :bio');
       expressionAttributeValues[':bio'] = data.bio;
+    }
+    if (data.firstName !== undefined) {
+      updateExpressions.push('firstName = :firstName');
+      expressionAttributeValues[':firstName'] = data.firstName;
+    }
+    if (data.lastName !== undefined) {
+      updateExpressions.push('lastName = :lastName');
+      expressionAttributeValues[':lastName'] = data.lastName;
     }
     if (data.city !== undefined) {
       updateExpressions.push('city = :city');

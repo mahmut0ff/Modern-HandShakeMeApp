@@ -122,22 +122,20 @@ function AppContent() {
   }
 
   return (
-    <ErrorBoundary>
-      <WebSocketProvider>
-        <StatusBar style="auto" />
-        <View className="flex-1 bg-[#F8F7FC]">
-          <Stack screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: '#F8F7FC' }
-          }}>
-            <Stack.Screen name="index" />
-            <Stack.Screen name="(auth)" />
-            <Stack.Screen name="(master)" />
-            <Stack.Screen name="(client)" />
-          </Stack>
-        </View>
-      </WebSocketProvider>
-    </ErrorBoundary>
+    <WebSocketProvider>
+      <StatusBar style="auto" />
+      <View className="flex-1 bg-[#F8F7FC]">
+        <Stack screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: '#F8F7FC' }
+        }}>
+          <Stack.Screen name="index" />
+          <Stack.Screen name="(auth)" />
+          <Stack.Screen name="(master)" />
+          <Stack.Screen name="(client)" />
+        </Stack>
+      </View>
+    </WebSocketProvider>
   )
 }
 
@@ -153,12 +151,14 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <SafeAreaProvider>
-      <Provider store={store}>
-        <PersistGate loading={<LoadingScreen />} persistor={persistor}>
-          <AppContent />
-        </PersistGate>
-      </Provider>
-    </SafeAreaProvider>
+    <ErrorBoundary>
+      <SafeAreaProvider>
+        <Provider store={store}>
+          <PersistGate loading={<LoadingScreen />} persistor={persistor}>
+            <AppContent />
+          </PersistGate>
+        </Provider>
+      </SafeAreaProvider>
+    </ErrorBoundary>
   )
 }

@@ -3,6 +3,14 @@ import { View, Text, ScrollView, TouchableOpacity, TextInput, Alert } from 'reac
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { 
+  useGetWalletQuery, 
+  useGetPaymentMethodsQuery, 
+  useCreateWithdrawalMutation,
+  useCreatePaymentMethodMutation
+} from '../../../services/walletApi';
+import { LoadingSpinner } from '../../../components/LoadingSpinner';
+import { safeNavigate } from '../../../hooks/useNavigation';
 
 const WITHDRAWAL_METHODS = [
   {
@@ -37,11 +45,25 @@ const WITHDRAWAL_METHODS = [
 export default function WithdrawPage() {
   const [amount, setAmount] = useState('');
   const [selectedMethod, setSelectedMethod] = useState('card');
+  const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState<number | null>(null);
   const [accountNumber, setAccountNumber] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // TODO: Replace with actual API call
-  const availableBalance = 0;
+  // API hooks
+  const { data: wallet, isLoading: walletLoading } = useGetWalletQuery();
+  const { data: paymentMethods, isLoading: methodsLoading } = useGetPaymentMethodsQuery();
+  const [createWithdrawal] = useCreateWithdrawalMutation();
+  const [createPaymentMethod] = useCreatePaymentMethodMutation();
+
+  const availableBalance = parseFloat(wallet?.balance || '0');
+
+  // Filter payment methods by selected type
+  const filteredPaymentMethods = (paymentMethods || []).filter(m => {
+    if (selectedMethod === 'card') return m.method_type === 'card';
+    if (selectedMethod === 'mobile') return m.method_type === 'mobile_money';
+    if (selectedMethod === 'wallet') return m.method_type === 'mobile_money';
+    return false;
+  });
 
   const selectedMethodData = WITHDRAWAL_METHODS.find(m => m.id === selectedMethod);
 
@@ -75,27 +97,55 @@ export default function WithdrawPage() {
       return;
     }
 
-    if (!accountNumber.trim()) {
-      Alert.alert('Ошибка', 'Введите номер счета/карты');
+    // Need either existing payment method or new account number
+    if (!selectedPaymentMethodId && !accountNumber.trim()) {
+      Alert.alert('Ошибка', 'Выберите способ вывода или введите номер счета/карты');
       return;
     }
 
     setLoading(true);
     try {
-      // TODO: Implement withdrawal processing
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate API call
+      let paymentMethodId = selectedPaymentMethodId;
+      
+      // If no existing payment method selected, create a new one
+      if (!paymentMethodId && accountNumber.trim()) {
+        const methodType = selectedMethod === 'card' ? 'card' : 'mobile_money';
+        const newMethod = await createPaymentMethod({
+          method_type: methodType,
+          provider: selectedMethod === 'card' ? 'Bank Card' : selectedMethod === 'mobile' ? 'Mobile' : 'E-Wallet',
+          name: accountNumber,
+          details: { account_number: accountNumber },
+        }).unwrap();
+        paymentMethodId = newMethod.id;
+      }
+
+      if (!paymentMethodId) {
+        Alert.alert('Ошибка', 'Не удалось определить способ вывода');
+        return;
+      }
+
+      await createWithdrawal({
+        amount: parseFloat(amount),
+        payment_method_id: paymentMethodId,
+        description: `Вывод на ${selectedMethodData.name.toLowerCase()}`,
+      }).unwrap();
       
       Alert.alert(
         'Заявка принята',
         `Заявка на вывод ${amount} сом создана. Средства поступят в течение ${selectedMethodData.processingTime.toLowerCase()}`,
-        [{ text: 'OK', onPress: () => router.back() }]
+        [{ text: 'OK', onPress: () => safeNavigate.back() }]
       );
-    } catch (error) {
-      Alert.alert('Ошибка', 'Не удалось создать заявку на вывод');
+    } catch (error: any) {
+      console.error('Withdrawal error:', error);
+      Alert.alert('Ошибка', error.data?.message || 'Не удалось создать заявку на вывод');
     } finally {
       setLoading(false);
     }
   };
+
+  if (walletLoading || methodsLoading) {
+    return <LoadingSpinner fullScreen text="Загрузка..." />;
+  }
 
   const getAccountPlaceholder = () => {
     switch (selectedMethod) {
@@ -274,7 +324,7 @@ export default function WithdrawPage() {
           disabled={
             !amount || 
             parseFloat(amount) <= 0 || 
-            !accountNumber.trim() || 
+            (!selectedPaymentMethodId && !accountNumber.trim()) || 
             loading ||
             (selectedMethodData && parseFloat(amount) < selectedMethodData.minAmount) ||
             parseFloat(amount) > availableBalance
@@ -282,7 +332,7 @@ export default function WithdrawPage() {
           className={`py-4 rounded-2xl shadow-lg mb-6 ${
             !amount || 
             parseFloat(amount) <= 0 || 
-            !accountNumber.trim() || 
+            (!selectedPaymentMethodId && !accountNumber.trim()) || 
             loading ||
             (selectedMethodData && parseFloat(amount) < selectedMethodData.minAmount) ||
             parseFloat(amount) > availableBalance

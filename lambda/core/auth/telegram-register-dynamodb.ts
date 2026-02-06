@@ -9,15 +9,26 @@ import { withErrorHandler, ValidationError } from '../shared/middleware/errorHan
 import { logger } from '../shared/utils/logger';
 
 const telegramRegisterSchema = z.object({
-  telegramId: z.union([z.number(), z.string()]).transform(val => val.toString()),
-  firstName: z.string().min(1, 'First name is required'),
+  // Support both camelCase and snake_case for flexibility
+  telegramId: z.union([z.number(), z.string()]).transform(val => val.toString()).optional(),
+  telegram_id: z.union([z.number(), z.string()]).transform(val => val.toString()).optional(),
+  firstName: z.string().min(1).optional(),
+  first_name: z.string().min(1).optional(),
   lastName: z.string().optional(),
+  last_name: z.string().optional(),
   username: z.string().optional(),
   photoUrl: z.string().optional(),
-  role: z.enum(['client', 'master'], {
+  photo_url: z.string().optional(),
+  role: z.enum(['client', 'master', 'CLIENT', 'MASTER'], {
     errorMap: () => ({ message: 'Role must be either client or master' })
   }),
   phone: z.string().optional(),
+  citizenship: z.string().optional(),
+  city: z.string().optional(),
+}).refine(data => data.telegramId || data.telegram_id, {
+  message: 'Telegram ID is required'
+}).refine(data => data.firstName || data.first_name, {
+  message: 'First name is required'
 });
 
 async function telegramRegisterHandler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
@@ -38,27 +49,37 @@ async function telegramRegisterHandler(event: APIGatewayProxyEvent): Promise<API
   
   const userRepo = new UserRepository();
   
+  // Normalize field names (support both camelCase and snake_case)
+  const telegramId = validatedData.telegramId || validatedData.telegram_id || '';
+  const firstName = validatedData.firstName || validatedData.first_name || '';
+  const lastName = validatedData.lastName || validatedData.last_name || '';
+  const photoUrl = validatedData.photoUrl || validatedData.photo_url;
+  
   // Check if user already exists
-  const existingUser = await userRepo.findByTelegramId(validatedData.telegramId);
+  const existingUser = await userRepo.findByTelegramId(telegramId);
   if (existingUser) {
-    logger.warn('Telegram register: user already exists', { telegramId: validatedData.telegramId });
+    logger.warn('Telegram register: user already exists', { telegramId });
     return badRequest('User with this Telegram ID already exists');
   }
   
   // Create new user
-  const role = validatedData.role === 'master' ? 'MASTER' : 'CLIENT';
+  const role = validatedData.role.toUpperCase() === 'MASTER' ? 'MASTER' : 'CLIENT';
   
   const newUser = await userRepo.create({
-    firstName: validatedData.firstName,
-    lastName: validatedData.lastName || '',
-    telegramId: validatedData.telegramId,
+    firstName: firstName,
+    lastName: lastName,
+    telegramId: telegramId,
     telegramUsername: validatedData.username,
-    telegramPhotoUrl: validatedData.photoUrl,
-    avatar: validatedData.photoUrl,
+    telegramPhotoUrl: photoUrl,
+    avatar: photoUrl,
     role: role,
-    phone: validatedData.phone || '',
+    phone: validatedData.phone || `tg_${telegramId}`,
     email: undefined,
     isPhoneVerified: false,
+    citizenship: validatedData.citizenship,
+    city: validatedData.city,
+    registrationStep: 'COMPLETED',
+    registrationSource: 'APP',
   });
   
   logger.info('Telegram register: user created', { userId: newUser.id });
@@ -76,8 +97,10 @@ async function telegramRegisterHandler(event: APIGatewayProxyEvent): Promise<API
   logger.info('Telegram registration successful', { userId: newUser.id });
   
   return success({
-    access: accessToken,
-    refresh: refreshToken,
+    tokens: {
+      access: accessToken,
+      refresh: refreshToken,
+    },
     user: {
       id: newUser.id,
       phone: newUser.phone,
@@ -90,8 +113,11 @@ async function telegramRegisterHandler(event: APIGatewayProxyEvent): Promise<API
       telegramUsername: newUser.telegramUsername,
       avatar: newUser.avatar,
       isPhoneVerified: newUser.isPhoneVerified,
+      citizenship: newUser.citizenship,
+      city: newUser.city,
       createdAt: newUser.createdAt,
     },
+    message: 'Registration successful',
   });
 }
 

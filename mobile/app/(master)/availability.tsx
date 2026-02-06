@@ -1,8 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { 
+  useGetMasterAvailabilityQuery, 
+  useManageAvailabilityMutation 
+} from '../../services/calendarApi';
+import { LoadingSpinner } from '../../components/LoadingSpinner';
 
 interface TimeSlot {
   start: string;
@@ -12,61 +17,52 @@ interface TimeSlot {
 interface DaySchedule {
   day: string;
   dayName: string;
+  dayOfWeek: number;
   isAvailable: boolean;
   timeSlots: TimeSlot[];
 }
 
+const defaultSchedule: DaySchedule[] = [
+  { day: 'monday', dayName: 'Понедельник', dayOfWeek: 1, isAvailable: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
+  { day: 'tuesday', dayName: 'Вторник', dayOfWeek: 2, isAvailable: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
+  { day: 'wednesday', dayName: 'Среда', dayOfWeek: 3, isAvailable: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
+  { day: 'thursday', dayName: 'Четверг', dayOfWeek: 4, isAvailable: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
+  { day: 'friday', dayName: 'Пятница', dayOfWeek: 5, isAvailable: true, timeSlots: [{ start: '09:00', end: '18:00' }] },
+  { day: 'saturday', dayName: 'Суббота', dayOfWeek: 6, isAvailable: true, timeSlots: [{ start: '10:00', end: '16:00' }] },
+  { day: 'sunday', dayName: 'Воскресенье', dayOfWeek: 0, isAvailable: false, timeSlots: [] },
+];
+
 export default function MasterAvailabilityPage() {
   const [loading, setLoading] = useState(false);
-  
-  // Mock data - replace with actual API calls
-  const [schedule, setSchedule] = useState<DaySchedule[]>([
-    {
-      day: 'monday',
-      dayName: 'Понедельник',
-      isAvailable: true,
-      timeSlots: [{ start: '09:00', end: '18:00' }]
-    },
-    {
-      day: 'tuesday',
-      dayName: 'Вторник',
-      isAvailable: true,
-      timeSlots: [{ start: '09:00', end: '18:00' }]
-    },
-    {
-      day: 'wednesday',
-      dayName: 'Среда',
-      isAvailable: true,
-      timeSlots: [{ start: '09:00', end: '18:00' }]
-    },
-    {
-      day: 'thursday',
-      dayName: 'Четверг',
-      isAvailable: true,
-      timeSlots: [{ start: '09:00', end: '18:00' }]
-    },
-    {
-      day: 'friday',
-      dayName: 'Пятница',
-      isAvailable: true,
-      timeSlots: [{ start: '09:00', end: '18:00' }]
-    },
-    {
-      day: 'saturday',
-      dayName: 'Суббота',
-      isAvailable: true,
-      timeSlots: [{ start: '10:00', end: '16:00' }]
-    },
-    {
-      day: 'sunday',
-      dayName: 'Воскресенье',
-      isAvailable: false,
-      timeSlots: []
-    }
-  ]);
-
+  const [schedule, setSchedule] = useState<DaySchedule[]>(defaultSchedule);
   const [vacationMode, setVacationMode] = useState(false);
   const [emergencyAvailable, setEmergencyAvailable] = useState(true);
+  
+  // API hooks
+  const { data: availabilityData, isLoading: availabilityLoading } = useGetMasterAvailabilityQuery({});
+  const [manageAvailability] = useManageAvailabilityMutation();
+
+  // Initialize schedule from API data
+  useEffect(() => {
+    if (availabilityData?.weeklySchedule && availabilityData.weeklySchedule.length > 0) {
+      const newSchedule = defaultSchedule.map(day => {
+        const apiDay = availabilityData.weeklySchedule.find(
+          (s: any) => s.dayOfWeek === day.dayOfWeek
+        );
+        if (apiDay) {
+          return {
+            ...day,
+            isAvailable: apiDay.isAvailable,
+            timeSlots: apiDay.startTime && apiDay.endTime 
+              ? [{ start: apiDay.startTime, end: apiDay.endTime }]
+              : day.timeSlots,
+          };
+        }
+        return day;
+      });
+      setSchedule(newSchedule);
+    }
+  }, [availabilityData]);
 
   const timeOptions = [
     '06:00', '07:00', '08:00', '09:00', '10:00', '11:00',
@@ -112,15 +108,35 @@ export default function MasterAvailabilityPage() {
   const saveSchedule = async () => {
     setLoading(true);
     try {
-      // TODO: Implement API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Convert schedule to API format
+      const weeklySchedule = schedule.map(day => ({
+        dayOfWeek: day.dayOfWeek,
+        isAvailable: day.isAvailable,
+        timeSlots: day.timeSlots.map(slot => ({
+          startTime: slot.start,
+          endTime: slot.end,
+          isAvailable: true,
+        })),
+      }));
+
+      await manageAvailability({
+        action: 'SET_WEEKLY',
+        weeklySchedule,
+        timeZone: 'Asia/Bishkek',
+      }).unwrap();
+      
       Alert.alert('Успех', 'Расписание сохранено');
-    } catch (error) {
-      Alert.alert('Ошибка', 'Не удалось сохранить расписание');
+    } catch (error: any) {
+      console.error('Save schedule error:', error);
+      Alert.alert('Ошибка', error.data?.message || 'Не удалось сохранить расписание');
     } finally {
       setLoading(false);
     }
   };
+
+  if (availabilityLoading) {
+    return <LoadingSpinner fullScreen text="Загрузка расписания..." />;
+  }
 
   const setQuickSchedule = (type: 'weekdays' | 'everyday' | 'weekends') => {
     const newSchedule = [...schedule];

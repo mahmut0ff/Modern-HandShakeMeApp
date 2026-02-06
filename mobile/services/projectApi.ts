@@ -24,6 +24,7 @@ export interface Project {
     rating: string;
     phone?: string | null;
   };
+  client_id?: number;
   client_name?: string;
   client_avatar?: string | null;
   client_rating?: string;
@@ -35,6 +36,7 @@ export interface Project {
     rating: string;
     phone?: string | null;
   };
+  master_id?: number;
   master_name?: string;
   master_avatar?: string | null;
   master_rating?: string;
@@ -42,8 +44,9 @@ export interface Project {
   agreed_price: string;
   start_date: string;
   end_date?: string;
+  deadline?: string;
   estimated_duration?: string;
-  status: 'pending' | 'in_progress' | 'completed' | 'cancelled' | 'disputed';
+  status: ProjectStatus;
   status_display?: string;
   progress: number;
   description?: string;
@@ -56,6 +59,8 @@ export interface Project {
   milestones?: ProjectMilestone[];
   payments?: ProjectPayment[];
 }
+
+export type ProjectStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled' | 'disputed';
 
 export interface ProjectFile {
   id: number;
@@ -76,9 +81,11 @@ export interface ProjectMilestone {
   amount: number;
   dueDate?: string;
   status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+  is_completed?: boolean;
   orderNum?: number;
   createdAt: string;
   completedAt?: string;
+  completed_at?: string;
 }
 
 export interface ProjectPayment {
@@ -146,8 +153,8 @@ export const projectApi = api.injectEndpoints({
     // Update project
     updateProject: builder.mutation<Project, { id: number; data: ProjectUpdateData }>({
       query: ({ id, data }) => ({
-        url: `/projects/${id}`,
-        method: 'PATCH',
+        url: `/projects/${id}/status`,
+        method: 'PUT',
         body: data,
       }),
       invalidatesTags: ['Project'],
@@ -189,10 +196,11 @@ export const projectApi = api.injectEndpoints({
       invalidatesTags: ['Project'],
     }),
 
-    deleteProjectFile: builder.mutation<void, number>({
-      query: (fileId) => ({
-        url: `/projects/files/${fileId}`,
+    deleteProjectFile: builder.mutation<void, { projectId: number; fileId: number }>({
+      query: ({ projectId, fileId }) => ({
+        url: `/projects/${projectId}/files`,
         method: 'DELETE',
+        body: { fileId },
       }),
       invalidatesTags: ['Project'],
     }),
@@ -215,7 +223,7 @@ export const projectApi = api.injectEndpoints({
     updateProjectMilestone: builder.mutation<ProjectMilestone, { id: number; projectId: number; data: ProjectMilestoneUpdateData }>({
       query: ({ id, projectId, data }) => ({
         url: `/projects/${projectId}/milestones/${id}`,
-        method: 'PATCH',
+        method: 'PUT',
         body: data,
       }),
       invalidatesTags: ['Project'],

@@ -1,3 +1,5 @@
+import { device, element, by, expect, waitFor } from 'detox';
+
 describe('Search and Filters E2E', () => {
   beforeAll(async () => {
     await device.launchApp();

@@ -43,3 +43,6 @@ export function ErrorMessage({
 
   return content
 }
+
+
+export default ErrorMessage;

@@ -49,7 +49,10 @@ export default function TelegramLoginPage() {
         throw new Error(`HTTP ${res.status}: ${res.statusText}`)
       }
 
-      const data = await res.json()
+      const response = await res.json()
+      
+      // Handle wrapped response format: { success: true, data: { code, visitorId } }
+      const data = response.data || response
 
       if (!data.code || !data.visitorId) {
         throw new Error('Invalid response: missing code or visitorId')
@@ -86,7 +89,10 @@ export default function TelegramLoginPage() {
         throw new Error(`HTTP ${res.status}: ${res.statusText}`)
       }
 
-      const data = await res.json()
+      const response = await res.json()
+      
+      // Handle wrapped response format: { success: true, data: { authenticated, user, tokens } }
+      const data = response.data || response
 
       if (data.authenticated && data.user && data.tokens) {
         // Stop polling
@@ -98,8 +104,8 @@ export default function TelegramLoginPage() {
             id: data.user.id,
             phone: data.user.phone || '',
             role: (data.user.role || 'CLIENT').toUpperCase() as 'CLIENT' | 'MASTER',
-            firstName: data.user.first_name,
-            lastName: data.user.last_name
+            firstName: data.user.firstName || data.user.first_name,
+            lastName: data.user.lastName || data.user.last_name
           },
           accessToken: data.tokens.access,
           refreshToken: data.tokens.refresh
@@ -108,6 +114,14 @@ export default function TelegramLoginPage() {
         // Navigate based on role
         const route = data.user.role === 'MASTER' ? '/(master)/dashboard' : '/(client)/dashboard'
         router.replace(route)
+      } else if (data.needsRegistration && data.telegramData) {
+        // New user - redirect to registration completion
+        if (pollInterval.current) clearInterval(pollInterval.current)
+        
+        router.replace({
+          pathname: '/(auth)/telegram-complete',
+          params: { telegramData: JSON.stringify(data.telegramData) }
+        })
       }
     } catch (e) {
       console.error('Check auth error:', e)

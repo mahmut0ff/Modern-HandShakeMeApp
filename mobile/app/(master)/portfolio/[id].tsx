@@ -1,8 +1,15 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Image, FlatList, Alert } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Image, FlatList, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import { 
+  useGetMyPortfolioQuery, 
+  useDeletePortfolioItemMutation,
+  useAddPortfolioImageMutation 
+} from '../../../services/profileApi';
+import { LoadingSpinner } from '../../../components/LoadingSpinner';
 
 interface PortfolioItem {
   id: number;
@@ -29,89 +36,27 @@ export default function PortfolioItemDetailPage() {
   const [activeMediaIndex, setActiveMediaIndex] = useState(0);
   const [loading, setLoading] = useState(false);
 
-  // Mock data - replace with actual API calls
-  const portfolioItem: PortfolioItem = {
-    id: Number(id),
-    title: 'Ремонт ванной комнаты',
-    description: 'Полный ремонт ванной комнаты площадью 6 кв.м. Включал демонтаж старой плитки, выравнивание стен, укладку новой плитки, замену сантехники и установку современного освещения.',
-    category: 'Ремонт и отделка',
-    before_image: 'https://example.com/before1.jpg',
-    after_image: 'https://example.com/after1.jpg',
-    video_url: 'https://example.com/video1.mp4',
-    created_at: '2024-01-10T15:30:00Z',
-    media: [
-      {
-        id: 1,
-        media_type: 'image',
-        file_url: 'https://example.com/progress1.jpg',
-        description: 'Демонтаж старой плитки',
-        created_at: '2024-01-10T10:00:00Z'
-      },
-      {
-        id: 2,
-        media_type: 'image',
-        file_url: 'https://example.com/progress2.jpg',
-        description: 'Выравнивание стен',
-        created_at: '2024-01-11T14:00:00Z'
-      },
-      {
-        id: 3,
-        media_type: 'image',
-        file_url: 'https://example.com/progress3.jpg',
-        description: 'Укладка новой плитки',
-        created_at: '2024-01-12T16:00:00Z'
-      },
-      {
-        id: 4,
-        media_type: 'video',
-        file_url: 'https://example.com/process.mp4',
-        description: 'Процесс укладки плитки',
-        created_at: '2024-01-12T17:00:00Z'
-      }
-    ]
-  };
+  // API hooks
+  const { data: portfolioItems, isLoading: portfolioLoading } = useGetMyPortfolioQuery();
+  const [deletePortfolioItem] = useDeletePortfolioItemMutation();
+  const [addPortfolioImage] = useAddPortfolioImageMutation();
 
-  // Combine all media (before/after + additional media)
-  const allMedia: Array<{ id: string | number; type: 'image' | 'video'; url: string; description?: string; isLegacy?: boolean }> = [];
+  // Find the specific portfolio item
+  const portfolioItem = portfolioItems?.find(item => item.id === Number(id));
+
+  // Combine all media
+  const allMedia: Array<{ id: string | number; type: 'image' | 'video'; url: string; description?: string }> = [];
   
-  if (portfolioItem.before_image) {
-    allMedia.push({ 
-      id: 'before', 
-      type: 'image', 
-      url: portfolioItem.before_image, 
-      description: 'До ремонта',
-      isLegacy: true 
+  if (portfolioItem?.images) {
+    portfolioItem.images.forEach(img => {
+      allMedia.push({
+        id: img.id,
+        type: 'image',
+        url: img.image_url || img.image,
+        description: undefined,
+      });
     });
   }
-  
-  if (portfolioItem.after_image) {
-    allMedia.push({ 
-      id: 'after', 
-      type: 'image', 
-      url: portfolioItem.after_image, 
-      description: 'После ремонта',
-      isLegacy: true 
-    });
-  }
-  
-  if (portfolioItem.video_url) {
-    allMedia.push({ 
-      id: 'video', 
-      type: 'video', 
-      url: portfolioItem.video_url, 
-      description: 'Видео результата',
-      isLegacy: true 
-    });
-  }
-  
-  portfolioItem.media.forEach(m => {
-    allMedia.push({ 
-      id: m.id, 
-      type: m.media_type, 
-      url: m.file_url, 
-      description: m.description 
-    });
-  });
 
   const handleDelete = () => {
     Alert.alert(
@@ -125,11 +70,11 @@ export default function PortfolioItemDetailPage() {
           onPress: async () => {
             setLoading(true);
             try {
-              // TODO: Implement API call
-              await new Promise(resolve => setTimeout(resolve, 1000));
+              await deletePortfolioItem(Number(id)).unwrap();
               router.back();
-            } catch (error) {
-              Alert.alert('Ошибка', 'Не удалось удалить работу');
+            } catch (error: any) {
+              console.error('Delete portfolio item error:', error);
+              Alert.alert('Ошибка', error.data?.message || 'Не удалось удалить работу');
             } finally {
               setLoading(false);
             }
@@ -145,11 +90,80 @@ export default function PortfolioItemDetailPage() {
       'Выберите тип файла',
       [
         { text: 'Отмена', style: 'cancel' },
-        { text: 'Фото', onPress: () => {/* TODO: Open image picker */} },
-        { text: 'Видео', onPress: () => {/* TODO: Open video picker */} }
+        { 
+          text: 'Фото', 
+          onPress: async () => {
+            try {
+              const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                quality: 0.8,
+              });
+              
+              if (!result.canceled && result.assets[0]) {
+                const formData = new FormData();
+                formData.append('image', {
+                  uri: result.assets[0].uri,
+                  type: 'image/jpeg',
+                  name: 'portfolio-image.jpg',
+                } as any);
+                
+                await addPortfolioImage({ itemId: Number(id), image: formData }).unwrap();
+                Alert.alert('Успех', 'Фото добавлено');
+              }
+            } catch (error: any) {
+              console.error('Add image error:', error);
+              Alert.alert('Ошибка', 'Не удалось добавить фото');
+            }
+          }
+        },
+        { 
+          text: 'Видео', 
+          onPress: async () => {
+            try {
+              const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+                allowsEditing: true,
+                quality: 0.8,
+              });
+              
+              if (!result.canceled && result.assets[0]) {
+                const formData = new FormData();
+                formData.append('video', {
+                  uri: result.assets[0].uri,
+                  type: 'video/mp4',
+                  name: 'portfolio-video.mp4',
+                } as any);
+                
+                await addPortfolioImage({ itemId: Number(id), image: formData }).unwrap();
+                Alert.alert('Успех', 'Видео добавлено');
+              }
+            } catch (error: any) {
+              console.error('Add video error:', error);
+              Alert.alert('Ошибка', 'Не удалось добавить видео');
+            }
+          }
+        }
       ]
     );
   };
+
+  if (portfolioLoading) {
+    return <LoadingSpinner fullScreen text="Загрузка..." />;
+  }
+
+  if (!portfolioItem) {
+    return (
+      <SafeAreaView className="flex-1 bg-[#F8F7FC] items-center justify-center">
+        <Text className="text-gray-500">Работа не найдена</Text>
+        <TouchableOpacity onPress={() => router.back()} className="mt-4 px-4 py-2 bg-[#0165FB] rounded-xl">
+          <Text className="text-white">Назад</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    );
+  }
+
+  const currentMedia = allMedia[activeMediaIndex];
 
   const renderMediaItem = ({ item, index }: { item: typeof allMedia[0]; index: number }) => (
     <TouchableOpacity
@@ -168,8 +182,6 @@ export default function PortfolioItemDetailPage() {
     </TouchableOpacity>
   );
 
-  const currentMedia = allMedia[activeMediaIndex];
-
   return (
     <SafeAreaView className="flex-1 bg-[#F8F7FC]">
       <ScrollView className="flex-1">
@@ -183,7 +195,7 @@ export default function PortfolioItemDetailPage() {
           </TouchableOpacity>
           <View className="flex-row gap-2">
             <TouchableOpacity
-              onPress={() => router.push(`/master/portfolio/${id}/edit`)}
+              onPress={() => router.push(`/(master)/portfolio/create?edit=${id}`)}
               className="w-10 h-10 bg-white rounded-2xl items-center justify-center shadow-sm border border-gray-100"
             >
               <Ionicons name="create" size={20} color="#0165FB" />
@@ -285,7 +297,7 @@ export default function PortfolioItemDetailPage() {
           {/* Actions */}
           <View className="flex-row gap-3 mb-6">
             <TouchableOpacity
-              onPress={() => router.push(`/master/portfolio/${id}/edit`)}
+              onPress={() => router.push(`/(master)/portfolio/create?edit=${id}`)}
               className="flex-1 flex-row items-center justify-center gap-2 py-4 bg-white border border-gray-100 rounded-2xl shadow-sm"
             >
               <Ionicons name="create" size={16} color="#0165FB" />

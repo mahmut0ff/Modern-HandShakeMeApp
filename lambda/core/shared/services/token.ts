@@ -1,12 +1,15 @@
 // JWT token service
 
-import jwt from 'jsonwebtoken';
+import * as jwt from 'jsonwebtoken';
 const { sign, verify } = jwt;
 import { getRedisClient } from '../cache/client';
 import { logger } from '../utils/logger';
 import type { AuthContext } from '../types';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-for-tests';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required');
+}
 const ACCESS_TOKEN_EXPIRY = '15m';
 const REFRESH_TOKEN_EXPIRY = '7d';
 

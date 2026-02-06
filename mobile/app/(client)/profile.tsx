@@ -5,8 +5,8 @@ import { StatusBar } from 'expo-status-bar'
 import { Ionicons } from '@expo/vector-icons'
 import { useAppSelector, useAppDispatch } from '../../hooks/redux'
 import { logout } from '../../features/auth/authSlice'
-import { 
-  useGetMyClientProfileQuery 
+import {
+  useGetMyClientProfileQuery
 } from '../../services/profileApi'
 import { LoadingSpinner } from '../../components/LoadingSpinner'
 import { ErrorMessage } from '../../components/ErrorMessage'
@@ -16,25 +16,34 @@ export default function ProfilePage() {
   const dispatch = useAppDispatch()
 
   // API queries
-  const { 
-    data: profile, 
-    isLoading, 
+  const {
+    data: profile,
+    isLoading,
     error,
-    refetch 
+    refetch
   } = useGetMyClientProfileQuery();
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     Alert.alert(
       'Выход из аккаунта',
       'Вы уверены, что хотите выйти?',
       [
         { text: 'Отмена', style: 'cancel' },
-        { 
-          text: 'Выйти', 
+        {
+          text: 'Выйти',
           style: 'destructive',
-          onPress: () => {
-            dispatch(logout())
-            router.replace('/')
+          onPress: async () => {
+            try {
+              // Dispatch logout action
+              dispatch(logout())
+
+              // Force navigation to auth screen
+              router.replace('/(auth)/login')
+            } catch (error) {
+              console.error('Logout error:', error)
+              // Even if there's an error, force logout
+              router.replace('/(auth)/login')
+            }
           }
         }
       ]
@@ -149,7 +158,7 @@ export default function ProfilePage() {
   return (
     <View className="flex-1 bg-gray-50">
       <StatusBar style="dark" />
-      
+
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20, paddingTop: 8 }}>
         {/* Header */}
         <View className="bg-blue-500 px-4 pt-12 pb-8">
@@ -170,7 +179,7 @@ export default function ProfilePage() {
                 </View>
               </View>
             </View>
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={() => router.push('/(client)/edit-profile')}
               className="w-10 h-10 bg-white/20 rounded-full items-center justify-center"
             >
@@ -209,11 +218,10 @@ export default function ProfilePage() {
               <TouchableOpacity
                 key={item.id}
                 onPress={() => router.push(item.route as any)}
-                className={`flex-row items-center p-4 ${
-                  index < menuItems.length - 1 ? 'border-b border-gray-100' : ''
-                }`}
+                className={`flex-row items-center p-4 ${index < menuItems.length - 1 ? 'border-b border-gray-100' : ''
+                  }`}
               >
-                <View 
+                <View
                   className="w-10 h-10 rounded-2xl items-center justify-center mr-4"
                   style={{ backgroundColor: `${item.color}20` }}
                 >
@@ -237,9 +245,8 @@ export default function ProfilePage() {
               <TouchableOpacity
                 key={item.id}
                 onPress={() => router.push(item.route as any)}
-                className={`flex-row items-center p-4 ${
-                  index < settingsItems.length - 1 ? 'border-b border-gray-100' : ''
-                }`}
+                className={`flex-row items-center p-4 ${index < settingsItems.length - 1 ? 'border-b border-gray-100' : ''
+                  }`}
               >
                 <View className="w-10 h-10 bg-gray-100 rounded-2xl items-center justify-center mr-4">
                   <Ionicons name={item.icon as any} size={20} color="#6B7280" />
@@ -258,7 +265,7 @@ export default function ProfilePage() {
 
         {/* Logout */}
         <View className="px-4 pb-8">
-          <TouchableOpacity 
+          <TouchableOpacity
             onPress={handleLogout}
             className="bg-white rounded-3xl p-4 shadow-sm border border-gray-100 flex-row items-center justify-center gap-3"
           >

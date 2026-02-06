@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useMilestones } from '../../hooks/useMilestones';
-import LoadingSpinner from '../LoadingSpinner';
+import { LoadingSpinner } from '../LoadingSpinner';
 
 interface MilestoneQuickViewProps {
   projectId: number;

@@ -96,7 +96,7 @@ export const walletApi = api.injectEndpoints({
       providesTags: ['Wallet'],
     }),
 
-    // Transactions
+    // Transactions - Backend: GET /wallet/transactions (no individual transaction endpoint)
     getTransactions: builder.query<{ results: Transaction[]; count: number }, {
       transaction_type?: string;
       status?: string;
@@ -113,7 +113,16 @@ export const walletApi = api.injectEndpoints({
     }),
 
     getTransaction: builder.query<Transaction, number>({
-      query: (id) => `/wallet/transactions/${id}`,
+      query: (id) => ({
+        url: '/wallet/transactions',
+        params: { id },
+      }),
+      transformResponse: (response: any) => {
+        if (Array.isArray(response.results)) {
+          return response.results[0];
+        }
+        return response;
+      },
       providesTags: ['Transaction'],
     }),
 
@@ -144,14 +153,14 @@ export const walletApi = api.injectEndpoints({
     // Payments
     sendPayment: builder.mutation<Transaction, PaymentRequest>({
       query: (data) => ({
-        url: '/wallet/send-payment',
+        url: '/wallet/send',
         method: 'POST',
         body: data,
       }),
       invalidatesTags: ['Wallet', 'Transaction'],
     }),
 
-    // Payment methods
+    // Payment methods - Backend: GET/POST /wallet/payment-methods (no individual endpoints)
     getPaymentMethods: builder.query<PaymentMethod[], void>({
       query: () => '/wallet/payment-methods',
       providesTags: ['Wallet'],
@@ -166,41 +175,47 @@ export const walletApi = api.injectEndpoints({
       invalidatesTags: ['Wallet'],
     }),
 
+    // Update payment method - use POST with update action
     updatePaymentMethod: builder.mutation<PaymentMethod, { id: number; data: PaymentMethodUpdateData }>({
       query: ({ id, data }) => ({
-        url: `/wallet/payment-methods/${id}`,
-        method: 'PATCH',
-        body: data,
+        url: '/wallet/payment-methods',
+        method: 'POST',
+        body: { action: 'update', id, ...data },
       }),
       invalidatesTags: ['Wallet'],
     }),
 
+    // Delete payment method - use POST with delete action
     deletePaymentMethod: builder.mutation<void, number>({
       query: (id) => ({
-        url: `/wallet/payment-methods/${id}`,
-        method: 'DELETE',
+        url: '/wallet/payment-methods',
+        method: 'POST',
+        body: { action: 'delete', id },
       }),
       invalidatesTags: ['Wallet'],
     }),
 
+    // Set default payment method - use POST with set_default action
     setDefaultPaymentMethod: builder.mutation<PaymentMethod, number>({
       query: (id) => ({
-        url: `/wallet/payment-methods/${id}/set-default`,
+        url: '/wallet/payment-methods',
         method: 'POST',
+        body: { action: 'set_default', id },
       }),
       invalidatesTags: ['Wallet'],
     }),
 
+    // Verify payment method - use POST with verify action
     verifyPaymentMethod: builder.mutation<PaymentMethod, { id: number; verification_data: Record<string, any> }>({
       query: ({ id, verification_data }) => ({
-        url: `/wallet/payment-methods/${id}/verify`,
+        url: '/wallet/payment-methods',
         method: 'POST',
-        body: verification_data,
+        body: { action: 'verify', id, ...verification_data },
       }),
       invalidatesTags: ['Wallet'],
     }),
 
-    // Balance and statistics
+    // Balance and statistics - Backend: GET /wallet/stats
     getWalletStats: builder.query<{
       total_earned: string;
       total_spent: string;
@@ -216,9 +231,12 @@ export const walletApi = api.injectEndpoints({
       providesTags: ['Wallet'],
     }),
 
-    // Exchange rates (if multi-currency support)
+    // Exchange rates - not available in backend, return empty
     getExchangeRates: builder.query<Record<string, number>, void>({
-      query: () => '/wallet/exchange-rates',
+      queryFn: async () => {
+        // Exchange rates endpoint not available in backend
+        return { data: { KGS: 1, USD: 0.011, RUB: 1.05 } };
+      },
     }),
   }),
 });

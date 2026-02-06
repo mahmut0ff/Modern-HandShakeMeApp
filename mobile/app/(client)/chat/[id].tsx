@@ -94,7 +94,7 @@ export default function ChatRoomPage() {
     );
     
     unreadMessages.forEach(msg => {
-      markMessageRead(msg.id);
+      markMessageRead({ messageId: msg.id, roomId });
       markRead(msg.id);
     });
   }, [allMessages.length, user?.id]);
@@ -118,7 +118,8 @@ export default function ChatRoomPage() {
       try {
         await editMessage({
           id: editingMessage.id,
-          content: messageText
+          content: messageText,
+          roomId
         }).unwrap();
         setMessage('');
         setEditingMessage(null);
@@ -215,7 +216,7 @@ export default function ChatRoomPage() {
 
   const handleDelete = async (messageId: number) => {
     try {
-      await deleteMessage(messageId).unwrap();
+      await deleteMessage({ id: messageId, roomId }).unwrap();
     } catch (error) {
       console.error('Failed to delete message:', error);
       Alert.alert('Ошибка', 'Не удалось удалить сообщение');

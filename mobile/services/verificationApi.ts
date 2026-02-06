@@ -1,57 +1,29 @@
 import { api } from './api';
 
 export interface VerificationDocument {
-  id: number;
-  user: number;
-  document_type: 
-    | 'identity'
-    | 'selfie'
-    | 'address'
-    | 'education'
-    | 'experience'
-    | 'tools'
-    | 'license'
-    | 'insurance';
-  title: string;
-  description?: string;
-  file_url?: string;
-  thumbnail_url?: string;
-  status: 'pending' | 'in_review' | 'approved' | 'rejected';
-  rejection_reason?: string;
-  is_required: boolean;
+  id: string;
+  type: 'passport' | 'id_card' | 'driver_license' | 'certificate' | 'diploma' | 'other';
+  url: string;
+  file_name: string;
   uploaded_at: string;
-  reviewed_at?: string;
-  expires_at?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  notes?: string;
 }
 
 export interface VerificationStatus {
-  user: number;
+  id: string;
+  status: 'pending' | 'in_review' | 'approved' | 'rejected' | 'suspended';
+  documents: VerificationDocument[];
+  notes?: string;
+  reviewed_by?: string;
+  reviewed_at?: string;
+  verified_at?: string;
+  rejection_reason?: string;
+  created_at: string;
+  updated_at: string;
+  // Computed fields for UI compatibility
   overall_status: 'unverified' | 'partial' | 'in_review' | 'verified' | 'rejected';
   identity_verified: boolean;
-  address_verified: boolean;
-  phone_verified: boolean;
-  email_verified: boolean;
-  documents_count: number;
-  approved_documents_count: number;
-  pending_documents_count: number;
-  verification_level: 'basic' | 'standard' | 'premium';
-  verified_at?: string;
-  expires_at?: string;
-  created_at: string;
-  updated_at?: string;
-}
-
-export interface DocumentUploadData {
-  document_type: string;
-  title: string;
-  description?: string;
-  file: FormData;
-}
-
-export interface DocumentUpdateData {
-  title?: string;
-  description?: string;
-  file?: FormData;
 }
 
 export interface VerificationRequirement {
@@ -71,54 +43,21 @@ export const verificationApi = api.injectEndpoints({
     getVerificationStatus: builder.query<VerificationStatus, void>({
       query: () => '/verification/status',
       providesTags: ['Verification'],
-    }),
-
-    // Documents
-    getVerificationDocuments: builder.query<VerificationDocument[], void>({
-      query: () => '/verification/documents',
-      providesTags: ['Verification'],
-    }),
-
-    getVerificationDocument: builder.query<VerificationDocument, number>({
-      query: (id) => `/verification/documents/${id}`,
-      providesTags: ['Verification'],
-    }),
-
-    uploadVerificationDocument: builder.mutation<VerificationDocument, DocumentUploadData>({
-      query: (data) => ({
-        url: '/verification/documents',
-        method: 'POST',
-        body: data.file,
-        formData: true,
-      }),
-      invalidatesTags: ['Verification'],
-    }),
-
-    updateVerificationDocument: builder.mutation<VerificationDocument, { id: number; data: DocumentUpdateData }>({
-      query: ({ id, data }) => ({
-        url: `/verification/documents/${id}`,
-        method: 'PATCH',
-        body: data.file || data,
-        formData: !!data.file,
-      }),
-      invalidatesTags: ['Verification'],
-    }),
-
-    deleteVerificationDocument: builder.mutation<void, number>({
-      query: (id) => ({
-        url: `/verification/documents/${id}`,
-        method: 'DELETE',
-      }),
-      invalidatesTags: ['Verification'],
-    }),
-
-    // Submit for review
-    submitForReview: builder.mutation<{ message: string }, void>({
-      query: () => ({
-        url: '/verification/submit',
-        method: 'POST',
-      }),
-      invalidatesTags: ['Verification'],
+      transformResponse: (response: any) => {
+        // Map backend status to UI-friendly format
+        const statusMap: Record<string, string> = {
+          'pending': 'unverified',
+          'in_review': 'in_review',
+          'approved': 'verified',
+          'rejected': 'rejected',
+          'suspended': 'rejected',
+        };
+        return {
+          ...response,
+          overall_status: statusMap[response.status] || 'unverified',
+          identity_verified: response.status === 'approved',
+        };
+      },
     }),
 
     // Requirements
@@ -126,10 +65,10 @@ export const verificationApi = api.injectEndpoints({
       query: () => '/verification/requirements',
     }),
 
-    // Resubmit rejected document
-    resubmitDocument: builder.mutation<VerificationDocument, { id: number; file: FormData }>({
-      query: ({ id, file }) => ({
-        url: `/verification/documents/${id}/resubmit`,
+    // Upload document
+    uploadVerificationDocument: builder.mutation<any, { documentType: string; file: FormData }>({
+      query: ({ documentType, file }) => ({
+        url: `/verification/documents?document_type=${documentType}`,
         method: 'POST',
         body: file,
         formData: true,
@@ -137,12 +76,12 @@ export const verificationApi = api.injectEndpoints({
       invalidatesTags: ['Verification'],
     }),
 
-    // Request verification review
-    requestReview: builder.mutation<{ message: string }, { document_ids?: number[] }>({
+    // Submit for review
+    submitForReview: builder.mutation<{ message: string }, { additionalInfo?: string; urgentReview?: boolean } | void>({
       query: (data) => ({
-        url: '/verification/request-review',
+        url: '/verification/submit',
         method: 'POST',
-        body: data,
+        body: data || {},
       }),
       invalidatesTags: ['Verification'],
     }),
@@ -151,13 +90,7 @@ export const verificationApi = api.injectEndpoints({
 
 export const {
   useGetVerificationStatusQuery,
-  useGetVerificationDocumentsQuery,
-  useGetVerificationDocumentQuery,
-  useUploadVerificationDocumentMutation,
-  useUpdateVerificationDocumentMutation,
-  useDeleteVerificationDocumentMutation,
-  useSubmitForReviewMutation,
   useGetVerificationRequirementsQuery,
-  useResubmitDocumentMutation,
-  useRequestReviewMutation,
+  useUploadVerificationDocumentMutation,
+  useSubmitForReviewMutation,
 } = verificationApi;

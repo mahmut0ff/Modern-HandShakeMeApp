@@ -34,12 +34,18 @@ export const initializeI18n = async (): Promise<void> => {
       i18n.locale = savedLocale
     } else {
       // Use device locale as fallback
-      const deviceLocale = Localization.locale.split('-')[0] // Get language code only
+      const deviceLocale = Localization.locale
       
-      if (i18n.translations[deviceLocale]) {
-        i18n.locale = deviceLocale
+      if (deviceLocale && typeof deviceLocale === 'string') {
+        const languageCode = deviceLocale.split('-')[0] // Get language code only
+        
+        if (i18n.translations[languageCode]) {
+          i18n.locale = languageCode
+        } else {
+          i18n.locale = 'ru' // Default to Russian
+        }
       } else {
-        i18n.locale = 'ru' // Default to Russian
+        i18n.locale = 'ru' // Default to Russian if no device locale
       }
     }
     

@@ -9,10 +9,10 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useGetCategorySkillsQuery, Skill } from '../../services/categoryApi';
-import LoadingSpinner from '../LoadingSpinner';
+import { LoadingSpinner } from '../LoadingSpinner';
 
 interface SkillsSelectorProps {
-  categoryId?: string;
+  categoryId?: number;
   selectedSkills: Skill[];
   onSkillsChange: (skills: Skill[]) => void;
   maxSkills?: number;
@@ -34,14 +34,14 @@ export default function SkillsSelector({
   const {
     data: categoryData,
     isLoading,
-  } = useGetCategorySkillsQuery(categoryId || '', {
+  } = useGetCategorySkillsQuery(categoryId ? Number(categoryId) : 0, {
     skip: !categoryId,
   });
 
   const filteredSkills = searchQuery.trim()
     ? categoryData?.skills.filter((skill) =>
-        skill.name.toLowerCase().includes(searchQuery.toLowerCase())
-      )
+      skill.name.toLowerCase().includes(searchQuery.toLowerCase())
+    )
     : categoryData?.skills;
 
   const toggleSkill = (skill: Skill) => {
@@ -57,16 +57,15 @@ export default function SkillsSelector({
     }
   };
 
-  const removeSkill = (skillId: string) => {
+  const removeSkill = (skillId: number) => {
     onSkillsChange(selectedSkills.filter((s) => s.id !== skillId));
   };
 
   return (
     <>
       <TouchableOpacity
-        className={`bg-white border rounded-lg px-4 py-3 ${
-          error ? 'border-red-500' : 'border-gray-300'
-        }`}
+        className={`bg-white border rounded-lg px-4 py-3 ${error ? 'border-red-500' : 'border-gray-300'
+          }`}
         onPress={() => {
           if (!categoryId) {
             return;
@@ -178,24 +177,22 @@ export default function SkillsSelector({
                       return (
                         <TouchableOpacity
                           key={skill.id}
-                          className={`px-4 py-2 rounded-full mr-2 mb-2 border ${
-                            isSelected
+                          className={`px-4 py-2 rounded-full mr-2 mb-2 border ${isSelected
                               ? 'bg-blue-600 border-blue-600'
                               : isDisabled
-                              ? 'bg-gray-100 border-gray-200'
-                              : 'bg-white border-gray-300'
-                          }`}
+                                ? 'bg-gray-100 border-gray-200'
+                                : 'bg-white border-gray-300'
+                            }`}
                           onPress={() => toggleSkill(skill)}
                           disabled={isDisabled}
                         >
                           <Text
-                            className={`font-medium ${
-                              isSelected
+                            className={`font-medium ${isSelected
                                 ? 'text-white'
                                 : isDisabled
-                                ? 'text-gray-400'
-                                : 'text-gray-700'
-                            }`}
+                                  ? 'text-gray-400'
+                                  : 'text-gray-700'
+                              }`}
                           >
                             {skill.name}
                           </Text>

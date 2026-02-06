@@ -2,7 +2,7 @@
 
 import { logger } from './logger';
 import { GDPRDeletionRecord, AnonymizedUserData, FileReference } from '../types/gdpr';
-import crypto from 'crypto';
+import * as crypto from 'crypto';
 
 export class GDPRUtils {
   

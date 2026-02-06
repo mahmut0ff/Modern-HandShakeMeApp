@@ -9,14 +9,22 @@ import { withErrorHandler, ValidationError } from '../shared/middleware/errorHan
 import { logger } from '../shared/utils/logger';
 
 const refreshTokenSchema = z.object({
-  refreshToken: z.string().min(1, 'Refresh token is required'),
+  refreshToken: z.string().optional(),
+  refresh: z.string().optional(),
+}).refine(data => data.refreshToken || data.refresh, {
+  message: "Either refreshToken or refresh must be provided",
 });
 
 async function refreshTokenHandler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
   logger.info('Refresh token request');
-  
-  const body = JSON.parse(event.body || '{}');
-  
+
+  // Validate request body exists
+  if (!event.body) {
+    throw new ValidationError('Request body is required');
+  }
+
+  const body = JSON.parse(event.body);
+
   // Validate input
   let validatedData;
   try {
@@ -27,14 +35,20 @@ async function refreshTokenHandler(event: APIGatewayProxyEvent): Promise<APIGate
     }
     throw error;
   }
-  
+
+  const token = validatedData.refreshToken || validatedData.refresh;
+
+  if (!token) {
+    throw new ValidationError('Token is missing');
+  }
+
   // Check if token is blacklisted
-  const blacklistedToken = await getItem(Keys.tokenBlacklist(validatedData.refreshToken));
+  const blacklistedToken = await getItem(Keys.tokenBlacklist(token));
   if (blacklistedToken) {
     logger.warn('Attempted to use blacklisted refresh token');
     return unauthorized('Token has been revoked');
   }
-  
+
   // Verify refresh token
   let decoded;
   try {
@@ -43,7 +57,7 @@ async function refreshTokenHandler(event: APIGatewayProxyEvent): Promise<APIGate
     logger.warn('Invalid refresh token', { error: error.message });
     return unauthorized('Invalid or expired refresh token');
   }
-  
+
   // Get user
   const userRepo = new UserRepository();
   const user = await userRepo.findById(decoded.userId);
@@ -51,19 +65,19 @@ async function refreshTokenHandler(event: APIGatewayProxyEvent): Promise<APIGate
     logger.warn('User not found for refresh token', { userId: decoded.userId });
     return notFound('User not found');
   }
-  
+
   // Generate new tokens
   const tokenPayload = {
     userId: user.id,
     email: user.email || user.phone,
     role: user.role,
   };
-  
+
   const accessToken = await issueAccessToken(tokenPayload);
   const newRefreshToken = await issueRefreshToken(tokenPayload);
-  
+
   logger.info('Tokens refreshed successfully', { userId: user.id });
-  
+
   return success({
     access: accessToken,
     refresh: newRefreshToken,

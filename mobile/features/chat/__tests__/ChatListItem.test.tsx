@@ -1,5 +1,6 @@
 import React from 'react';
 import { render, fireEvent } from '@testing-library/react-native';
+import { View } from 'react-native';
 import { ChatListItem } from '../components/ChatListItem';
 import type { ChatRoom } from '../../../services/chatApi';
 
@@ -96,7 +97,7 @@ describe('ChatListItem', () => {
     );
 
     // Online indicator is a View with specific styling
-    expect(UNSAFE_getAllByType('View').length).toBeGreaterThan(0);
+    expect(UNSAFE_getAllByType(View).length).toBeGreaterThan(0);
   });
 
   it('calls onPress when tapped', () => {
@@ -133,7 +134,7 @@ describe('ChatListItem', () => {
       last_message: {
         ...mockRoom.last_message!,
         message_type: 'image' as const,
-        content: null,
+        content: undefined,
       },
     };
 
@@ -155,7 +156,7 @@ describe('ChatListItem', () => {
       last_message: {
         ...mockRoom.last_message!,
         message_type: 'file' as const,
-        content: null,
+        content: undefined,
       },
     };
 

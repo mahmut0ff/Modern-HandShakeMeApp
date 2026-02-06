@@ -135,9 +135,13 @@ export const chatApi = api.injectEndpoints({
 
     sendMessage: builder.mutation<ChatMessage, ChatMessageCreateData>({
       query: (data) => ({
-        url: '/chat/messages',
+        url: `/chat/rooms/${data.room}/messages`,
         method: 'POST',
-        body: data,
+        body: {
+          message_type: data.message_type,
+          content: data.content,
+          reply_to: data.reply_to,
+        },
       }),
       invalidatesTags: ['Chat'],
       async onQueryStarted(arg, { dispatch, queryFulfilled }) {
@@ -157,7 +161,7 @@ export const chatApi = api.injectEndpoints({
           image.append('reply_to', reply_to.toString());
         }
         return {
-          url: `/chat/rooms/${roomId}/send-image`,
+          url: `/chat/rooms/${roomId}/image`,
           method: 'POST',
           body: image,
           formData: true,
@@ -172,7 +176,7 @@ export const chatApi = api.injectEndpoints({
           file.append('reply_to', reply_to.toString());
         }
         return {
-          url: `/chat/rooms/${roomId}/send-file`,
+          url: `/chat/rooms/${roomId}/messages`,
           method: 'POST',
           body: file,
           formData: true,
@@ -181,38 +185,24 @@ export const chatApi = api.injectEndpoints({
       invalidatesTags: ['Chat'],
     }),
 
-    editMessage: builder.mutation<ChatMessage, { id: number; content: string }>({
-      query: ({ id, content }) => ({
-        url: `/chat/messages/${id}`,
-        method: 'PATCH',
-        body: { content },
-      }),
-      invalidatesTags: ['Chat'],
-    }),
-
-    deleteMessage: builder.mutation<void, number>({
-      query: (id) => ({
-        url: `/chat/messages/${id}`,
-        method: 'DELETE',
-      }),
-      invalidatesTags: ['Chat'],
-    }),
-
-    markMessageRead: builder.mutation<void, number>({
-      query: (messageId) => ({
-        url: `/chat/messages/${messageId}/read`,
+    // Note: Individual message edit/delete - use room-based operations
+    // Backend doesn't have individual message endpoints, so we'll use room messages
+    editMessage: builder.mutation<ChatMessage, { id: number; content: string; roomId: number }>({
+      query: ({ id, content, roomId }) => ({
+        url: `/chat/rooms/${roomId}/messages`,
         method: 'POST',
+        body: { content, edit_message_id: id },
       }),
       invalidatesTags: ['Chat'],
-      async onQueryStarted(messageId, { dispatch, queryFulfilled }) {
-        try {
-          await queryFulfilled;
-          // Send via WebSocket for real-time status update
-          websocketService.markMessageRead(messageId);
-        } catch (error) {
-          console.error('Failed to mark message read via WebSocket:', error);
-        }
-      },
+    }),
+
+    deleteMessage: builder.mutation<void, { id: number; roomId: number }>({
+      query: ({ id, roomId }) => ({
+        url: `/chat/rooms/${roomId}/messages`,
+        method: 'POST',
+        body: { delete_message_id: id },
+      }),
+      invalidatesTags: ['Chat'],
     }),
 
     markRoomRead: builder.mutation<void, number>({
@@ -223,31 +213,45 @@ export const chatApi = api.injectEndpoints({
       invalidatesTags: ['Chat'],
     }),
 
-    // Typing indicators
-    setTyping: builder.mutation<void, { roomId: number; isTyping: boolean }>({
-      query: ({ roomId, isTyping }) => ({
-        url: `/chat/rooms/${roomId}/typing`,
+    // Note: Use room-based read instead of individual message read
+    markMessageRead: builder.mutation<void, { messageId: number; roomId: number }>({
+      query: ({ roomId }) => ({
+        url: `/chat/rooms/${roomId}/read`,
         method: 'POST',
-        body: { is_typing: isTyping },
       }),
-      async onQueryStarted({ roomId, isTyping }, { dispatch, queryFulfilled }) {
+      invalidatesTags: ['Chat'],
+      async onQueryStarted({ messageId }, { dispatch, queryFulfilled }) {
         try {
           await queryFulfilled;
-          // Send via WebSocket for real-time typing indicator
-          websocketService.setTyping(roomId, isTyping);
+          websocketService.markMessageRead(messageId);
         } catch (error) {
-          console.error('Failed to set typing via WebSocket:', error);
+          console.error('Failed to mark message read via WebSocket:', error);
         }
       },
     }),
 
-    // Online status
+    // Typing indicators - send via WebSocket only (no REST endpoint)
+    setTyping: builder.mutation<void, { roomId: number; isTyping: boolean }>({
+      queryFn: async ({ roomId, isTyping }) => {
+        try {
+          websocketService.setTyping(roomId, isTyping);
+          return { data: undefined };
+        } catch (error) {
+          return { error: { status: 'CUSTOM_ERROR', error: 'WebSocket error' } };
+        }
+      },
+    }),
+
+    // Online status - send via WebSocket only (no REST endpoint)
     setOnlineStatus: builder.mutation<void, { isOnline: boolean }>({
-      query: ({ isOnline }) => ({
-        url: '/chat/online-status',
-        method: 'POST',
-        body: { is_online: isOnline },
-      }),
+      queryFn: async ({ isOnline }) => {
+        try {
+          websocketService.send('online_status', { is_online: isOnline });
+          return { data: undefined };
+        } catch (error) {
+          return { error: { status: 'CUSTOM_ERROR', error: 'WebSocket error' } };
+        }
+      },
     }),
   }),
 });
@@ -267,3 +271,95 @@ export const {
   useSetTypingMutation,
   useSetOnlineStatusMutation,
 } = chatApi;
+
+// Add getRooms method to chatApi for backward compatibility
+(chatApi as any).getRooms = chatApiDirect.getRooms;
+
+
+// Direct API methods for screen compatibility
+import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const chatClient = axios.create({
+  baseURL: process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001',
+  timeout: 30000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+chatClient.interceptors.request.use(
+  async (config: any) => {
+    try {
+      const token = await AsyncStorage.getItem('accessToken');
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    } catch (error) {
+      console.error('Failed to get access token:', error);
+    }
+    return config;
+  },
+  (error: any) => Promise.reject(error)
+);
+
+// Direct methods for screens
+export const chatApiDirect = {
+  async getRooms(token: string): Promise<ChatRoom[]> {
+    const response = await chatClient.get('/chat/rooms', {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return response.data.results || response.data;
+  },
+
+  async getRoom(token: string, roomId: string): Promise<ChatRoom> {
+    const response = await chatClient.get(`/chat/rooms/${roomId}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return response.data;
+  },
+
+  async getMessages(token: string, roomId: string): Promise<ChatMessage[]> {
+    const response = await chatClient.get(`/chat/rooms/${roomId}/messages`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return response.data.results || response.data;
+  },
+
+  async sendMessage(token: string, roomId: string, data: { content: string; replyToId?: number }): Promise<ChatMessage> {
+    const response = await chatClient.post(`/chat/rooms/${roomId}/messages`, {
+      message_type: 'text',
+      content: data.content,
+      reply_to: data.replyToId
+    }, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return response.data;
+  },
+
+  async sendImage(token: string, roomId: string, imageUri: string): Promise<ChatMessage> {
+    const formData = new FormData();
+    formData.append('image', {
+      uri: imageUri,
+      type: 'image/jpeg',
+      name: 'image.jpg'
+    } as any);
+
+    const response = await chatClient.post(`/chat/rooms/${roomId}/image`, formData, {
+      headers: { 
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+    return response.data;
+  },
+
+  async markRoomRead(token: string, roomId: string): Promise<void> {
+    await chatClient.post(`/chat/rooms/${roomId}/read`, {}, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+  }
+};
+
+// Re-export for backward compatibility
+Object.assign(chatApi, chatApiDirect);

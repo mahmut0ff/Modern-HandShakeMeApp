@@ -1,3 +1,5 @@
+import { device, element, by, expect, waitFor } from 'detox';
+
 describe('Onboarding E2E', () => {
   beforeAll(async () => {
     await device.launchApp({ newInstance: true });
