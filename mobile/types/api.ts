@@ -1,7 +1,11 @@
 /**
- * API Types
- * Строгая типизация для API responses
+ * Centralized API Types
+ * Строгие типы для всех API responses
  */
+
+// ============================================================================
+// User & Auth Types
+// ============================================================================
 
 export interface User {
   id: number;
@@ -10,12 +14,42 @@ export interface User {
   last_name?: string;
   full_name?: string;
   username?: string;
-  avatar?: string;
   phone?: string;
   email?: string;
-  role: 'client' | 'master' | 'both';
+  avatar?: string;
+  role: 'client' | 'master' | 'admin';
+  is_verified: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export interface AuthTokens {
+  access: string;
+  refresh: string;
+  access_expires_at: string;
+  refresh_expires_at: string;
+}
+
+export interface AuthResponse {
+  user: User;
+  tokens: AuthTokens;
+}
+
+// ============================================================================
+// Order Types
+// ============================================================================
+
+export interface OrderSkill {
+  id: number;
+  name: string;
+}
+
+export interface OrderFile {
+  id: number;
+  file: string;
+  file_url?: string;
+  file_type: 'photo' | 'document' | 'video';
+  uploaded_at: string;
 }
 
 export interface Order {
@@ -24,13 +58,15 @@ export interface Order {
   description: string;
   category: number;
   category_name: string;
+  client: number;
+  client_name?: string;
   status: 'draft' | 'active' | 'in_progress' | 'completed' | 'cancelled';
-  budget_min?: string;
-  budget_max?: string;
+  budget_min?: number;
+  budget_max?: number;
   budget_display?: string;
   city: string;
   address?: string;
-  floor?: string;
+  floor?: number;
   work_volume?: string;
   start_date?: string;
   end_date?: string;
@@ -40,59 +76,30 @@ export interface Order {
   has_water?: boolean;
   can_store_tools?: boolean;
   has_parking?: boolean;
-  skills_list?: Skill[];
+  skills_list?: OrderSkill[];
   files?: OrderFile[];
   applications_count: number;
   views_count: number;
-  client?: User;
-  client_name?: string;
   created_at: string;
   updated_at: string;
 }
 
-export interface Skill {
-  id: number;
-  name: string;
-  category?: number;
+export interface PaginatedResponse<T> {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: T[];
 }
 
-export interface OrderFile {
-  id: number;
-  file: string;
-  file_url?: string;
-  file_type: 'photo' | 'document';
-  uploaded_at: string;
-}
+// ============================================================================
+// Master Profile Types
+// ============================================================================
 
-export interface Category {
+export interface PortfolioImage {
   id: number;
-  name: string;
-  icon?: string;
-  description?: string;
-  parent?: number;
-  skills_count?: number;
-}
-
-export interface MasterProfile {
-  id: number;
-  user: User;
-  user_full_name?: string;
-  user_first_name?: string;
-  user_last_name?: string;
-  user_avatar?: string;
-  company_name?: string;
-  bio?: string;
-  city?: string;
-  experience_years?: number;
-  hourly_rate?: number;
-  rating?: number;
-  completed_orders?: number;
-  is_verified: boolean;
-  has_transport: boolean;
-  has_tools: boolean;
-  portfolio_items?: PortfolioItem[];
-  created_at: string;
-  updated_at: string;
+  image: string;
+  image_url?: string;
+  order: number;
 }
 
 export interface PortfolioItem {
@@ -100,14 +107,47 @@ export interface PortfolioItem {
   title: string;
   description?: string;
   images?: PortfolioImage[];
+  after_image?: string;
+  media?: Array<{
+    id: number;
+    file: string;
+    file_url?: string;
+    media_type: 'photo' | 'video';
+  }>;
   created_at: string;
 }
 
-export interface PortfolioImage {
+export interface MasterProfile {
   id: number;
-  image: string;
-  image_url?: string;
+  user: User;
+  user_id: number;
+  user_full_name?: string;
+  user_first_name?: string;
+  user_last_name?: string;
+  user_avatar?: string;
+  company_name?: string;
+  bio?: string;
+  city?: string;
+  hourly_rate?: number;
+  experience_years: number;
+  rating?: number;
+  completed_orders: number;
+  completed_projects_count?: number;
+  is_verified: boolean;
+  is_available: boolean;
+  has_transport: boolean;
+  has_tools: boolean;
+  portfolio_items?: PortfolioItem[];
+  portfolio_preview?: PortfolioItem[];
+  categories?: number[];
+  skills?: number[];
+  created_at: string;
+  updated_at: string;
 }
+
+// ============================================================================
+// Application Types
+// ============================================================================
 
 export interface Application {
   id: number;
@@ -121,35 +161,292 @@ export interface Application {
   status: 'pending' | 'sent' | 'viewed' | 'accepted' | 'rejected' | 'withdrawn';
   created_at: string;
   updated_at: string;
+  viewed_at?: string;
 }
+
+// ============================================================================
+// Analytics Types
+// ============================================================================
+
+export interface AnalyticsSummary {
+  totalRevenue: number;
+  totalOrders: number;
+  completedOrders: number;
+  averageRating: number;
+  completionRate: number;
+  responseTime: number;
+}
+
+export interface RevenueData {
+  growth: number;
+  byPeriod: Array<{
+    label: string;
+    value: number;
+    date: string;
+  }>;
+}
+
+export interface CategoryAnalytics {
+  category: string;
+  revenue: number;
+  orders: number;
+  percentage: number;
+}
+
+export interface PerformanceMetrics {
+  totalReviews: number;
+  positiveReviews: number;
+  averageResponseTime: number;
+  onTimeDelivery: number;
+}
+
+export interface MasterAnalytics {
+  summary: AnalyticsSummary;
+  revenue: RevenueData;
+  categories: CategoryAnalytics[];
+  performance: PerformanceMetrics;
+}
+
+// ============================================================================
+// Category Types
+// ============================================================================
+
+export interface Category {
+  id: number;
+  name: string;
+  icon?: string;
+  description?: string;
+  parent?: number;
+  order: number;
+}
+
+export interface Skill {
+  id: number;
+  name: string;
+  category: number;
+}
+
+// ============================================================================
+// Notification Types
+// ============================================================================
+
+export interface Notification {
+  id: number;
+  user: number;
+  type: string;
+  title: string;
+  message: string;
+  data?: Record<string, any>;
+  is_read: boolean;
+  created_at: string;
+}
+
+// ============================================================================
+// Project Types
+// ============================================================================
+
+export interface Milestone {
+  id: number;
+  project: number;
+  title: string;
+  description?: string;
+  amount: number;
+  status: 'pending' | 'in_progress' | 'completed' | 'paid';
+  due_date?: string;
+  completed_at?: string;
+  created_at: string;
+}
+
+export interface Project {
+  id: number;
+  order: number;
+  order_title: string;
+  client: number;
+  client_name: string;
+  master: number;
+  master_name: string;
+  status: 'active' | 'completed' | 'cancelled';
+  total_amount: number;
+  paid_amount: number;
+  milestones: Milestone[];
+  created_at: string;
+  updated_at: string;
+}
+
+// ============================================================================
+// Review Types
+// ============================================================================
+
+export interface Review {
+  id: number;
+  order: number;
+  master: number;
+  client: number;
+  client_name: string;
+  rating: number;
+  comment?: string;
+  created_at: string;
+}
+
+// ============================================================================
+// Wallet Types
+// ============================================================================
+
+export interface WalletBalance {
+  available: number;
+  pending: number;
+  total: number;
+}
+
+export interface Transaction {
+  id: number;
+  type: 'deposit' | 'withdrawal' | 'payment' | 'refund';
+  amount: number;
+  status: 'pending' | 'completed' | 'failed';
+  description: string;
+  created_at: string;
+}
+
+// ============================================================================
+// Chat Types
+// ============================================================================
+
+export interface ChatRoom {
+  id: number;
+  participants: number[];
+  last_message?: string;
+  last_message_at?: string;
+  unread_count: number;
+  created_at: string;
+}
+
+export interface ChatMessage {
+  id: number;
+  room: number;
+  sender: number;
+  sender_name: string;
+  message: string;
+  is_read: boolean;
+  created_at: string;
+}
+
+// ============================================================================
+// Dispute Types
+// ============================================================================
+
+export interface Dispute {
+  id: number;
+  order: number;
+  order_title: string;
+  initiator: number;
+  respondent: number;
+  reason: string;
+  status: 'open' | 'in_progress' | 'resolved' | 'closed';
+  created_at: string;
+  resolved_at?: string;
+}
+
+// ============================================================================
+// Time Tracking Types
+// ============================================================================
+
+export interface TimeTrackingSession {
+  id: number;
+  project?: number;
+  order?: number;
+  title: string;
+  description?: string;
+  start_time: string;
+  end_time?: string;
+  duration?: number;
+  status: 'active' | 'paused' | 'completed';
+  created_at: string;
+}
+
+export interface TimeTrackingTemplate {
+  id: number;
+  name: string;
+  description?: string;
+  default_duration?: number;
+}
+
+// ============================================================================
+// Instant Booking Types
+// ============================================================================
+
+export interface TimeSlot {
+  startTime: string;
+  endTime: string;
+  available: boolean;
+  isUrgent?: boolean;
+  price?: number;
+}
+
+export interface AvailableSlotsResponse {
+  slots: TimeSlot[];
+  masterInfo: {
+    id: number;
+    name: string;
+    rating: number;
+  };
+  serviceInfo: {
+    id: number;
+    name: string;
+    basePrice: number;
+  };
+}
+
+// ============================================================================
+// Dashboard Stats Types
+// ============================================================================
 
 export interface ClientDashboardStats {
   active_orders: number;
   completed_orders: number;
-  draft_orders: number;
-  total_spent?: number;
-  favorite_masters?: number;
+  total_spent: number;
+  favorite_masters: number;
 }
 
 export interface MasterDashboardStats {
   active_orders: number;
   completed_orders: number;
-  total_earned?: number;
-  average_rating?: number;
-  pending_applications?: number;
-  unread_messages?: number;
-  total_reviews?: number;
+  total_earned: number;
+  average_rating: number;
+  pending_applications: number;
+  unread_messages: number;
 }
 
-export interface PaginatedResponse<T> {
-  count: number;
-  next: string | null;
-  previous: string | null;
-  results: T[];
+// ============================================================================
+// API Query Parameters
+// ============================================================================
+
+export interface OrderQueryParams {
+  category?: number;
+  search?: string;
+  city?: string;
+  budget_min?: number;
+  budget_max?: number;
+  is_urgent?: boolean;
+  status?: string;
+  page?: number;
+  limit?: number;
 }
 
-export interface ApiError {
-  message: string;
-  code?: string;
-  details?: Record<string, any>;
+export interface MasterSearchParams {
+  category?: number;
+  search?: string;
+  city?: string;
+  min_rating?: number;
+  max_hourly_rate?: number;
+  is_verified?: boolean;
+  is_available?: boolean;
+  page?: number;
+  limit?: number;
+}
+
+export interface ApplicationQueryParams {
+  status?: string;
+  ordering?: string;
+  page?: number;
+  limit?: number;
 }

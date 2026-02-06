@@ -75,7 +75,7 @@ locals {
     
     static = {
       name_suffix = "static"
-      purpose     = "Static assets (CSS, JS, images)"
+      purpose     = "Static assets"
       public_read = true
       lifecycle_rules = [
         {

@@ -6,7 +6,6 @@ import { useAuth } from '../../hooks/useAuth'
 import { useGetClientDashboardStatsQuery } from '../../services/profileApi'
 import { useGetCategoriesQuery } from '../../services/orderApi'
 import { LoadingSpinner } from '../../components/LoadingSpinner'
-import type { Category } from '../../types/api'
 
 export default function ClientDashboard() {
   const { user, logout } = useAuth()
@@ -14,9 +13,9 @@ export default function ClientDashboard() {
   const { data: categoriesData, isLoading: categoriesLoading } = useGetCategoriesQuery()
 
   // Get top 4 categories
-  const categories: Category[] = Array.isArray(categoriesData) 
+  const categories = Array.isArray(categoriesData) 
     ? categoriesData.slice(0, 4) 
-    : [];
+    : []
 
   if (statsLoading || categoriesLoading) {
     return <LoadingSpinner fullScreen />

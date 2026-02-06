@@ -31,13 +31,11 @@ resource "aws_cloudfront_distribution" "s3_distribution" {
       }
     }
 
-    # Cache for 1 day for static content
     min_ttl     = 0
     default_ttl = 86400
     max_ttl     = 31536000
   }
 
-  # Cache behavior for images
   ordered_cache_behavior {
     path_pattern           = "/images/*"
     allowed_methods        = ["GET", "HEAD", "OPTIONS"]
@@ -82,24 +80,19 @@ resource "aws_elasticache_subnet_group" "redis" {
 }
 
 resource "aws_elasticache_replication_group" "redis" {
-  replication_group_id         = "${local.name_prefix}-redis"
-  description                  = "Redis cluster for caching"
-  
-  node_type                    = "cache.t3.micro"  # Start small, can scale up
-  port                         = 6379
-  parameter_group_name         = "default.redis7"
-  
-  num_cache_clusters           = 2  # Primary + 1 replica
-  automatic_failover_enabled   = true
-  multi_az_enabled            = true
-  
-  subnet_group_name           = aws_elasticache_subnet_group.redis.name
-  security_group_ids          = [aws_security_group.redis.id]
-  
-  at_rest_encryption_enabled  = true
-  transit_encryption_enabled  = true
-  
-  tags = local.common_tags
+  replication_group_id       = "${local.name_prefix}-redis"
+  description                = "Redis cluster for caching"
+  node_type                  = "cache.t3.micro"
+  port                       = 6379
+  parameter_group_name       = "default.redis7"
+  num_cache_clusters         = 2
+  automatic_failover_enabled = true
+  multi_az_enabled           = true
+  subnet_group_name          = aws_elasticache_subnet_group.redis.name
+  security_group_ids         = [aws_security_group.redis.id]
+  at_rest_encryption_enabled = true
+  transit_encryption_enabled = true
+  tags                       = local.common_tags
 }
 
 resource "aws_security_group" "redis" {
@@ -125,15 +118,13 @@ resource "aws_security_group" "redis" {
 
 # DynamoDB Global Tables for multi-region replication
 resource "aws_dynamodb_table" "main_replica" {
-  count = var.enable_global_tables ? 1 : 0
-  
+  count    = var.enable_global_tables ? 1 : 0
   provider = aws.replica_region
   
   name         = "${local.name_prefix}-table-replica"
   billing_mode = "PAY_PER_REQUEST"
-
-  hash_key  = "PK"
-  range_key = "SK"
+  hash_key     = "PK"
+  range_key    = "SK"
 
   attribute {
     name = "PK"
@@ -189,16 +180,7 @@ resource "aws_dynamodb_table" "main_replica" {
 
   stream_enabled   = true
   stream_view_type = "NEW_AND_OLD_IMAGES"
-
-  tags = local.common_tags
-}
-
-# API Gateway caching
-resource "aws_api_gateway_request_validator" "validator" {
-  name                        = "${local.name_prefix}-validator"
-  rest_api_id                = aws_apigatewayv2_api.main.id
-  validate_request_body       = true
-  validate_request_parameters = true
+  tags             = local.common_tags
 }
 
 # Data sources for VPC info
@@ -217,4 +199,9 @@ data "aws_subnets" "default" {
 provider "aws" {
   alias  = "replica_region"
   region = var.replica_region
+}
+
+provider "aws" {
+  alias  = "us_west_2"
+  region = "us-west-2"
 }
