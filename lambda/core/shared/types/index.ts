@@ -50,6 +50,8 @@ export interface Application {
   createdAt: string;
   updatedAt: string;
   viewedAt?: string;
+  rejectionReason?: string;
+  isFavorite?: boolean;
 }
 
 export interface CreateApplicationRequest {
@@ -63,6 +65,9 @@ export interface UpdateApplicationRequest {
   coverLetter?: string;
   proposedPrice?: number;
   proposedDurationDays?: number;
+  status?: 'PENDING' | 'VIEWED' | 'ACCEPTED' | 'REJECTED';
+  rejectionReason?: string;
+  isFavorite?: boolean;
 }
 
 export interface ApplicationResponse {
@@ -489,4 +494,75 @@ export interface AvailabilitySettings {
     maxDays: number;
   };
   calendarSync?: CalendarSettings;
+}
+
+export interface Order {
+  id: string;
+  clientId: string;
+  categoryId: string;
+  title: string;
+  description: string;
+  city: string;
+  address: string;
+  hideAddress: boolean;
+  budgetType: 'FIXED' | 'RANGE' | 'NEGOTIABLE';
+  budgetMin?: number;
+  budgetMax?: number;
+  budget?: number; // For backward compatibility
+  startDate?: string;
+  endDate?: string;
+  deadline?: string; // For backward compatibility
+  status: 'DRAFT' | 'ACTIVE' | 'IN_PROGRESS' | 'READY_TO_CONFIRM' | 'COMPLETED' | 'PAUSED' | 'ARCHIVED' | 'CANCELLED';
+  applicationsCount: number;
+  viewsCount: number;
+  isUrgent: boolean;
+  masterId?: string;
+  acceptedApplicationId?: string;
+  subcategory?: string;
+  workVolume?: string;
+  floor?: number;
+  hasElevator?: boolean;
+  materialStatus?: string;
+  hasElectricity?: boolean;
+  hasWater?: boolean;
+  canStoreTools?: boolean;
+  hasParking?: boolean;
+  requiredExperience?: string;
+  needTeam?: boolean;
+  additionalRequirements?: string;
+  isPublic?: boolean;
+  autoCloseApplications?: boolean;
+  images?: string[];
+  createdAt: string;
+  updatedAt: string;
+  expiresAt: string;
+}
+
+export interface Review {
+  id: string;
+  orderId: string;
+  clientId: string;
+  masterId: string;
+  rating: number; // 1-5
+  comment: string;
+  isAnonymous: boolean;
+  isVerified: boolean;
+  helpfulCount: number;
+  reportCount: number;
+  response?: string;
+  responseAt?: string;
+  tags: string[];
+  images: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReviewReport {
+  id: string;
+  reviewId: string;
+  reporterId: string;
+  reason: 'SPAM' | 'INAPPROPRIATE' | 'FAKE' | 'OFFENSIVE' | 'OTHER';
+  description?: string;
+  status: 'PENDING' | 'REVIEWED' | 'RESOLVED';
+  createdAt: string;
 }

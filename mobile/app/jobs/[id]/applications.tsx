@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { StyleSheet, View, Text, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl, Alert } from 'react-native';
+import { StyleSheet, View, Text, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl, Alert, Modal, TextInput } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { applicationsApi, Application } from '@/src/api/applications';
@@ -19,6 +19,10 @@ export default function JobApplicationsScreen() {
     const [applications, setApplications] = useState<Application[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [activeFilter, setActiveFilter] = useState<'ALL' | 'FAVORITES' | 'NEW'>('ALL');
+    const [isRejectModalVisible, setIsRejectModalVisible] = useState(false);
+    const [rejectionReason, setRejectionReason] = useState('');
+    const [selectedAppId, setSelectedAppId] = useState<string | null>(null);
 
     const fetchData = useCallback(async () => {
         if (!id) return;
@@ -29,6 +33,12 @@ export default function JobApplicationsScreen() {
             ]);
             setOrder(orderRes.data);
             setApplications(appsRes.data.results);
+
+            // Mark unviewed applications as viewed
+            const unviewed = appsRes.data.results.filter(app => !app.viewed_at && app.status === 'PENDING');
+            if (unviewed.length > 0) {
+                unviewed.forEach(app => applicationsApi.markViewed(app.id, id));
+            }
         } catch (error) {
             console.error('Failed to fetch applications', error);
             Alert.alert('Error', 'Failed to load applications');
@@ -54,7 +64,7 @@ export default function JobApplicationsScreen() {
                 text: 'Accept',
                 onPress: async () => {
                     try {
-                        await applicationsApi.acceptApplication(appId);
+                        await applicationsApi.respondToApplication(id!, appId, 'ACCEPT');
                         Alert.alert('Success', 'Application accepted!');
                         fetchData();
                     } catch (error) {
@@ -65,24 +75,38 @@ export default function JobApplicationsScreen() {
         ]);
     };
 
-    const handleReject = async (appId: string) => {
-        Alert.alert('Reject Application', 'Are you sure you want to reject this application?', [
-            { text: 'Cancel', style: 'cancel' },
-            {
-                text: 'Reject',
-                style: 'destructive',
-                onPress: async () => {
-                    try {
-                        await applicationsApi.rejectApplication(appId);
-                        Alert.alert('Success', 'Application rejected');
-                        fetchData();
-                    } catch (error) {
-                        Alert.alert('Error', 'Failed to reject application');
-                    }
-                }
-            }
-        ]);
+    const handleRejectClick = (appId: string) => {
+        setSelectedAppId(appId);
+        setIsRejectModalVisible(true);
     };
+
+    const handleConfirmReject = async () => {
+        if (!selectedAppId) return;
+        try {
+            await applicationsApi.respondToApplication(id!, selectedAppId, 'REJECT', rejectionReason);
+            setIsRejectModalVisible(false);
+            setRejectionReason('');
+            setSelectedAppId(null);
+            fetchData();
+        } catch (error) {
+            Alert.alert('Error', 'Failed to reject application');
+        }
+    };
+
+    const handleToggleLike = async (appId: string) => {
+        try {
+            await applicationsApi.respondToApplication(id!, appId, 'LIKE');
+            fetchData();
+        } catch (error) {
+            console.error('Failed to toggle like', error);
+        }
+    };
+
+    const filteredApplications = applications.filter(app => {
+        if (activeFilter === 'FAVORITES') return app.is_favorite;
+        if (activeFilter === 'NEW') return !app.viewed_at;
+        return true;
+    });
 
     const renderApplicationItem = ({ item }: { item: Application }) => (
         <View style={[styles.appCard, { backgroundColor: theme.card }]}>
@@ -91,11 +115,21 @@ export default function JobApplicationsScreen() {
                     <Ionicons name="person" size={24} color={theme.tint} />
                 </View>
                 <View style={styles.masterInfo}>
-                    <Text style={[styles.masterName, { color: theme.text }]}>
-                        {item.master?.name || 'Specialist'}
-                    </Text>
+                    <View style={styles.nameRow}>
+                        <Text style={[styles.masterName, { color: theme.text }]}>
+                            {item.master?.name || 'Specialist'}
+                        </Text>
+                        <TouchableOpacity onPress={() => handleToggleLike(item.id)}>
+                            <Ionicons
+                                name={item.is_favorite ? "heart" : "heart-outline"}
+                                size={22}
+                                color={item.is_favorite ? "#FF3B30" : theme.text + '33'}
+                            />
+                        </TouchableOpacity>
+                    </View>
                     <Text style={[styles.appDate, { color: theme.text + '66' }]}>
                         {new Date(item.created_at).toLocaleDateString()}
+                        {!item.viewed_at && <Text style={{ color: theme.tint, fontWeight: 'bold' }}> • NEW</Text>}
                     </Text>
                 </View>
                 <View style={[styles.statusBadge, {
@@ -129,7 +163,7 @@ export default function JobApplicationsScreen() {
                 <View style={styles.actions}>
                     <TouchableOpacity
                         style={[styles.actionBtn, { backgroundColor: theme.text + '10' }]}
-                        onPress={() => handleReject(item.id)}
+                        onPress={() => handleRejectClick(item.id)}
                     >
                         <Text style={[styles.actionBtnText, { color: '#FF3B30' }]}>Reject</Text>
                     </TouchableOpacity>
@@ -142,6 +176,30 @@ export default function JobApplicationsScreen() {
                     </TouchableOpacity>
                 </View>
             )}
+        </View>
+    );
+
+    const FilterTabs = () => (
+        <View style={styles.filterContainer}>
+            {[
+                { id: 'ALL', label: 'All' },
+                { id: 'FAVORITES', label: 'Favorites' },
+                { id: 'NEW', label: 'New' }
+            ].map(tab => (
+                <TouchableOpacity
+                    key={tab.id}
+                    onPress={() => setActiveFilter(tab.id as any)}
+                    style={[
+                        styles.filterTab,
+                        activeFilter === tab.id && { backgroundColor: theme.tint + '15', borderColor: theme.tint }
+                    ]}
+                >
+                    <Text style={[
+                        styles.filterTabText,
+                        { color: activeFilter === tab.id ? theme.tint : theme.text + '66' }
+                    ]}>{tab.label}</Text>
+                </TouchableOpacity>
+            ))}
         </View>
     );
 
@@ -160,13 +218,15 @@ export default function JobApplicationsScreen() {
                 <View style={{ width: 44 }} />
             </View>
 
+            <FilterTabs />
+
             {isLoading && !refreshing ? (
                 <View style={styles.centered}>
                     <ActivityIndicator size="large" color={theme.tint} />
                 </View>
             ) : (
                 <FlatList
-                    data={applications}
+                    data={filteredApplications}
                     renderItem={renderApplicationItem}
                     keyExtractor={(item) => item.id}
                     contentContainerStyle={styles.listContent}
@@ -176,11 +236,54 @@ export default function JobApplicationsScreen() {
                     ListEmptyComponent={
                         <View style={styles.emptyContainer}>
                             <Ionicons name="mail-outline" size={60} color={theme.text + '33'} />
-                            <Text style={[styles.emptyText, { color: theme.text + '66' }]}>No responses yet.</Text>
+                            <Text style={[styles.emptyText, { color: theme.text + '66' }]}>
+                                {activeFilter === 'ALL' ? 'No responses yet.' :
+                                    activeFilter === 'FAVORITES' ? 'No favorite responses.' :
+                                        'No new responses.'}
+                            </Text>
                         </View>
                     }
                 />
             )}
+
+            <Modal
+                visible={isRejectModalVisible}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setIsRejectModalVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={[styles.modalContent, { backgroundColor: theme.card }]}>
+                        <Text style={[styles.modalTitle, { color: theme.text }]}>Reject Application</Text>
+                        <Text style={[styles.modalSubtitle, { color: theme.text + '66' }]}>
+                            Optional: Provide a reason for rejection to help the specialist improve.
+                        </Text>
+                        <TextInput
+                            style={[styles.reasonInput, { color: theme.text, borderColor: theme.text + '10', backgroundColor: theme.text + '05' }]}
+                            placeholder="Reason for rejection..."
+                            placeholderTextColor={theme.text + '33'}
+                            multiline
+                            numberOfLines={4}
+                            value={rejectionReason}
+                            onChangeText={setRejectionReason}
+                        />
+                        <View style={styles.modalActions}>
+                            <TouchableOpacity
+                                style={[styles.modalBtn, { backgroundColor: theme.text + '10' }]}
+                                onPress={() => setIsRejectModalVisible(false)}
+                            >
+                                <Text style={[styles.modalBtnText, { color: theme.text }]}>Cancel</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.modalBtn, { backgroundColor: '#FF3B30' }]}
+                                onPress={handleConfirmReject}
+                            >
+                                <Text style={[styles.modalBtnText, { color: '#fff' }]}>Confirm Reject</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 }
@@ -252,6 +355,11 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: 'bold',
     },
+    nameRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
     appDate: {
         fontSize: 12,
         marginTop: 4,
@@ -313,12 +421,31 @@ const styles = StyleSheet.create({
         fontSize: 15,
         fontWeight: 'bold',
     },
+    filterContainer: {
+        flexDirection: 'row',
+        paddingHorizontal: 20,
+        paddingBottom: 15,
+    },
+    filterTab: {
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 20,
+        marginRight: 10,
+        borderWidth: 1,
+        borderColor: 'transparent',
+        backgroundColor: 'rgba(0,0,0,0.03)',
+    },
+    filterTabText: {
+        fontSize: 13,
+        fontWeight: '600',
+    },
     emptyContainer: {
         alignItems: 'center',
         marginTop: 100,
     },
     emptyText: {
-        fontSize: 18,
+        alignItems: 'center',
+        fontSize: 16,
         marginTop: 20,
     },
 });

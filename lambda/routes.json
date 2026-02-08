@@ -175,6 +175,11 @@
     "core/orders/create-order-dynamodb"
   ],
   [
+    "POST",
+    "/orders/direct",
+    "core/orders/create-direct-order"
+  ],
+  [
     "GET",
     "/orders/my",
     "core/orders/get-my-orders-dynamodb"
@@ -213,6 +218,16 @@
     "DELETE",
     "/orders/:orderId/favorites",
     "core/orders/remove-from-favorites-dynamodb"
+  ],
+  [
+    "POST",
+    "/orders/:orderId/manage",
+    "core/orders/manage-order"
+  ],
+  [
+    "POST",
+    "/orders/:orderId/complete",
+    "core/orders/complete-order"
   ],
   [
     "GET",

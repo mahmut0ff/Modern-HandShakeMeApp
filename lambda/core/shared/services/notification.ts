@@ -17,6 +17,7 @@ export interface ApplicationNotificationData {
   clientName?: string;
   proposedPrice?: number;
   status?: string;
+  reason?: string;
 }
 
 export class NotificationService {
@@ -29,7 +30,7 @@ export class NotificationService {
   async sendNotification(notification: NotificationData): Promise<Notification> {
     try {
       const createdNotification = await this.notificationRepo.create(notification);
-      
+
       logger.info('Notification sent', {
         notificationId: createdNotification.id,
         userId: notification.userId,
@@ -107,15 +108,20 @@ export class NotificationService {
     masterId: string,
     data: ApplicationNotificationData
   ): Promise<Notification> {
+    const message = data.reason
+      ? `Your application for "${data.orderTitle || 'the order'}" was not selected. Reason: ${data.reason}`
+      : `Your application for "${data.orderTitle || 'the order'}" was not selected this time. Keep applying to other orders!`;
+
     return this.sendNotification({
       userId: masterId,
       type: 'APPLICATION',
       title: 'Application Not Selected',
-      message: `Your application for "${data.orderTitle || 'the order'}" was not selected this time. Keep applying to other orders!`,
+      message,
       data: {
         applicationId: data.applicationId,
         orderId: data.orderId,
         action: 'browse_orders',
+        reason: data.reason
       },
     });
   }
@@ -191,7 +197,7 @@ export class NotificationService {
         break;
       case 'CHECK_COMPLETED':
         title = 'Background Check Complete';
-        message = backgroundCheck.result === 'PASSED' 
+        message = backgroundCheck.result === 'PASSED'
           ? `Great news! Your ${backgroundCheck.checkType.toLowerCase()} background check passed successfully.`
           : `Your ${backgroundCheck.checkType.toLowerCase()} background check has been completed. Please review the results.`;
         data.result = backgroundCheck.result;
@@ -337,7 +343,7 @@ export class NotificationService {
   ): Promise<Notification> {
     const title = 'Vacation Period Set';
     let message = `Your vacation period from ${new Date(vacation.startDateTime).toLocaleDateString()} to ${new Date(vacation.endDateTime).toLocaleDateString()} has been set.`;
-    
+
     if (conflicts && conflicts.length > 0) {
       message += ` ${conflicts.length} existing booking${conflicts.length > 1 ? 's' : ''} conflict${conflicts.length > 1 ? '' : 's'} with this period.`;
     }
@@ -457,6 +463,16 @@ export class NotificationService {
         eventType,
         ...data,
       }
+    });
+  }
+
+  async notifyCustom(userId: string, data: { title: string, body: string, type?: string, metadata?: any }): Promise<Notification> {
+    return this.sendNotification({
+      userId,
+      type: (data.type as any) || 'SYSTEM',
+      title: data.title,
+      message: data.body,
+      data: data.metadata,
     });
   }
 }

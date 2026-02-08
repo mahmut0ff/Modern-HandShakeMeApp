@@ -66,55 +66,71 @@ export default function JobsScreen() {
         fetchOrders(searchQuery, reset);
     };
 
-    const renderOrderItem = ({ item }: { item: Order }) => (
-        <TouchableOpacity
-            style={[styles.orderCard, { backgroundColor: theme.card }]}
-            onPress={() => router.push({ pathname: '/jobs/[id]', params: { id: item.id } })}
-        >
-            <View style={styles.orderHeader}>
-                <View style={{ flex: 1 }}>
-                    <Text style={[styles.orderTitle, { color: theme.text }]} numberOfLines={1}>{item.title}</Text>
-                    {item.subcategory && (
-                        <Text style={[styles.orderSubcat, { color: theme.tint }]}>{item.subcategory}</Text>
+    const renderOrderItem = ({ item }: { item: Order }) => {
+        const isNew = new Date().getTime() - new Date(item.createdAt).getTime() < 24 * 60 * 60 * 1000;
+        const hasPhotos = item.images && item.images.length > 0;
+
+        return (
+            <TouchableOpacity
+                style={[styles.orderCard, { backgroundColor: theme.card }]}
+                onPress={() => router.push({ pathname: '/jobs/[id]', params: { id: item.id } })}
+            >
+                <View style={styles.orderHeader}>
+                    <View style={{ flex: 1 }}>
+                        <View style={styles.titleRow}>
+                            <Text style={[styles.orderTitle, { color: theme.text }]} numberOfLines={1}>{item.title}</Text>
+                            {isNew && (
+                                <View style={[styles.newBadge, { backgroundColor: theme.tint + '15' }]}>
+                                    <Text style={[styles.newBadgeText, { color: theme.tint }]}>NEW</Text>
+                                </View>
+                            )}
+                        </View>
+                        {item.subcategory && (
+                            <Text style={[styles.orderSubcat, { color: theme.tint }]}>{item.subcategory}</Text>
+                        )}
+                    </View>
+                    {item.isUrgent && (
+                        <View style={styles.urgentBadge}>
+                            <Text style={styles.urgentText}>URGENT</Text>
+                        </View>
                     )}
                 </View>
-                {item.isUrgent && (
-                    <View style={styles.urgentBadge}>
-                        <Text style={styles.urgentText}>URGENT</Text>
-                    </View>
-                )}
-            </View>
 
-            <Text style={[styles.orderDescription, { color: theme.text + '99' }]} numberOfLines={2}>
-                {item.description}
-            </Text>
-
-            {item.workVolume && (
-                <View style={styles.volumeRow}>
-                    <Ionicons name="cube-outline" size={14} color={theme.text + '66'} />
-                    <Text style={[styles.volumeText, { color: theme.text + '66' }]}>{item.workVolume}</Text>
-                </View>
-            )}
-
-            <View style={styles.orderFooter}>
-                <View style={styles.footerItem}>
-                    <Ionicons name="location-outline" size={14} color={theme.text + '66'} />
-                    <Text style={[styles.footerText, { color: theme.text + '66' }]}>{item.city}</Text>
-                </View>
-                <View style={styles.footerItem}>
-                    <Ionicons name="eye-outline" size={14} color={theme.text + '66'} />
-                    <Text style={[styles.footerText, { color: theme.text + '66' }]}>{item.viewsCount || 0}</Text>
-                </View>
-                <View style={[styles.footerItem, { marginRight: 0 }]}>
-                    <Ionicons name="people-outline" size={14} color={theme.text + '66'} />
-                    <Text style={[styles.footerText, { color: theme.text + '66' }]}>{item.applicationsCount}</Text>
-                </View>
-                <Text style={[styles.orderBudget, { color: theme.tint }]}>
-                    {item.budgetType === 'NEGOTIABLE' ? 'Neg.' : `$${item.budgetMin}`}
+                <Text style={[styles.orderDescription, { color: theme.text + '99' }]} numberOfLines={2}>
+                    {item.description}
                 </Text>
-            </View>
-        </TouchableOpacity>
-    );
+
+                <View style={styles.detailsRow}>
+                    {item.workVolume && (
+                        <View style={[styles.tag, { backgroundColor: theme.text + '05' }]}>
+                            <Ionicons name="cube-outline" size={14} color={theme.text + '66'} />
+                            <Text style={[styles.tagText, { color: theme.text + '66' }]}>{item.workVolume}</Text>
+                        </View>
+                    )}
+                    {hasPhotos && (
+                        <View style={[styles.tag, { backgroundColor: theme.text + '05' }]}>
+                            <Ionicons name="image-outline" size={14} color={theme.text + '66'} />
+                            <Text style={[styles.tagText, { color: theme.text + '66' }]}>Photos</Text>
+                        </View>
+                    )}
+                </View>
+
+                <View style={styles.orderFooter}>
+                    <View style={styles.footerItem}>
+                        <Ionicons name="location-outline" size={14} color={theme.text + '66'} />
+                        <Text style={[styles.footerText, { color: theme.text + '66' }]}>{item.city}</Text>
+                    </View>
+                    <View style={styles.footerItem}>
+                        <Ionicons name="people-outline" size={14} color={theme.text + '66'} />
+                        <Text style={[styles.footerText, { color: theme.text + '66' }]}>{item.applicationsCount || 0} responses</Text>
+                    </View>
+                    <Text style={[styles.orderBudget, { color: theme.tint }]}>
+                        {item.budgetType === 'NEGOTIABLE' ? 'Negotiable' : `$${item.budgetMin}`}
+                    </Text>
+                </View>
+            </TouchableOpacity>
+        );
+    };
 
     return (
         <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -291,10 +307,43 @@ const styles = StyleSheet.create({
         borderTopColor: '#eee',
         paddingTop: 12,
     },
+    titleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flex: 1,
+    },
+    newBadge: {
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 4,
+        marginLeft: 8,
+    },
+    newBadgeText: {
+        fontSize: 10,
+        fontWeight: 'bold',
+    },
+    detailsRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        marginBottom: 12,
+    },
+    tag: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 6,
+        marginRight: 8,
+        marginBottom: 4,
+    },
+    tagText: {
+        fontSize: 12,
+        marginLeft: 4,
+    },
     footerItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginRight: 16,
+        marginRight: 20,
     },
     footerText: {
         fontSize: 12,

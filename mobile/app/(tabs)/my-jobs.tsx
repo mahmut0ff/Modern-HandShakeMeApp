@@ -10,13 +10,15 @@ export default function MyJobsScreen() {
     const [orders, setOrders] = useState<Order[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [activeTab, setActiveTab] = useState<'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'ARCHIVED'>('ACTIVE');
     const router = useRouter();
     const colorScheme = useColorScheme() ?? 'light';
     const theme = Colors[colorScheme];
 
     const fetchOrders = useCallback(async () => {
         try {
-            const response = await ordersApi.getMyOrders();
+            // Map our UI tabs to API statuses if needed, though they mostly match
+            const response = await ordersApi.getMyOrders(activeTab);
             setOrders(response.data.results);
         } catch (error) {
             console.error('Failed to fetch orders', error);
@@ -24,9 +26,10 @@ export default function MyJobsScreen() {
             setIsLoading(false);
             setRefreshing(false);
         }
-    }, []);
+    }, [activeTab]);
 
     useEffect(() => {
+        setIsLoading(true);
         fetchOrders();
     }, [fetchOrders]);
 
@@ -39,8 +42,10 @@ export default function MyJobsScreen() {
         switch (status) {
             case 'ACTIVE': return '#34C759';
             case 'IN_PROGRESS': return '#007AFF';
+            case 'READY_TO_CONFIRM': return '#5856D6';
             case 'COMPLETED': return '#8E8E93';
             case 'CANCELLED': return '#FF3B30';
+            case 'PAUSED': return '#FF9500';
             case 'DRAFT': return '#FF9500';
             default: return '#8E8E93';
         }
@@ -49,27 +54,42 @@ export default function MyJobsScreen() {
     const renderOrderItem = ({ item }: { item: Order }) => (
         <TouchableOpacity
             style={[styles.orderCard, { backgroundColor: theme.card }]}
-            onPress={() => {/* TODO: Navigate to job details */ }}
+            onPress={() => router.push(`/jobs/${item.id}`)}
         >
             <View style={styles.orderHeader}>
-                <Text style={[styles.orderTitle, { color: theme.text }]}>{item.title}</Text>
+                <View style={{ flex: 1 }}>
+                    <Text style={[styles.orderTitle, { color: theme.text }]} numberOfLines={1}>{item.title}</Text>
+                    <Text style={[styles.orderSubcategory, { color: theme.text + '66' }]}>
+                        {item.subcategory || 'General'}
+                    </Text>
+                </View>
                 <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '20' }]}>
                     <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>{item.status}</Text>
                 </View>
             </View>
 
-            <Text style={[styles.orderDescription, { color: theme.text + '99' }]} numberOfLines={2}>
-                {item.description}
-            </Text>
+            <View style={styles.statsRow}>
+                <View style={styles.statItem}>
+                    <Ionicons name="eye-outline" size={16} color={theme.text + '99'} />
+                    <Text style={[styles.statValue, { color: theme.text }]}>{item.viewsCount || 0}</Text>
+                    <Text style={[styles.statLabel, { color: theme.text + '66' }]}>views</Text>
+                </View>
+                <View style={styles.statItem}>
+                    <Ionicons name="chatbubble-outline" size={16} color={theme.text + '99'} />
+                    <Text style={[styles.statValue, { color: theme.text }]}>{item.applicationsCount || 0}</Text>
+                    <Text style={[styles.statLabel, { color: theme.text + '66' }]}>responses</Text>
+                </View>
+                <View style={styles.statItem}>
+                    <Ionicons name="heart-outline" size={16} color={theme.text + '99'} />
+                    <Text style={[styles.statValue, { color: theme.text }]}>0</Text>
+                    <Text style={[styles.statLabel, { color: theme.text + '66' }]}>favs</Text>
+                </View>
+            </View>
 
             <View style={styles.orderFooter}>
                 <View style={styles.footerItem}>
                     <Ionicons name="location-outline" size={14} color={theme.text + '66'} />
                     <Text style={[styles.footerText, { color: theme.text + '66' }]}>{item.city}</Text>
-                </View>
-                <View style={styles.footerItem}>
-                    <Ionicons name="people-outline" size={14} color={theme.text + '66'} />
-                    <Text style={[styles.footerText, { color: theme.text + '66' }]}>{item.applicationsCount} apps</Text>
                 </View>
                 <Text style={[styles.orderBudget, { color: theme.tint }]}>
                     {item.budgetType === 'NEGOTIABLE' ? 'Negotiable' : `$${item.budgetMin || 0}${item.budgetMax ? ' - $' + item.budgetMax : ''}`}
@@ -95,8 +115,28 @@ export default function MyJobsScreen() {
                     onPress={() => router.push('/create-job')}
                 >
                     <Ionicons name="add" size={24} color={theme.onPrimary} />
-                    <Text style={[styles.addButtonText, { color: theme.onPrimary }]}>Post a Job</Text>
+                    <Text style={[styles.addButtonText, { color: theme.onPrimary }]}>Post</Text>
                 </TouchableOpacity>
+            </View>
+
+            <View style={styles.tabsContainer}>
+                {(['ACTIVE', 'PAUSED', 'COMPLETED', 'ARCHIVED'] as const).map((tab) => (
+                    <TouchableOpacity
+                        key={tab}
+                        style={[
+                            styles.tab,
+                            activeTab === tab && { borderBottomColor: theme.tint, borderBottomWidth: 2 }
+                        ]}
+                        onPress={() => setActiveTab(tab)}
+                    >
+                        <Text style={[
+                            styles.tabText,
+                            { color: activeTab === tab ? theme.tint : theme.text + '66' }
+                        ]}>
+                            {tab.charAt(0) + tab.slice(1).toLowerCase()}
+                        </Text>
+                    </TouchableOpacity>
+                ))}
             </View>
 
             <FlatList
@@ -136,7 +176,7 @@ const styles = StyleSheet.create({
     header: {
         paddingTop: 60,
         paddingHorizontal: 20,
-        paddingBottom: 20,
+        paddingBottom: 10,
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
@@ -148,22 +188,31 @@ const styles = StyleSheet.create({
     addButton: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 8,
-        paddingHorizontal: 15,
+        paddingVertical: 6,
+        paddingHorizontal: 12,
         borderRadius: 20,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 3,
     },
     addButtonText: {
-        color: '#fff',
+        fontSize: 14,
         fontWeight: 'bold',
-        marginLeft: 5,
+        marginLeft: 4,
+    },
+    tabsContainer: {
+        flexDirection: 'row',
+        paddingHorizontal: 20,
+        borderBottomWidth: StyleSheet.hairlineWidth,
+        borderBottomColor: '#eee',
+    },
+    tab: {
+        paddingVertical: 12,
+        marginRight: 20,
+    },
+    tabText: {
+        fontSize: 14,
+        fontWeight: '600',
     },
     listContent: {
-        padding: 20,
+        padding: 16,
         paddingBottom: 40,
     },
     orderCard: {
@@ -180,13 +229,15 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'flex-start',
-        marginBottom: 8,
+        marginBottom: 12,
     },
     orderTitle: {
         fontSize: 18,
         fontWeight: 'bold',
-        flex: 1,
-        marginRight: 10,
+    },
+    orderSubcategory: {
+        fontSize: 12,
+        marginTop: 2,
     },
     statusBadge: {
         paddingHorizontal: 8,
@@ -194,43 +245,53 @@ const styles = StyleSheet.create({
         borderRadius: 8,
     },
     statusText: {
-        fontSize: 12,
+        fontSize: 10,
         fontWeight: 'bold',
     },
-    orderDescription: {
-        fontSize: 14,
-        lineHeight: 20,
+    statsRow: {
+        flexDirection: 'row',
+        backgroundColor: '#f8f8f8',
+        borderRadius: 12,
+        padding: 12,
         marginBottom: 16,
+    },
+    statItem: {
+        flex: 1,
+        alignItems: 'center',
+    },
+    statValue: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        marginTop: 4,
+    },
+    statLabel: {
+        fontSize: 10,
     },
     orderFooter: {
         flexDirection: 'row',
         alignItems: 'center',
-        borderTopWidth: StyleSheet.hairlineWidth,
-        borderTopColor: '#eee',
-        paddingTop: 12,
+        justifyContent: 'space-between',
     },
     footerItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginRight: 16,
     },
     footerText: {
         fontSize: 12,
         marginLeft: 4,
     },
     orderBudget: {
-        fontSize: 14,
+        fontSize: 16,
         fontWeight: 'bold',
-        flex: 1,
-        textAlign: 'right',
     },
     emptyContainer: {
         alignItems: 'center',
-        marginTop: 100,
+        marginTop: 60,
     },
     emptyText: {
-        fontSize: 18,
-        marginTop: 20,
+        fontSize: 16,
+        marginTop: 16,
+        textAlign: 'center',
     },
     emptyButton: {
         marginTop: 20,
@@ -240,7 +301,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
     },
     emptyButtonText: {
-        fontSize: 16,
+        fontSize: 14,
         fontWeight: 'bold',
     },
 });

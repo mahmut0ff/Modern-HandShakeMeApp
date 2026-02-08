@@ -5,50 +5,7 @@ import { putItem, getItem, queryItems, updateItem, deleteItem } from '../db/dyna
 import { Keys } from '../db/dynamodb-keys';
 import { logger } from '../utils/logger';
 
-export interface Order {
-  id: string;
-  clientId: string;
-  categoryId: string;
-  title: string;
-  description: string;
-  city: string;
-  address: string;
-  hideAddress: boolean;
-  budgetType: 'FIXED' | 'RANGE' | 'NEGOTIABLE';
-  budgetMin?: number;
-  budgetMax?: number;
-  budget?: number; // For backward compatibility
-  startDate?: string;
-  endDate?: string;
-  deadline?: string; // For backward compatibility
-  status: 'DRAFT' | 'ACTIVE' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
-  applicationsCount: number;
-  viewsCount: number;
-  isUrgent: boolean;
-  masterId?: string;
-  acceptedApplicationId?: string;
-
-  // Additional details
-  subcategory?: string;
-  workVolume?: string;
-  floor?: number;
-  hasElevator?: boolean;
-  materialStatus?: string;
-  hasElectricity?: boolean;
-  hasWater?: boolean;
-  canStoreTools?: boolean;
-  hasParking?: boolean;
-  requiredExperience?: string;
-  needTeam?: boolean;
-  additionalRequirements?: string;
-  isPublic?: boolean;
-  autoCloseApplications?: boolean;
-  images?: string[];
-
-  createdAt: string;
-  updatedAt: string;
-  expiresAt: string;
-}
+import { Order } from '../types';
 
 export class OrderRepository {
   async create(data: Partial<Order>): Promise<Order> {
@@ -286,14 +243,15 @@ export class OrderRepository {
 
       const updated = await updateItem({
         Key: Keys.order(orderId),
-        UpdateExpression: 'SET #status = :status, #updatedAt = :updatedAt',
+        UpdateExpression: 'SET #status = :status, #updatedAt = :updatedAt, GSI2PK = :gsi2pk',
         ExpressionAttributeNames: {
           '#status': 'status',
-          '#updatedAt': 'updatedAt',
+          '#updatedAt': 'updatedAt'
         },
         ExpressionAttributeValues: {
           ':status': status,
           ':updatedAt': new Date().toISOString(),
+          ':gsi2pk': `STATUS#${status}`
         },
       });
 
@@ -303,6 +261,18 @@ export class OrderRepository {
       logger.error('Failed to update order status', error, { orderId, status });
       throw new Error('Failed to update order status');
     }
+  }
+
+  async pause(orderId: string): Promise<Order> {
+    return this.updateStatus(orderId, 'PAUSED');
+  }
+
+  async resume(orderId: string): Promise<Order> {
+    return this.updateStatus(orderId, 'ACTIVE');
+  }
+
+  async archive(orderId: string): Promise<Order> {
+    return this.updateStatus(orderId, 'ARCHIVED');
   }
 
   /**

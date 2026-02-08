@@ -15,10 +15,12 @@ export interface Order {
     budgetMax?: number;
     startDate?: string;
     endDate?: string;
-    status: 'DRAFT' | 'ACTIVE' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+    status: 'DRAFT' | 'ACTIVE' | 'IN_PROGRESS' | 'READY_TO_CONFIRM' | 'COMPLETED' | 'PAUSED' | 'ARCHIVED' | 'CANCELLED';
     applicationsCount: number;
     viewsCount: number;
     isUrgent: boolean;
+    masterId?: string;
+    acceptedApplicationId?: string;
 
     // Additional details
     workVolume?: string;
@@ -73,6 +75,16 @@ export interface OrdersResponse {
     count: number;
 }
 
+export interface Review {
+    id: string;
+    order_id: string;
+    client_id: string;
+    master_id: string;
+    rating: number;
+    comment: string;
+    created_at: string;
+}
+
 export const ordersApi = {
     getMyOrders: (status?: string) =>
         apiClient.get<OrdersResponse>(status ? `/orders/my?status=${status}` : '/orders/my'),
@@ -101,4 +113,21 @@ export const ordersApi = {
                 'Content-Type': 'multipart/form-data',
             },
         }),
+
+    manageOrder: (orderId: string, action: 'PAUSE' | 'RESUME' | 'ARCHIVE') =>
+        apiClient.post<{ order: Order }>(`/orders/${orderId}/manage`, { action }),
+
+    completeWork: (orderId: string) =>
+        apiClient.post<{ order: Order }>(`/orders/${orderId}/complete`, { action: 'COMPLETE_WORK' }),
+
+    confirmCompletion: (orderId: string, rating: number, comment?: string, isAnonymous?: boolean) =>
+        apiClient.post<{ order: Order; review: Review }>(`/orders/${orderId}/complete`, {
+            action: 'CONFIRM_COMPLETION',
+            rating,
+            comment,
+            isAnonymous
+        }),
+
+    createDirectOrder: (data: CreateOrderRequest & { masterId: string }) =>
+        apiClient.post<Order>('/orders/direct', data),
 };

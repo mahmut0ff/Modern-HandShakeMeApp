@@ -17,7 +17,7 @@ const CATEGORIES = [
 ];
 
 export default function CreateJobScreen() {
-    const { id, data } = useLocalSearchParams<{ id?: string; data?: string }>();
+    const { id, data, masterId } = useLocalSearchParams<{ id?: string; data?: string; masterId?: string }>();
     const isEditing = !!id;
     const initialData = data ? JSON.parse(data) : null;
 
@@ -90,6 +90,9 @@ export default function CreateJobScreen() {
             let orderId = id;
             if (isEditing && id) {
                 await ordersApi.updateOrder(id, form);
+            } else if (masterId) {
+                const response = await ordersApi.createDirectOrder({ ...form, masterId });
+                orderId = response.data.id;
             } else {
                 const response = await ordersApi.createOrder(form);
                 orderId = response.data.id;
@@ -109,7 +112,7 @@ export default function CreateJobScreen() {
                 }
             }
 
-            Alert.alert('Success', `Job ${isEditing ? 'updated' : 'posted'} successfully!`, [
+            Alert.alert('Success', `Job ${isEditing ? 'updated' : masterId ? 'assigned' : 'posted'} successfully!`, [
                 { text: 'OK', onPress: () => router.replace('/(tabs)/my-jobs') }
             ]);
         } catch (error) {

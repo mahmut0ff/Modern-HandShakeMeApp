@@ -1,42 +1,41 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import type { APIGatewayProxyResult } from 'aws-lambda';
 import { OrderRepository } from '../shared/repositories/order.repository';
-import { verifyToken } from '../shared/services/token';
+import { success, forbidden, notFound, badRequest } from '../shared/utils/response';
+import { withAuth, AuthenticatedEvent } from '../shared/middleware/auth';
+import { withErrorHandler } from '../shared/middleware/errorHandler';
+import { logger } from '../shared/utils/logger';
 
-export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
-  try {
-    const token = event.headers.Authorization?.replace('Bearer ', '');
-    if (!token) {
-      return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
-    }
+async function deleteOrderHandler(
+  event: AuthenticatedEvent
+): Promise<APIGatewayProxyResult> {
+  const userId = event.auth.userId;
+  const orderId = event.pathParameters?.id || event.pathParameters?.orderId;
 
-    const decoded = verifyToken(token);
-    const orderId = event.pathParameters?.orderId || event.pathParameters?.id;
-    if (!orderId) {
-      return { statusCode: 400, body: JSON.stringify({ error: 'Order ID required' }) };
-    }
-
-    const orderRepo = new OrderRepository();
-    const order = await orderRepo.findById(orderId);
-
-    if (!order) {
-      return { statusCode: 404, body: JSON.stringify({ error: 'Order not found' }) };
-    }
-
-    if (order.clientId !== decoded.userId) {
-      return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden' }) };
-    }
-
-    await orderRepo.delete(orderId);
-
-    return {
-      statusCode: 204,
-      body: '',
-    };
-  } catch (error: any) {
-    console.error('Delete order error:', error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: error.message }),
-    };
+  if (!orderId) {
+    return badRequest('Order ID is required');
   }
+
+  logger.info('Delete order request', { userId, orderId });
+
+  const orderRepo = new OrderRepository();
+  const order = await orderRepo.findById(orderId);
+
+  if (!order) {
+    return notFound('Order not found');
+  }
+
+  if (order.clientId !== userId) {
+    return forbidden('You can only delete your own orders');
+  }
+
+  // Optional: Prevent deleting orders in progress?
+  if (order.status === 'IN_PROGRESS') {
+    return badRequest('Cannot delete an order that is in progress');
+  }
+
+  await orderRepo.delete(orderId);
+
+  return success({ message: 'Order deleted successfully' });
 }
+
+export const handler = withErrorHandler(withAuth(deleteOrderHandler, { roles: ['CLIENT', 'MASTER'] }));

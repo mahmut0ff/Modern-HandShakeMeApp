@@ -23,6 +23,7 @@ async function listMastersHandler(event: APIGatewayProxyEvent): Promise<APIGatew
         ordering: queryParams.ordering || '-rating',
         page: queryParams.page ? parseInt(queryParams.page) : 1,
         page_size: queryParams.page_size ? parseInt(queryParams.page_size) : 20,
+        with_portfolio: queryParams.with_portfolio === 'true' || queryParams.with_portfolio === undefined, // Default to true
     };
 
     try {

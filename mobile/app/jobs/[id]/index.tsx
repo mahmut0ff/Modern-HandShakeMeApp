@@ -31,15 +31,20 @@ export default function JobDetailsScreen() {
             if (user?.id === orderRes.data.clientId) {
                 const appsRes = await applicationsApi.getOrderApplications(id);
                 setApplications(appsRes.data.results);
+            } else if (user?.role === 'MASTER') {
+                // Masters only see their own application for this order
+                const appsRes = await applicationsApi.getMyApplications();
+                const myApp = appsRes.data.results.filter(app => app.order_id === id);
+                setApplications(myApp);
             }
         } catch (error) {
             console.error('Failed to fetch job details', error);
-            Alert.alert('Error', 'Failed to load job details');
+            // Don't alert if it's just a 404 for application
         } finally {
             setIsLoading(false);
             setRefreshing(false);
         }
-    }, [id, user?.id]);
+    }, [id, user?.id, user?.role]);
 
     useEffect(() => {
         fetchData();
@@ -101,7 +106,58 @@ export default function JobDetailsScreen() {
 
     const isOwner = user?.id === order.clientId;
     const isMaster = user?.role === 'MASTER';
-    const hasApplied = (applications || []).some(app => app.master_id === user?.id);
+    const myApplication = (applications || []).find(app => (app.master_id || (app as any).masterId) === user?.id);
+    const hasApplied = !!myApplication;
+
+    const handleWithdraw = () => {
+        if (!myApplication) return;
+        Alert.alert(
+            'Withdraw Application',
+            'Are you sure you want to withdraw your application?',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Withdraw',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            await applicationsApi.deleteApplication(myApplication.id, order.id);
+                            fetchData();
+                        } catch (error) {
+                            Alert.alert('Error', 'Failed to withdraw application');
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
+    const handleAction = async (action: 'PAUSE' | 'RESUME' | 'ARCHIVE') => {
+        try {
+            await ordersApi.manageOrder(id, action);
+            fetchData();
+            Alert.alert('Success', `Job ${action.toLowerCase()}d successfully`);
+        } catch (error) {
+            Alert.alert('Error', `Failed to ${action.toLowerCase()} job`);
+        }
+    };
+
+    const handleCompleteWork = async () => {
+        try {
+            await ordersApi.completeWork(id);
+            fetchData();
+            Alert.alert('Success', 'Work marked as completed. Waiting for client confirmation.');
+        } catch (error) {
+            Alert.alert('Error', 'Failed to mark work as completed');
+        }
+    };
+
+    const handleConfirmCompletion = () => {
+        router.push({
+            pathname: `/jobs/${id}/review`,
+            params: { masterId: order.masterId, title: order.title }
+        });
+    };
 
     return (
         <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -239,48 +295,145 @@ export default function JobDetailsScreen() {
                         <Ionicons name="chevron-forward" size={24} color={theme.text + '33'} />
                     </TouchableOpacity>
                 )}
+
+                {!isOwner && hasApplied && myApplication && (
+                    <View style={[styles.statusCard, { backgroundColor: theme.card }]}>
+                        <View style={styles.statusCardHeader}>
+                            <Text style={[styles.statusCardTitle, { color: theme.text }]}>Your Application</Text>
+                            <View style={[
+                                styles.appStatusBadge,
+                                { backgroundColor: myApplication.status === 'ACCEPTED' ? '#34C75920' : myApplication.status === 'REJECTED' ? '#FF3B3020' : theme.tint + '20' }
+                            ]}>
+                                <Text style={[
+                                    styles.appStatusText,
+                                    { color: myApplication.status === 'ACCEPTED' ? '#34C759' : myApplication.status === 'REJECTED' ? '#FF3B30' : theme.tint }
+                                ]}>{myApplication.status}</Text>
+                            </View>
+                        </View>
+
+                        {myApplication.status === 'REJECTED' && myApplication.rejection_reason && (
+                            <View style={styles.rejectionBox}>
+                                <Text style={[styles.rejectionLabel, { color: '#FF3B30' }]}>Reason for rejection:</Text>
+                                <Text style={[styles.rejectionText, { color: theme.text }]}>{myApplication.rejection_reason}</Text>
+                            </View>
+                        )}
+
+                        <View style={styles.appDetails}>
+                            <View style={styles.appDetailItem}>
+                                <Text style={[styles.appDetailLabel, { color: theme.text + '66' }]}>Proposed Price</Text>
+                                <Text style={[styles.appDetailValue, { color: theme.text }]}>${myApplication.proposed_price}</Text>
+                            </View>
+                            <View style={styles.appDetailItem}>
+                                <Text style={[styles.appDetailLabel, { color: theme.text + '66' }]}>Duration</Text>
+                                <Text style={[styles.appDetailValue, { color: theme.text }]}>{myApplication.proposed_duration_days} days</Text>
+                            </View>
+                        </View>
+
+                        {myApplication.status === 'PENDING' && (
+                            <TouchableOpacity style={styles.withdrawBtn} onPress={handleWithdraw}>
+                                <Text style={styles.withdrawBtnText}>Withdraw Application</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
+                )}
             </ScrollView>
 
             {!isOwner && isMaster && (
                 <View style={[styles.footer, { borderTopColor: theme.text + '10' }]}>
-                    <TouchableOpacity
-                        style={[
-                            styles.applyBtn,
-                            { backgroundColor: hasApplied ? theme.text + '10' : theme.primary },
-                            hasApplied && { opacity: 0.8 }
-                        ]}
-                        onPress={handleApply}
-                        disabled={hasApplied || isApplying}
-                    >
-                        {isApplying ? (
-                            <ActivityIndicator color="#fff" />
-                        ) : (
-                            <>
-                                <Ionicons name={hasApplied ? "checkmark-circle" : "send"} size={20} color={hasApplied ? theme.text + '66' : theme.onPrimary} />
-                                <Text style={[styles.applyBtnText, { color: hasApplied ? theme.text + '66' : theme.onPrimary }]}>
-                                    {hasApplied ? 'Applied' : 'Apply for Job'}
-                                </Text>
-                            </>
-                        )}
-                    </TouchableOpacity>
+                    {order.status === 'ACTIVE' && (
+                        <TouchableOpacity
+                            style={[
+                                styles.applyBtn,
+                                { backgroundColor: hasApplied ? theme.text + '10' : theme.primary },
+                                hasApplied && { opacity: 0.8 }
+                            ]}
+                            onPress={handleApply}
+                            disabled={hasApplied || isApplying}
+                        >
+                            {isApplying ? (
+                                <ActivityIndicator color="#fff" />
+                            ) : (
+                                <>
+                                    <Ionicons name={hasApplied ? "checkmark-circle" : "send"} size={20} color={hasApplied ? theme.text + '66' : theme.onPrimary} />
+                                    <Text style={[styles.applyBtnText, { color: hasApplied ? theme.text + '66' : theme.onPrimary }]}>
+                                        {hasApplied ? 'Applied' : 'Apply for Job'}
+                                    </Text>
+                                </>
+                            )}
+                        </TouchableOpacity>
+                    )}
+
+                    {order.status === 'IN_PROGRESS' && order.masterId === user?.id && (
+                        <TouchableOpacity
+                            style={[styles.applyBtn, { backgroundColor: '#34C759' }]}
+                            onPress={handleCompleteWork}
+                        >
+                            <Ionicons name="checkmark-done" size={20} color="#fff" />
+                            <Text style={[styles.applyBtnText, { color: '#fff' }]}>Finish Work</Text>
+                        </TouchableOpacity>
+                    )}
+
+                    {order.status === 'READY_TO_CONFIRM' && order.masterId === user?.id && (
+                        <View style={[styles.infoBox, { backgroundColor: theme.tint + '10' }]}>
+                            <Ionicons name="time-outline" size={20} color={theme.tint} />
+                            <Text style={[styles.infoText, { color: theme.text }]}>Waiting for client to confirm completion</Text>
+                        </View>
+                    )}
                 </View>
             )}
 
             {isOwner && (
                 <View style={[styles.footer, { borderTopColor: theme.text + '10' }]}>
-                    <TouchableOpacity
-                        style={[styles.applyBtn, { backgroundColor: theme.primary }]}
-                        onPress={() => router.push({
-                            pathname: '/create-job',
-                            params: {
-                                id: id,
-                                data: JSON.stringify(order)
-                            }
-                        })}
-                    >
-                        <Ionicons name="create-outline" size={20} color={theme.onPrimary} />
-                        <Text style={[styles.applyBtnText, { color: theme.onPrimary }]}>Edit Job</Text>
-                    </TouchableOpacity>
+                    <View style={styles.ownerActions}>
+                        {order.status === 'ACTIVE' && (
+                            <TouchableOpacity
+                                style={[styles.actionBtn, { backgroundColor: '#FF950020' }]}
+                                onPress={() => handleAction('PAUSE')}
+                            >
+                                <Ionicons name="pause" size={18} color="#FF9500" />
+                                <Text style={[styles.actionBtnText, { color: '#FF9500' }]}>Pause</Text>
+                            </TouchableOpacity>
+                        )}
+                        {order.status === 'PAUSED' && (
+                            <TouchableOpacity
+                                style={[styles.actionBtn, { backgroundColor: '#34C75920' }]}
+                                onPress={() => handleAction('RESUME')}
+                            >
+                                <Ionicons name="play" size={18} color="#34C759" />
+                                <Text style={[styles.actionBtnText, { color: '#34C759' }]}>Resume</Text>
+                            </TouchableOpacity>
+                        )}
+                        {(order.status === 'ACTIVE' || order.status === 'PAUSED') && (
+                            <TouchableOpacity
+                                style={[styles.actionBtn, { backgroundColor: theme.text + '10' }]}
+                                onPress={() => handleAction('ARCHIVE')}
+                            >
+                                <Ionicons name="archive-outline" size={18} color={theme.text} />
+                                <Text style={[styles.actionBtnText, { color: theme.text }]}>Archive</Text>
+                            </TouchableOpacity>
+                        )}
+                        {order.status === 'READY_TO_CONFIRM' && (
+                            <TouchableOpacity
+                                style={[styles.applyBtn, { backgroundColor: '#34C759', flex: 1 }]}
+                                onPress={handleConfirmCompletion}
+                            >
+                                <Ionicons name="ribbon-outline" size={20} color="#fff" />
+                                <Text style={[styles.applyBtnText, { color: '#fff' }]}>Confirm & Rate</Text>
+                            </TouchableOpacity>
+                        )}
+                        {(order.status === 'ACTIVE' || order.status === 'PAUSED' || order.status === 'DRAFT') && (
+                            <TouchableOpacity
+                                style={[styles.editBtn, { borderColor: theme.tint }]}
+                                onPress={() => router.push({
+                                    pathname: '/create-job',
+                                    params: { id, data: JSON.stringify(order) }
+                                })}
+                            >
+                                <Ionicons name="create-outline" size={20} color={theme.tint} />
+                                <Text style={[styles.editBtnText, { color: theme.tint }]}>Edit</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
                 </View>
             )}
         </View>
@@ -493,5 +646,131 @@ const styles = StyleSheet.create({
     },
     appsLinkSubtitle: {
         fontSize: 13,
+    },
+    statusCard: {
+        borderRadius: 20,
+        padding: 20,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+        elevation: 2,
+        marginTop: 20,
+    },
+    statusCardHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 15,
+    },
+    statusCardTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+    },
+    appStatusBadge: {
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 8,
+    },
+    appStatusText: {
+        fontSize: 12,
+        fontWeight: 'bold',
+        textTransform: 'uppercase',
+    },
+    rejectionBox: {
+        backgroundColor: '#FF3B3008',
+        padding: 12,
+        borderRadius: 12,
+        marginBottom: 15,
+        borderWidth: 1,
+        borderColor: '#FF3B3020',
+    },
+    rejectionLabel: {
+        fontSize: 12,
+        fontWeight: 'bold',
+        marginBottom: 4,
+    },
+    rejectionText: {
+        fontSize: 14,
+        lineHeight: 20,
+    },
+    appDetails: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 20,
+    },
+    appDetailItem: {
+        flex: 1,
+    },
+    appDetailLabel: {
+        fontSize: 12,
+        marginBottom: 4,
+    },
+    appDetailValue: {
+        fontSize: 16,
+        fontWeight: 'bold',
+    },
+    withdrawBtn: {
+        height: 45,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#FF3B3033',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    withdrawBtnText: {
+        color: '#FF3B30',
+        fontSize: 14,
+        fontWeight: 'bold',
+    },
+    ownerActions: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 10,
+    },
+    actionBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 10,
+        paddingHorizontal: 15,
+        borderRadius: 12,
+        flex: 1,
+        minWidth: '45%',
+        justifyContent: 'center',
+    },
+    actionBtnText: {
+        fontSize: 14,
+        fontWeight: 'bold',
+        marginLeft: 8,
+    },
+    editBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 10,
+        paddingHorizontal: 15,
+        borderRadius: 12,
+        borderWidth: 1,
+        flex: 1,
+        minWidth: '100%',
+        justifyContent: 'center',
+        marginTop: 10,
+    },
+    editBtnText: {
+        fontSize: 14,
+        fontWeight: 'bold',
+        marginLeft: 8,
+    },
+    infoBox: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 16,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(0,0,0,0.05)',
+    },
+    infoText: {
+        fontSize: 14,
+        marginLeft: 10,
+        flex: 1,
     },
 });

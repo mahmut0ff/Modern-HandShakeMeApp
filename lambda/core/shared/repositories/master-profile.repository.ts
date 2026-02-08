@@ -1,6 +1,7 @@
 import { PutCommand, GetCommand, UpdateCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
 import { dynamodb as docClient } from '../db/dynamodb-client';
+import { PortfolioRepository } from './portfolio.repository';
 
 const TABLE_NAME = process.env.DYNAMODB_TABLE || 'handshake-table';
 
@@ -39,11 +40,16 @@ export interface MasterProfile {
   completedOrders: number;
   successRate: string;
   repeatClients: number;
+  portfolioPreview?: string[]; // 1-3 preview images
+  status?: 'ONLINE' | 'OFFLINE';
+  lastSeen?: string;
   createdAt: string;
   updatedAt?: string;
 }
 
 export class MasterProfileRepository {
+  private portfolioRepo = new PortfolioRepository();
+
   async create(userId: string, data: Partial<MasterProfile>): Promise<MasterProfile> {
     const profileId = uuidv4();
     const now = new Date().toISOString();
@@ -112,78 +118,15 @@ export class MasterProfileRepository {
     const expressionAttributeValues: any = { ':updatedAt': now };
     const expressionAttributeNames: any = {};
 
-    if (data.categories !== undefined) {
-      updateExpressions.push('categories = :categories');
-      expressionAttributeValues[':categories'] = data.categories;
-    }
-    if (data.skills !== undefined) {
-      updateExpressions.push('skills = :skills');
-      expressionAttributeValues[':skills'] = data.skills;
-    }
-    if (data.firstName !== undefined) {
-      updateExpressions.push('firstName = :firstName');
-      expressionAttributeValues[':firstName'] = data.firstName;
-    }
-    if (data.lastName !== undefined) {
-      updateExpressions.push('lastName = :lastName');
-      expressionAttributeValues[':lastName'] = data.lastName;
-    }
-    if (data.companyName !== undefined) {
-      updateExpressions.push('companyName = :companyName');
-      expressionAttributeValues[':companyName'] = data.companyName;
-    }
-    if (data.bio !== undefined) {
-      updateExpressions.push('bio = :bio');
-      expressionAttributeValues[':bio'] = data.bio;
-    }
-    if (data.experienceYears !== undefined) {
-      updateExpressions.push('experienceYears = :experienceYears');
-      expressionAttributeValues[':experienceYears'] = data.experienceYears;
-    }
-    if (data.hourlyRate !== undefined) {
-      updateExpressions.push('hourlyRate = :hourlyRate');
-      expressionAttributeValues[':hourlyRate'] = data.hourlyRate;
-    }
-    if (data.dailyRate !== undefined) {
-      updateExpressions.push('dailyRate = :dailyRate');
-      expressionAttributeValues[':dailyRate'] = data.dailyRate;
-    }
-    if (data.minOrderCost !== undefined) {
-      updateExpressions.push('minOrderCost = :minOrderCost');
-      expressionAttributeValues[':minOrderCost'] = data.minOrderCost;
-    }
-    if (data.city !== undefined) {
-      updateExpressions.push('city = :city');
-      expressionAttributeValues[':city'] = data.city;
-    }
-    if (data.address !== undefined) {
-      updateExpressions.push('address = :address');
-      expressionAttributeValues[':address'] = data.address;
-    }
-    if (data.travelRadius !== undefined) {
-      updateExpressions.push('travelRadius = :travelRadius');
-      expressionAttributeValues[':travelRadius'] = data.travelRadius;
-    }
-    if (data.hasTransport !== undefined) {
-      updateExpressions.push('hasTransport = :hasTransport');
-      expressionAttributeValues[':hasTransport'] = data.hasTransport;
-    }
-    if (data.hasTools !== undefined) {
-      updateExpressions.push('hasTools = :hasTools');
-      expressionAttributeValues[':hasTools'] = data.hasTools;
-    }
-    if (data.canPurchaseMaterials !== undefined) {
-      updateExpressions.push('canPurchaseMaterials = :canPurchaseMaterials');
-      expressionAttributeValues[':canPurchaseMaterials'] = data.canPurchaseMaterials;
-    }
-    if (data.workingHours !== undefined) {
-      updateExpressions.push('workingHours = :workingHours');
-      expressionAttributeValues[':workingHours'] = data.workingHours;
-    }
-    if (data.isAvailable !== undefined) {
-      updateExpressions.push('isAvailable = :isAvailable');
-      expressionAttributeValues[':isAvailable'] = data.isAvailable;
-    }
+    Object.entries(data).forEach(([key, value]) => {
+      if (value !== undefined && key !== 'userId' && key !== 'profileId' && key !== 'createdAt') {
+        const attrName = `#${key}`;
+        const valName = `:${key}`;
+        updateExpressions.push(`${attrName} = ${valName}`);
+        expressionAttributeNames[attrName] = key;
+        expressionAttributeValues[valName] = value;
+      }
+    });
 
     const result = await docClient.send(new UpdateCommand({
       TableName: TABLE_NAME,
@@ -193,7 +136,7 @@ export class MasterProfileRepository {
       },
       UpdateExpression: `SET ${updateExpressions.join(', ')}`,
       ExpressionAttributeValues: expressionAttributeValues,
-      ...(Object.keys(expressionAttributeNames).length > 0 && { ExpressionAttributeNames: expressionAttributeNames }),
+      ExpressionAttributeNames: expressionAttributeNames,
       ReturnValues: 'ALL_NEW'
     }));
 
@@ -207,8 +150,10 @@ export class MasterProfileRepository {
     isVerified?: boolean;
     isAvailable?: boolean;
     limit?: number;
+    withPortfolio?: boolean;
   }): Promise<MasterProfile[]> {
     const limit = filters.limit || 20;
+    let masters: MasterProfile[] = [];
 
     if (filters.city) {
       const result = await docClient.send(new QueryCommand({
@@ -221,22 +166,47 @@ export class MasterProfileRepository {
         Limit: limit,
         ScanIndexForward: false
       }));
-
-      return (result.Items || []) as MasterProfile[];
+      masters = (result.Items || []) as MasterProfile[];
+    } else {
+      const result = await docClient.send(new QueryCommand({
+        TableName: TABLE_NAME,
+        IndexName: 'GSI1',
+        KeyConditionExpression: 'GSI1PK = :type',
+        ExpressionAttributeValues: {
+          ':type': 'MASTER_PROFILE'
+        },
+        Limit: limit,
+        ScanIndexForward: false
+      }));
+      masters = (result.Items || []) as MasterProfile[];
     }
 
-    const result = await docClient.send(new QueryCommand({
-      TableName: TABLE_NAME,
-      IndexName: 'GSI1',
-      KeyConditionExpression: 'GSI1PK = :type',
-      ExpressionAttributeValues: {
-        ':type': 'MASTER_PROFILE'
-      },
-      Limit: limit,
-      ScanIndexForward: false
-    }));
+    // Apply manual filters that DynamoDB GSI can't handle easily in combination
+    if (filters.category) {
+      masters = masters.filter(m => m.categories?.includes(filters.category!));
+    }
+    if (filters.minRating) {
+      masters = masters.filter(m => parseFloat(m.rating) >= filters.minRating!);
+    }
+    if (filters.isVerified !== undefined) {
+      masters = masters.filter(m => m.isVerified === filters.isVerified);
+    }
+    if (filters.isAvailable !== undefined) {
+      masters = masters.filter(m => m.isAvailable === filters.isAvailable);
+    }
 
-    return (result.Items || []) as MasterProfile[];
+    // Enhance with portfolio previews if requested
+    if (filters.withPortfolio) {
+      masters = await Promise.all(masters.map(async (m) => {
+        const { items } = await this.portfolioRepo.findMasterItems(m.userId, { pageSize: 3, isPublic: true });
+        return {
+          ...m,
+          portfolioPreview: items.flatMap(item => item.images).slice(0, 3)
+        };
+      }));
+    }
+
+    return masters;
   }
 
   async updateRating(userId: string, rating: number, reviewsCount: number): Promise<void> {
@@ -268,8 +238,8 @@ export class MasterProfileRepository {
     ordering?: string;
     page?: number;
     page_size?: number;
+    with_portfolio?: boolean;
   }): Promise<MasterProfile[]> {
-    // Use the existing search method
     return this.search({
       city: filters.city,
       category: filters.category_id,
@@ -277,6 +247,7 @@ export class MasterProfileRepository {
       isVerified: filters.is_verified,
       isAvailable: filters.is_available,
       limit: filters.page_size || 20,
+      withPortfolio: filters.with_portfolio ?? true, // Default to true for the catalog
     });
   }
 }

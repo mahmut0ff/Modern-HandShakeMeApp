@@ -54,6 +54,11 @@ async function createApplicationHandler(event: AuthenticatedEvent): Promise<APIG
     return badRequest('Order is not active');
   }
 
+  // Prevent applying to own order
+  if (order.clientId === userId) {
+    return badRequest('You cannot apply to your own order');
+  }
+
   // Check if master already applied to this order
   const existingApplications = await applicationRepo.findByOrder(validatedData.orderId);
   const existingApplication = existingApplications.find(app => app.masterId === userId);

@@ -44,7 +44,9 @@ export default function ResponsesScreen() {
                 text: 'Accept',
                 onPress: async () => {
                     try {
-                        await applicationsApi.acceptApplication(appId);
+                        const application = applications.find(a => a.id === appId);
+                        if (!application) return;
+                        await applicationsApi.respondToApplication(application.order_id, appId, 'ACCEPT');
                         Alert.alert('Success', 'Application accepted!');
                         fetchApplications();
                     } catch (error) {
@@ -63,7 +65,9 @@ export default function ResponsesScreen() {
                 style: 'destructive',
                 onPress: async () => {
                     try {
-                        await applicationsApi.rejectApplication(appId);
+                        const application = applications.find(a => a.id === appId);
+                        if (!application) return;
+                        await applicationsApi.respondToApplication(application.order_id, appId, 'REJECT');
                         Alert.alert('Success', 'Application rejected');
                         fetchApplications();
                     } catch (error) {
@@ -89,6 +93,11 @@ export default function ResponsesScreen() {
                             item.status === 'REJECTED' ? '#FF3B30' : '#FF9500'
                     }]}>{item.status}</Text>
                 </View>
+                {(item as any).orderStatus && item.status === 'ACCEPTED' && (
+                    <View style={[styles.statusBadge, { backgroundColor: '#007AFF10', marginLeft: 8 }]}>
+                        <Text style={[styles.statusText, { color: '#007AFF' }]}>{(item as any).orderStatus}</Text>
+                    </View>
+                )}
                 <Text style={[styles.appDate, { color: theme.text + '66' }]}>
                     {new Date(item.created_at).toLocaleDateString()}
                 </Text>

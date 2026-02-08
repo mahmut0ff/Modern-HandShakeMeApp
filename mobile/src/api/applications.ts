@@ -11,6 +11,8 @@ export interface Application {
     proposed_duration_days?: number;
     status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'VIEWED';
     viewed_at?: string;
+    rejection_reason?: string;
+    is_favorite?: boolean;
     created_at: string;
     updated_at: string;
     master?: {
@@ -49,12 +51,12 @@ export const applicationsApi = {
     createApplication: (data: CreateApplicationRequest) =>
         apiClient.post<Application>('/applications', data),
 
-    acceptApplication: (applicationId: string) =>
-        apiClient.post<void>(`/applications/${applicationId}/accept`),
+    respondToApplication: (orderId: string, applicationId: string, action: 'ACCEPT' | 'REJECT' | 'LIKE', rejectionReason?: string) =>
+        apiClient.post<any>(`/orders/${orderId}/applications/${applicationId}/respond`, { action, rejectionReason }),
 
-    rejectApplication: (applicationId: string) =>
-        apiClient.put<Application>(`/applications/${applicationId}`, { status: 'REJECTED' }),
+    deleteApplication: (applicationId: string, orderId: string) =>
+        apiClient.delete<void>(`/applications/${applicationId}`, { params: { orderId } }),
 
-    markViewed: (applicationId: string) =>
-        apiClient.post<void>(`/applications/${applicationId}/view`),
+    markViewed: (applicationId: string, orderId: string) =>
+        apiClient.post<void>(`/applications/${applicationId}/view`, null, { params: { orderId } }),
 };
