@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="96" fill="#0165FB"/>
-  <g transform="translate(96, 120)">
-    <!-- Handshake icon -->
-    <path d="M280 80c-11 0-21.7 3.6-30.5 10.3L200 128l-49.5-37.7C141.7 83.6 131 80 120 80c-33.1 0-60 26.9-60 60v40c0 8.8 7.2 16 16 16h48v80c0 17.7 14.3 32 32 32h48c17.7 0 32-14.3 32-32v-80h48c8.8 0 16-7.2 16-16v-40c0-33.1-26.9-60-60-60z" fill="white" opacity="0.9"/>
-    <path d="M160 200c-22.1 0-40 17.9-40 40v32c0 22.1 17.9 40 40 40s40-17.9 40-40v-32c0-22.1-17.9-40-40-40z" fill="white"/>
-  </g>
-  <text x="256" y="420" text-anchor="middle" font-family="Arial, sans-serif" font-size="64" font-weight="bold" fill="white">🤝</text>
-</svg>

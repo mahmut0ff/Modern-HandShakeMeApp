@@ -8,6 +8,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
   try {
     const {
       category,
+      subcategory,
       city,
       budget_min,
       budget_max,
@@ -32,22 +33,28 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     // Apply filters
     let filteredOrders = orders;
 
+    if (subcategory) {
+      filteredOrders = filteredOrders.filter(o =>
+        o.subcategory === subcategory
+      );
+    }
+
     if (city) {
-      filteredOrders = filteredOrders.filter(o => 
+      filteredOrders = filteredOrders.filter(o =>
         o.city.toLowerCase().includes(city.toLowerCase())
       );
     }
 
     if (budget_min) {
       const minBudget = parseFloat(budget_min);
-      filteredOrders = filteredOrders.filter(o => 
+      filteredOrders = filteredOrders.filter(o =>
         o.budgetMin && o.budgetMin >= minBudget
       );
     }
 
     if (budget_max) {
       const maxBudget = parseFloat(budget_max);
-      filteredOrders = filteredOrders.filter(o => 
+      filteredOrders = filteredOrders.filter(o =>
         o.budgetMax && o.budgetMax <= maxBudget
       );
     }

@@ -1,9 +1,7 @@
-// Telegram Register with DynamoDB
-
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { z } from 'zod';
 import { UserRepository } from '../shared/repositories/user.repository';
-import { issueAccessToken, issueRefreshToken } from '../shared/services/token';
+import { generateTokenPair } from '../shared/services/auth-token.service';
 import { success, badRequest } from '../shared/utils/response';
 import { withErrorHandler, ValidationError } from '../shared/middleware/errorHandler';
 import { logger } from '../shared/utils/logger';
@@ -33,9 +31,9 @@ const telegramRegisterSchema = z.object({
 
 async function telegramRegisterHandler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
   logger.info('Telegram register request received');
-  
+
   const body = JSON.parse(event.body || '{}');
-  
+
   // Validate input
   let validatedData;
   try {
@@ -46,25 +44,56 @@ async function telegramRegisterHandler(event: APIGatewayProxyEvent): Promise<API
     }
     throw error;
   }
-  
+
   const userRepo = new UserRepository();
-  
+
   // Normalize field names (support both camelCase and snake_case)
   const telegramId = validatedData.telegramId || validatedData.telegram_id || '';
   const firstName = validatedData.firstName || validatedData.first_name || '';
   const lastName = validatedData.lastName || validatedData.last_name || '';
   const photoUrl = validatedData.photoUrl || validatedData.photo_url;
-  
+
   // Check if user already exists
   const existingUser = await userRepo.findByTelegramId(telegramId);
   if (existingUser) {
-    logger.warn('Telegram register: user already exists', { telegramId });
-    return badRequest('User with this Telegram ID already exists');
+    logger.info('Telegram register: user already exists, returning tokens', { telegramId });
+
+    const tokens = generateTokenPair({
+      userId: existingUser.id,
+      email: existingUser.email || existingUser.phone || existingUser.telegramId,
+      role: existingUser.role,
+      phone: existingUser.phone,
+      isVerified: existingUser.isPhoneVerified,
+    });
+
+    return success({
+      tokens: {
+        access: tokens.accessToken,
+        refresh: tokens.refreshToken,
+      },
+      user: {
+        id: existingUser.id,
+        phone: existingUser.phone,
+        email: existingUser.email,
+        role: existingUser.role,
+        firstName: existingUser.firstName,
+        lastName: existingUser.lastName,
+        fullName: existingUser.name,
+        telegramId: existingUser.telegramId,
+        telegramUsername: existingUser.telegramUsername,
+        avatar: existingUser.avatar,
+        isPhoneVerified: existingUser.isPhoneVerified,
+        citizenship: existingUser.citizenship,
+        city: existingUser.city,
+        createdAt: existingUser.createdAt,
+      },
+      message: 'Logged in successfully (existing user)',
+    });
   }
-  
+
   // Create new user
   const role = validatedData.role.toUpperCase() === 'MASTER' ? 'MASTER' : 'CLIENT';
-  
+
   const newUser = await userRepo.create({
     firstName: firstName,
     lastName: lastName,
@@ -81,25 +110,24 @@ async function telegramRegisterHandler(event: APIGatewayProxyEvent): Promise<API
     registrationStep: 'COMPLETED',
     registrationSource: 'APP',
   });
-  
+
   logger.info('Telegram register: user created', { userId: newUser.id });
-  
-  // Issue tokens
-  const tokenPayload = {
+
+  // Issue tokens using consolidated service
+  const tokens = generateTokenPair({
     userId: newUser.id,
     email: newUser.email || newUser.phone || newUser.telegramId,
     role: newUser.role,
-  };
-  
-  const accessToken = await issueAccessToken(tokenPayload);
-  const refreshToken = await issueRefreshToken(tokenPayload);
-  
+    phone: newUser.phone,
+    isVerified: newUser.isPhoneVerified,
+  });
+
   logger.info('Telegram registration successful', { userId: newUser.id });
-  
+
   return success({
     tokens: {
-      access: accessToken,
-      refresh: refreshToken,
+      access: tokens.accessToken,
+      refresh: tokens.refreshToken,
     },
     user: {
       id: newUser.id,

@@ -1,8 +1,8 @@
 import type { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
-import { verify, sign, JwtPayload } from 'jsonwebtoken';
 import { unauthorized } from '../utils/response';
 import { logger } from '../utils/logger';
 import { UserRepository } from '../repositories/user.repository';
+import { verifyAccessToken, TokenPayload } from '../services/auth-token.service';
 
 export interface AuthContext {
   userId: string;
@@ -21,14 +21,6 @@ export type AuthenticatedHandler = (
   context: Context
 ) => Promise<APIGatewayProxyResult>;
 
-interface JWTPayload extends JwtPayload {
-  userId: string;
-  role: 'CLIENT' | 'MASTER' | 'ADMIN';
-  email: string;
-  phone?: string;
-  isVerified: boolean;
-}
-
 const userRepository = new UserRepository();
 
 export interface WithAuthOptions {
@@ -40,10 +32,12 @@ export function withAuth(handler: AuthenticatedHandler, options?: WithAuthOption
     event: APIGatewayProxyEvent,
     context: Context
   ): Promise<APIGatewayProxyResult> => {
+    let authenticatedEvent: AuthenticatedEvent;
+
     try {
       // Extract authorization header
       const authHeader = event.headers.Authorization || event.headers.authorization;
-      
+
       if (!authHeader) {
         logger.warn('Missing authorization header');
         return unauthorized('Authorization header required');
@@ -51,7 +45,7 @@ export function withAuth(handler: AuthenticatedHandler, options?: WithAuthOption
 
       // Extract token from Bearer header
       const token = authHeader.replace('Bearer ', '');
-      
+
       if (!token) {
         logger.warn('Missing bearer token');
         return unauthorized('Bearer token required');
@@ -59,7 +53,7 @@ export function withAuth(handler: AuthenticatedHandler, options?: WithAuthOption
 
       // Validate token and extract user info
       const authContext = await validateToken(token);
-      
+
       if (!authContext) {
         logger.warn('Invalid token', { token: token.substring(0, 10) + '...' });
         return unauthorized('Invalid token');
@@ -68,46 +62,47 @@ export function withAuth(handler: AuthenticatedHandler, options?: WithAuthOption
       // Check role if specified
       if (options?.roles && options.roles.length > 0) {
         if (!options.roles.includes(authContext.role)) {
-          logger.warn('Insufficient permissions', { 
+          logger.warn('Insufficient permissions', {
             userId: authContext.userId,
             role: authContext.role,
-            requiredRoles: options.roles 
+            requiredRoles: options.roles
           });
           return unauthorized('Insufficient permissions');
         }
       }
 
+      logger.info('Request authenticated', {
+        userId: authContext.userId,
+        role: authContext.role
+      });
+
       // Add auth context to event
-      const authenticatedEvent: AuthenticatedEvent = {
+      authenticatedEvent = {
         ...event,
         auth: authContext
       };
 
-      logger.info('Request authenticated', { 
-        userId: authContext.userId,
-        role: authContext.role 
-      });
-
-      return await handler(authenticatedEvent, context);
-
     } catch (error) {
+      if ((error as any).statusCode) {
+        // If it's already a response (like from unauthorized), return it
+        return error as any;
+      }
       logger.error('Authentication error', error);
       return unauthorized('Authentication failed');
     }
+
+    // Call handler OUTSIDE of authentication try-catch
+    // This ensures that any errors thrown by the handler (validation, DB, etc.)
+    // are NOT caught here and returned as 401 Unauthorized.
+    return await handler(authenticatedEvent, context);
   };
 }
 
 async function validateToken(token: string): Promise<AuthContext | null> {
   try {
-    const jwtSecret = process.env.JWT_SECRET;
-    if (!jwtSecret) {
-      logger.error('JWT_SECRET environment variable not set');
-      return null;
-    }
+    // Verify JWT token using consolidated service (includes blacklist check)
+    const decoded = await verifyAccessToken(token);
 
-    // Verify JWT token
-    const decoded = verify(token, jwtSecret) as JWTPayload;
-    
     if (!decoded.userId || !decoded.role || !decoded.email) {
       logger.warn('Invalid JWT payload structure');
       return null;
@@ -135,18 +130,13 @@ async function validateToken(token: string): Promise<AuthContext | null> {
     };
 
   } catch (error: any) {
-    if (error.name === 'TokenExpiredError') {
-      logger.warn('JWT token expired');
-    } else if (error.name === 'JsonWebTokenError') {
-      logger.warn('Invalid JWT token');
-    } else {
-      logger.error('Token validation failed', error);
-    }
+    logger.warn('Token validation failed', { error: error.message });
     return null;
   }
 }
 
 // Helper function to create JWT tokens (for login endpoints)
+// DEPRECATED: Use generateTokenPair from auth-token.service.ts instead
 export function createJWTToken(user: {
   id: string;
   role: 'CLIENT' | 'MASTER' | 'ADMIN';
@@ -154,26 +144,16 @@ export function createJWTToken(user: {
   phone?: string;
   isPhoneVerified: boolean;
 }): string {
-  const jwtSecret = process.env.JWT_SECRET;
-  if (!jwtSecret) {
-    throw new Error('JWT_SECRET environment variable not set');
-  }
-
-  const payload: JWTPayload = {
+  // This function is deprecated but kept for backward compatibility
+  // Import and use generateAccessToken from auth-token.service.ts instead
+  const { generateAccessToken } = require('../services/auth-token.service');
+  return generateAccessToken({
     userId: user.id,
     role: user.role,
-    email: user.email || '',
+    email: user.email || user.phone || '',
     phone: user.phone,
     isVerified: user.isPhoneVerified
-  };
-
-  const options: any = {
-    expiresIn: process.env.JWT_EXPIRES_IN || '7d',
-    issuer: 'handshakeme.app',
-    audience: 'handshakeme.app'
-  };
-
-  return sign(payload, jwtSecret, options);
+  });
 }
 
 // Helper function for role-based authorization
@@ -181,14 +161,14 @@ export function requireRole(...allowedRoles: ('CLIENT' | 'MASTER' | 'ADMIN')[]) 
   return (handler: AuthenticatedHandler): AuthenticatedHandler => {
     return async (event: AuthenticatedEvent, context: Context) => {
       if (!allowedRoles.includes(event.auth.role)) {
-        logger.warn('Insufficient permissions', { 
+        logger.warn('Insufficient permissions', {
           userId: event.auth.userId,
           role: event.auth.role,
-          requiredRoles: allowedRoles 
+          requiredRoles: allowedRoles
         });
         return unauthorized('Insufficient permissions');
       }
-      
+
       return handler(event, context);
     };
   };

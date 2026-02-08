@@ -10,123 +10,81 @@ import { withErrorHandler, ValidationError } from '../shared/middleware/errorHan
 import { logger } from '../shared/utils/logger';
 
 const telegramCheckSchema = z.object({
-  visitorId: z.string().min(1, 'Visitor ID is required'),
+  sessionId: z.string().min(1, 'Session ID is required'),
 });
 
 async function telegramCheckHandler(
   event: APIGatewayProxyEvent
 ): Promise<APIGatewayProxyResult> {
   logger.info('Telegram auth check request received');
-  
-  const visitorId = event.queryStringParameters?.visitorId;
-  
-  if (!visitorId) {
-    return badRequest('visitorId is required as query parameter');
+
+  const sessionId = event.queryStringParameters?.sessionId;
+
+  if (!sessionId) {
+    return badRequest('sessionId is required as query parameter');
   }
-  
-  // Validate visitorId
+
+  // Validate sessionId
   try {
-    telegramCheckSchema.parse({ visitorId });
+    telegramCheckSchema.parse({ sessionId });
   } catch (error) {
     if (error instanceof z.ZodError) {
       throw new ValidationError('Validation failed', error.errors);
     }
     throw error;
   }
-  
+
   const sessionRepo = new TelegramAuthSessionRepository();
   const userRepo = new UserRepository();
-  
-  // Find auth session by visitorId
-  const session = await sessionRepo.findByVisitorId(visitorId);
-  
+
+  // Find auth session by sessionId
+  const session = await sessionRepo.findById(sessionId);
+
   if (!session) {
-    // Session not found or expired - not authenticated yet
+    // Session not found or expired
+    return badRequest('Session not found or expired');
+  }
+
+  if (!session.userId && !session.telegramId) {
+    // Session exists but not confirmed by bot yet
     return success({
-      authenticated: false,
+      status: 'pending',
       message: 'Waiting for Telegram confirmation',
     });
   }
-  
-  if (!session.userId) {
-    // Code confirmed but no user associated yet
-    // This means the user is new and needs to complete registration
-    // Check if we have telegram data from the session
-    if (session.telegramId) {
-      return success({
-        authenticated: false,
-        needsRegistration: true,
-        telegramData: {
-          id: session.telegramId,
-          firstName: session.telegramFirstName || '',
-          lastName: session.telegramLastName || '',
-          username: session.telegramUsername || '',
-          photoUrl: session.telegramPhotoUrl || '',
-        },
-        message: 'New user - registration required',
-      });
+
+  // Confirmed!
+  let telegramId = session.telegramId;
+  let firstName = session.telegramFirstName || '';
+  let lastName = session.telegramLastName || '';
+  let username = session.telegramUsername || '';
+  let photoUrl = session.telegramPhotoUrl || '';
+
+  // If we have a userId but no telegram data in session, fetch from user record
+  if (session.userId && !telegramId) {
+    const user = await userRepo.findById(session.userId);
+    if (user) {
+      telegramId = user.telegramId;
+      firstName = user.firstName;
+      lastName = user.lastName || '';
+      username = user.telegramUsername || '';
+      photoUrl = user.avatar || '';
     }
-    
-    return success({
-      authenticated: false,
-      message: 'Code confirmed but user not found',
-    });
   }
-  
-  // Mark session as used
-  await sessionRepo.markAsUsed(session.id, session.userId);
-  
-  // Get user details
-  const user = await userRepo.findById(session.userId);
-  
-  if (!user) {
-    logger.error('User not found after successful session', { userId: session.userId });
-    return success({
-      authenticated: false,
-      message: 'User not found',
-    });
-  }
-  
-  // Update user last login
-  await userRepo.update(user.id, {
-    lastLoginAt: new Date().toISOString(),
-    isOnline: true,
+
+  logger.info('Telegram auth check confirmed', {
+    sessionId,
+    userId: session.userId,
+    telegramId
   });
-  
-  // Issue tokens
-  const tokenPayload = {
-    userId: user.id,
-    email: user.email || user.phone,
-    role: user.role,
-  };
-  
-  const accessToken = await issueAccessToken(tokenPayload);
-  const refreshToken = await issueRefreshToken(tokenPayload);
-  
-  logger.info('Telegram authentication successful', { 
-    userId: user.id,
-    visitorId 
-  });
-  
+
   return success({
-    authenticated: true,
-    user: {
-      id: user.id,
-      phone: user.phone,
-      email: user.email,
-      role: user.role,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      fullName: user.name,
-      telegramId: user.telegramId,
-      telegramUsername: user.telegramUsername,
-      isPhoneVerified: user.isPhoneVerified,
-      createdAt: user.createdAt,
-    },
-    tokens: {
-      access: accessToken,
-      refresh: refreshToken,
-    },
+    status: 'confirmed',
+    telegramId,
+    firstName,
+    lastName,
+    username,
+    photoUrl,
   });
 }
 

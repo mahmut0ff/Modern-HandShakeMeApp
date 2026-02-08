@@ -4,25 +4,29 @@ import { success } from '../shared/utils/response';
 import { withAuth, AuthenticatedEvent } from '../shared/middleware/auth';
 import { withErrorHandler } from '../shared/middleware/errorHandler';
 import { logger } from '../shared/utils/logger';
+import { formatPaginatedResponse, formatApplicationObject } from '../shared/utils/response-formatter';
 
 async function getMyApplicationsHandler(event: AuthenticatedEvent): Promise<APIGatewayProxyResult> {
   const userId = event.auth.userId;
-  
+
   if (event.auth.role !== 'MASTER') {
-    return success([]); // Masters only, return empty for others
+    return success(formatPaginatedResponse([], 0));
   }
-  
+
   logger.info('Get my applications request', { userId });
-  
+
   const applicationRepo = new ApplicationRepository();
   const applications = await applicationRepo.findByMaster(userId);
-  
+
+  const formattedApplications = applications.map(formatApplicationObject);
+  const response = formatPaginatedResponse(formattedApplications, formattedApplications.length);
+
   logger.info('Applications retrieved successfully', {
     userId,
     count: applications.length,
   });
-  
-  return success(applications);
+
+  return success(response);
 }
 
 export const handler = withErrorHandler(withAuth(getMyApplicationsHandler, { roles: ['MASTER'] }));

@@ -29,17 +29,6 @@ export * from './types';
 
 // Additional type exports (avoiding duplicates)
 export type { ChatRoom, ChatRoomWithParticipants } from './types/chat';
-export type { 
-  Dispute, 
-  DisputeStatus, 
-  DisputeResolution,
-  CreateDisputeRequest,
-  UpdateDisputeStatusRequest,
-  AddEvidenceRequest,
-  SendDisputeMessageRequest
-} from './types/disputes';
-export type { InstantBooking, BookingStatus as InstantBookingStatus } from './types/instant-booking';
-export type { KyrgyzstanBooking, KyrgyzstanAddress, PaymentStatus } from './types/kyrgyzstan';
 export type { Translation } from './types/localization';
 
 // Utils

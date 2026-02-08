@@ -2,7 +2,11 @@
 
 import * as AWS from 'aws-sdk';
 import { logger } from '../utils/logger';
-import { FileReference } from '../types/gdpr';
+
+interface FileReference {
+  url: string;
+  category: string;
+}
 
 export class S3Service {
   private s3: AWS.S3;

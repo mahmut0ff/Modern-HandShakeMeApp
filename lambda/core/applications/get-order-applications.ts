@@ -5,41 +5,45 @@ import { success, badRequest, notFound, forbidden } from '../shared/utils/respon
 import { withAuth, AuthenticatedEvent } from '../shared/middleware/auth';
 import { withErrorHandler } from '../shared/middleware/errorHandler';
 import { logger } from '../shared/utils/logger';
+import { formatPaginatedResponse, formatApplicationObject } from '../shared/utils/response-formatter';
 
 async function getOrderApplicationsHandler(event: AuthenticatedEvent): Promise<APIGatewayProxyResult> {
   const userId = event.auth.userId;
   const orderId = event.pathParameters?.id;
-  
+
   if (!orderId) {
     return badRequest('Order ID is required');
   }
-  
+
   logger.info('Get order applications request', { userId, orderId });
-  
+
   const orderRepo = new OrderRepository();
   const applicationRepo = new ApplicationRepository();
-  
+
   // Get order to verify ownership
   const order = await orderRepo.findById(orderId);
   if (!order) {
     return notFound('Order not found');
   }
-  
+
   // Only order owner can view applications
   if (event.auth.role === 'CLIENT' && order.clientId !== userId) {
     return forbidden('You can only view applications for your own orders');
   }
-  
+
   // Get applications for the order
   const applications = await applicationRepo.findByOrder(orderId);
-  
+
+  const formattedApplications = applications.map(formatApplicationObject);
+  const response = formatPaginatedResponse(formattedApplications, formattedApplications.length);
+
   logger.info('Order applications retrieved successfully', {
     userId,
     orderId,
     count: applications.length,
   });
-  
-  return success(applications);
+
+  return success(response);
 }
 
 export const handler = withErrorHandler(withAuth(getOrderApplicationsHandler));

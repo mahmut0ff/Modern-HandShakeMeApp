@@ -1,9 +1,7 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { z } from 'zod';
 import { UserRepository } from '../shared/repositories/user.repository';
-import { verifyToken, issueAccessToken, issueRefreshToken } from '../shared/services/token';
-import { getItem } from '../shared/db/dynamodb-client';
-import { Keys } from '../shared/db/dynamodb-keys';
+import { verifyRefreshToken, generateTokenPair } from '../shared/services/auth-token.service';
 import { success, badRequest, unauthorized, notFound } from '../shared/utils/response';
 import { withErrorHandler, ValidationError } from '../shared/middleware/errorHandler';
 import { logger } from '../shared/utils/logger';
@@ -42,18 +40,11 @@ async function refreshTokenHandler(event: APIGatewayProxyEvent): Promise<APIGate
     throw new ValidationError('Token is missing');
   }
 
-  // Check if token is blacklisted
-  const blacklistedToken = await getItem(Keys.tokenBlacklist(token));
-  if (blacklistedToken) {
-    logger.warn('Attempted to use blacklisted refresh token');
-    return unauthorized('Token has been revoked');
-  }
-
-  // Verify refresh token
+  // Verify refresh token (includes blacklist check)
   let decoded;
   try {
-    decoded = verifyToken(validatedData.refreshToken);
-  } catch (error) {
+    decoded = await verifyRefreshToken(token);
+  } catch (error: any) {
     logger.warn('Invalid refresh token', { error: error.message });
     return unauthorized('Invalid or expired refresh token');
   }
@@ -66,21 +57,20 @@ async function refreshTokenHandler(event: APIGatewayProxyEvent): Promise<APIGate
     return notFound('User not found');
   }
 
-  // Generate new tokens
-  const tokenPayload = {
+  // Generate new tokens using consolidated service
+  const tokens = generateTokenPair({
     userId: user.id,
-    email: user.email || user.phone,
+    email: user.email || user.phone || '',
     role: user.role,
-  };
-
-  const accessToken = await issueAccessToken(tokenPayload);
-  const newRefreshToken = await issueRefreshToken(tokenPayload);
+    phone: user.phone,
+    isVerified: user.isPhoneVerified,
+  });
 
   logger.info('Tokens refreshed successfully', { userId: user.id });
 
   return success({
-    access: accessToken,
-    refresh: newRefreshToken,
+    access: tokens.accessToken,
+    refresh: tokens.refreshToken,
     user: {
       id: user.id,
       phone: user.phone,

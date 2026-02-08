@@ -3,7 +3,7 @@
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { z } from 'zod';
 import { UserRepository } from '../shared/repositories/user.repository';
-import { issueAccessToken, issueRefreshToken } from '../shared/services/token';
+import { generateTokenPair } from '../shared/services/auth-token.service';
 import { success, unauthorized, badRequest } from '../shared/utils/response';
 import { withErrorHandler, ValidationError } from '../shared/middleware/errorHandler';
 import { logger } from '../shared/utils/logger';
@@ -67,21 +67,20 @@ async function telegramLoginHandler(event: APIGatewayProxyEvent): Promise<APIGat
       isOnline: true,
     });
     
-    // Issue tokens
-    const tokenPayload = {
+    // Issue tokens using consolidated service
+    const tokens = generateTokenPair({
       userId: existingUser.id,
-      email: existingUser.email || existingUser.phone,
+      email: existingUser.email || existingUser.phone || '',
       role: existingUser.role,
-    };
-    
-    const accessToken = await issueAccessToken(tokenPayload);
-    const refreshToken = await issueRefreshToken(tokenPayload);
+      phone: existingUser.phone,
+      isVerified: existingUser.isPhoneVerified,
+    });
     
     logger.info('Telegram login successful', { userId: existingUser.id });
     
     return success({
-      access: accessToken,
-      refresh: refreshToken,
+      access: tokens.accessToken,
+      refresh: tokens.refreshToken,
       user: {
         id: existingUser.id,
         phone: existingUser.phone,

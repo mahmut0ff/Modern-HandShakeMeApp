@@ -88,18 +88,17 @@ export class NotificationService {
 
   async notifyApplicationAccepted(
     masterId: string,
-    data: ApplicationNotificationData & { projectId: string }
+    data: ApplicationNotificationData
   ): Promise<Notification> {
     return this.sendNotification({
       userId: masterId,
       type: 'APPLICATION',
       title: 'Application Accepted! 🎉',
-      message: `Congratulations! Your application for "${data.orderTitle || 'the order'}" has been accepted. The project has started.`,
+      message: `Congratulations! Your application for "${data.orderTitle || 'the order'}" has been accepted. You can now start working.`,
       data: {
         applicationId: data.applicationId,
         orderId: data.orderId,
-        projectId: data.projectId,
-        action: 'view_project',
+        action: 'view_order',
       },
     });
   }
@@ -136,41 +135,6 @@ export class NotificationService {
         action: 'view_application',
       },
     });
-  }
-
-  async notifyProjectCreated(
-    masterId: string,
-    clientId: string,
-    data: ApplicationNotificationData & { projectId: string }
-  ): Promise<Notification[]> {
-    const notifications = await Promise.all([
-      // Notify master
-      this.sendNotification({
-        userId: masterId,
-        type: 'PROJECT',
-        title: 'Project Started',
-        message: `Your project "${data.orderTitle || 'New Project'}" has started. You can now begin working!`,
-        data: {
-          projectId: data.projectId,
-          orderId: data.orderId,
-          action: 'view_project',
-        },
-      }),
-      // Notify client
-      this.sendNotification({
-        userId: clientId,
-        type: 'PROJECT',
-        title: 'Project Started',
-        message: `Your project "${data.orderTitle || 'New Project'}" with ${data.masterName || 'the master'} has started!`,
-        data: {
-          projectId: data.projectId,
-          orderId: data.orderId,
-          action: 'view_project',
-        },
-      }),
-    ]);
-
-    return notifications;
   }
 
   // Bulk notification methods

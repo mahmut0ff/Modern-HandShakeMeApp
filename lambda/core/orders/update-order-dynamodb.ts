@@ -31,7 +31,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       };
     }
 
-    const orderId = event.pathParameters?.id;
+    const orderId = event.pathParameters?.orderId || event.pathParameters?.id;
     if (!orderId) {
       return {
         statusCode: 400,
@@ -72,7 +72,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     };
   } catch (error: any) {
     console.error('Update order error:', error);
-    
+
     if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
       return {
         statusCode: 401,
@@ -80,14 +80,14 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
         body: JSON.stringify({ error: 'Invalid or expired token' })
       };
     }
-    
+
     if (error.name === 'ZodError') {
       return {
         statusCode: 400,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           error: 'Validation error',
-          details: error.errors 
+          details: error.errors
         })
       };
     }

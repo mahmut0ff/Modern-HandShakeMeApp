@@ -3,6 +3,7 @@
 export interface ChatRoom {
   id: string;
   projectId?: string;
+  orderId?: string;
   participants: string[];
   lastMessageAt: string;
   lastMessage?: string;

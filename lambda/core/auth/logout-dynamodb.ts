@@ -1,7 +1,6 @@
 import { APIGatewayProxyResult } from 'aws-lambda';
 import { z } from 'zod';
-import { putItem } from '../shared/db/dynamodb-client';
-import { Keys } from '../shared/db/dynamodb-keys';
+import { blacklistToken } from '../shared/services/auth-token.service';
 import { success, badRequest } from '../shared/utils/response';
 import { withAuth, AuthenticatedEvent } from '../shared/middleware/auth';
 import { withErrorHandler, ValidationError } from '../shared/middleware/errorHandler';
@@ -29,14 +28,15 @@ async function logoutHandler(event: AuthenticatedEvent): Promise<APIGatewayProxy
     throw error;
   }
   
-  // Add refresh token to blacklist
-  await putItem({
-    ...Keys.tokenBlacklist(validatedData.refreshToken),
-    token: validatedData.refreshToken,
-    userId: userId,
-    blacklistedAt: new Date().toISOString(),
-    expiresAt: Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60), // 30 days TTL
-  });
+  // Add refresh token to blacklist using consolidated service
+  await blacklistToken(validatedData.refreshToken);
+  
+  // Also blacklist the access token from the request
+  const authHeader = event.headers.Authorization || event.headers.authorization;
+  if (authHeader) {
+    const accessToken = authHeader.replace('Bearer ', '');
+    await blacklistToken(accessToken);
+  }
   
   logger.info('User logged out successfully', { userId });
   

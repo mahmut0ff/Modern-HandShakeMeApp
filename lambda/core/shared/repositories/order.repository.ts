@@ -25,6 +25,26 @@ export interface Order {
   applicationsCount: number;
   viewsCount: number;
   isUrgent: boolean;
+  masterId?: string;
+  acceptedApplicationId?: string;
+
+  // Additional details
+  subcategory?: string;
+  workVolume?: string;
+  floor?: number;
+  hasElevator?: boolean;
+  materialStatus?: string;
+  hasElectricity?: boolean;
+  hasWater?: boolean;
+  canStoreTools?: boolean;
+  hasParking?: boolean;
+  requiredExperience?: string;
+  needTeam?: boolean;
+  additionalRequirements?: string;
+  isPublic?: boolean;
+  autoCloseApplications?: boolean;
+  images?: string[];
+
   createdAt: string;
   updatedAt: string;
   expiresAt: string;
@@ -34,8 +54,15 @@ export class OrderRepository {
   async create(data: Partial<Order>): Promise<Order> {
     try {
       // Validate required fields
-      if (!data.clientId || !data.categoryId || !data.title || !data.description || !data.city || !data.address) {
-        throw new Error('Missing required fields: clientId, categoryId, title, description, city, address');
+      const missingFields = [];
+      if (!data.clientId) missingFields.push('clientId');
+      if (!data.categoryId) missingFields.push('categoryId');
+      if (!data.title) missingFields.push('title');
+      if (!data.description) missingFields.push('description');
+      if (!data.city) missingFields.push('city');
+
+      if (missingFields.length > 0) {
+        throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
       }
 
       if (!data.budgetType) {
@@ -60,11 +87,31 @@ export class OrderRepository {
         applicationsCount: 0,
         viewsCount: 0,
         isUrgent: data.isUrgent || false,
+        masterId: data.masterId,
+        acceptedApplicationId: data.acceptedApplicationId,
+
+        // Additional fields
+        subcategory: data.subcategory,
+        workVolume: data.workVolume,
+        floor: data.floor,
+        hasElevator: data.hasElevator,
+        materialStatus: data.materialStatus,
+        hasElectricity: data.hasElectricity,
+        hasWater: data.hasWater,
+        canStoreTools: data.canStoreTools,
+        hasParking: data.hasParking,
+        requiredExperience: data.requiredExperience,
+        needTeam: data.needTeam,
+        additionalRequirements: data.additionalRequirements,
+        isPublic: data.isPublic ?? true,
+        autoCloseApplications: data.autoCloseApplications ?? false,
+        images: data.images || [],
+
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         expiresAt: data.expiresAt || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
       };
-      
+
       await putItem({
         ...Keys.order(order.id),
         ...order,
@@ -72,8 +119,10 @@ export class OrderRepository {
         GSI1SK: `${order.createdAt}#${order.id}`,
         GSI2PK: `STATUS#${order.status}`,
         GSI2SK: `${order.createdAt}#${order.id}`,
+        GSI3PK: `USER#${order.clientId}`,
+        GSI3SK: `${order.createdAt}#${order.id}`,
       });
-      
+
       logger.info('Order created successfully', { orderId: order.id, clientId: order.clientId });
       return order;
     } catch (error) {
@@ -81,7 +130,7 @@ export class OrderRepository {
       throw new Error('Failed to create order');
     }
   }
-  
+
   async findById(orderId: string): Promise<Order | null> {
     try {
       if (!orderId) {
@@ -95,7 +144,7 @@ export class OrderRepository {
       throw new Error('Failed to retrieve order');
     }
   }
-  
+
   async findByStatus(status: string, limit = 20): Promise<Order[]> {
     try {
       if (!status) {
@@ -111,14 +160,14 @@ export class OrderRepository {
         ScanIndexForward: false,
         Limit: limit,
       });
-      
+
       return items as Order[];
     } catch (error) {
       logger.error('Failed to find orders by status', error, { status, limit });
       throw new Error('Failed to retrieve orders by status');
     }
   }
-  
+
   async findByCategory(categoryId: string, limit = 20): Promise<Order[]> {
     try {
       if (!categoryId) {
@@ -134,14 +183,14 @@ export class OrderRepository {
         ScanIndexForward: false,
         Limit: limit,
       });
-      
+
       return items as Order[];
     } catch (error) {
       logger.error('Failed to find orders by category', error, { categoryId, limit });
       throw new Error('Failed to retrieve orders by category');
     }
   }
-  
+
   async update(orderId: string, data: Partial<Order>): Promise<Order> {
     try {
       if (!orderId) {
@@ -157,7 +206,7 @@ export class OrderRepository {
       const updateExpressions: string[] = [];
       const attributeValues: Record<string, any> = {};
       const attributeNames: Record<string, string> = {};
-      
+
       Object.entries(data).forEach(([key, value], index) => {
         if (value !== undefined && key !== 'id' && key !== 'createdAt') {
           updateExpressions.push(`#attr${index} = :val${index}`);
@@ -165,18 +214,18 @@ export class OrderRepository {
           attributeValues[`:val${index}`] = value;
         }
       });
-      
+
       updateExpressions.push('#updatedAt = :updatedAt');
       attributeNames['#updatedAt'] = 'updatedAt';
       attributeValues[':updatedAt'] = new Date().toISOString();
-      
+
       const updated = await updateItem({
         Key: Keys.order(orderId),
         UpdateExpression: `SET ${updateExpressions.join(', ')}`,
         ExpressionAttributeNames: attributeNames,
         ExpressionAttributeValues: attributeValues,
       });
-      
+
       logger.info('Order updated successfully', { orderId });
       return updated as Order;
     } catch (error) {
@@ -184,7 +233,7 @@ export class OrderRepository {
       throw new Error('Failed to update order');
     }
   }
-  
+
   async delete(orderId: string): Promise<void> {
     try {
       if (!orderId) {
@@ -212,22 +261,23 @@ export class OrderRepository {
       }
 
       const items = await queryItems({
-        KeyConditionExpression: 'PK = :pk AND begins_with(SK, :sk)',
+        IndexName: 'GSI3',
+        KeyConditionExpression: 'GSI3PK = :pk AND begins_with(GSI3SK, :sk)',
         ExpressionAttributeValues: {
           ':pk': `USER#${clientId}`,
-          ':sk': 'ORDER#',
+          ':sk': '20', // Most orders will start with 20 (year 20xx)
         },
         ScanIndexForward: false,
         Limit: limit,
       });
-      
+
       return items as Order[];
     } catch (error) {
       logger.error('Failed to find orders by client', error, { clientId, limit });
       throw new Error('Failed to retrieve orders by client');
     }
   }
-  
+
   async updateStatus(orderId: string, status: Order['status']): Promise<Order> {
     try {
       if (!orderId || !status) {
@@ -246,7 +296,7 @@ export class OrderRepository {
           ':updatedAt': new Date().toISOString(),
         },
       });
-      
+
       logger.info('Order status updated', { orderId, status });
       return updated as Order;
     } catch (error) {
@@ -254,7 +304,11 @@ export class OrderRepository {
       throw new Error('Failed to update order status');
     }
   }
-  
+
+  /**
+   * Atomically increment applications count for an order
+   * Uses DynamoDB ADD operation which is atomic and safe for concurrent updates
+   */
   async incrementApplicationsCount(orderId: string): Promise<Order> {
     try {
       if (!orderId) {
@@ -273,7 +327,7 @@ export class OrderRepository {
           ':updatedAt': new Date().toISOString(),
         },
       });
-      
+
       logger.info('Order applications count incremented', { orderId });
       return updated as Order;
     } catch (error) {
@@ -300,7 +354,7 @@ export class OrderRepository {
           ':updatedAt': new Date().toISOString(),
         },
       });
-      
+
       logger.info('Order views count incremented', { orderId });
       return updated as Order;
     } catch (error) {
@@ -310,7 +364,7 @@ export class OrderRepository {
   }
 
   async findByClientWithFilters(
-    clientId: string, 
+    clientId: string,
     filters: {
       status?: string;
       page?: number;
@@ -323,9 +377,9 @@ export class OrderRepository {
       }
 
       const { status, page = 1, pageSize = 20 } = filters;
-      
+
       let items: Order[];
-      
+
       if (status) {
         // Query by status first, then filter by client
         const allStatusOrders = await queryItems({
@@ -337,17 +391,17 @@ export class OrderRepository {
           ScanIndexForward: false,
           Limit: 100, // Get more to filter by client
         });
-        
+
         items = (allStatusOrders as Order[]).filter(order => order.clientId === clientId);
       } else {
-        // Get all orders for client
+        // Get all orders for client using GSI3
         items = await this.findByClient(clientId, 100);
       }
-      
+
       const total = items.length;
       const startIndex = (page - 1) * pageSize;
       const paginatedItems = items.slice(startIndex, startIndex + pageSize);
-      
+
       return { orders: paginatedItems, total };
     } catch (error) {
       logger.error('Failed to find orders by client with filters', error, { clientId, filters });
@@ -407,7 +461,7 @@ export class OrderRepository {
           ':sk': 'FAV_ORDER#',
         },
       });
-      
+
       return items.map((item: any) => item.orderId);
     } catch (error) {
       logger.error('Failed to get favorite orders', error, { userId });
@@ -425,11 +479,50 @@ export class OrderRepository {
         PK: `USER#${userId}`,
         SK: `FAV_ORDER#${orderId}`,
       });
-      
+
       return !!item;
     } catch (error) {
       logger.error('Failed to check if order is favorite', error, { userId, orderId });
       throw new Error('Failed to check favorite status');
+    }
+  }
+
+  /**
+   * Records a unique view of an order by a user
+   * If the user hasn't viewed this order yet, increments viewsCount
+   */
+  async recordUniqueView(orderId: string, userId: string): Promise<void> {
+    try {
+      if (!orderId || !userId) {
+        throw new Error('Order ID and User ID are required');
+      }
+
+      const viewKey = {
+        PK: `ORDER#${orderId}`,
+        SK: `VIEW#USER#${userId}`,
+      };
+
+      // Check if user already viewed
+      const existingView = await getItem(viewKey);
+      if (existingView) {
+        return; // Already counted
+      }
+
+      // Save view record
+      await putItem({
+        ...viewKey,
+        userId,
+        orderId,
+        createdAt: new Date().toISOString(),
+      });
+
+      // Increment count
+      await this.incrementViewsCount(orderId);
+
+      logger.info('Unique view recorded', { orderId, userId });
+    } catch (error) {
+      logger.error('Failed to record unique view', error, { orderId, userId });
+      // Don't throw here to avoid failing the get order request
     }
   }
 }

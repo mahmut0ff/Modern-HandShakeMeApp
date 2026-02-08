@@ -8,6 +8,7 @@ import { success, badRequest, notFound, forbidden } from '../shared/utils/respon
 import { withAuth, AuthenticatedEvent } from '../shared/middleware/auth';
 import { withErrorHandler, ValidationError } from '../shared/middleware/errorHandler';
 import { logger } from '../shared/utils/logger';
+import { formatApplicationObject } from '../shared/utils/response-formatter';
 
 const createApplicationSchema = z.object({
   orderId: z.string().min(1, 'Order ID is required'),
@@ -18,15 +19,15 @@ const createApplicationSchema = z.object({
 
 async function createApplicationHandler(event: AuthenticatedEvent): Promise<APIGatewayProxyResult> {
   const userId = event.auth.userId;
-  
+
   if (event.auth.role !== 'MASTER') {
     return forbidden('Only masters can create applications');
   }
-  
+
   logger.info('Create application request', { userId });
-  
+
   const body = JSON.parse(event.body || '{}');
-  
+
   // Validate input
   let validatedData;
   try {
@@ -37,39 +38,39 @@ async function createApplicationHandler(event: AuthenticatedEvent): Promise<APIG
     }
     throw error;
   }
-  
+
   const orderRepo = new OrderRepository();
   const applicationRepo = new ApplicationRepository();
   const userRepo = new UserRepository();
   const notificationService = new NotificationService();
-  
+
   // Check if order exists and is active
   const order = await orderRepo.findById(validatedData.orderId);
   if (!order) {
     return notFound('Order not found');
   }
-  
+
   if (order.status !== 'ACTIVE') {
     return badRequest('Order is not active');
   }
-  
+
   // Check if master already applied to this order
   const existingApplications = await applicationRepo.findByOrder(validatedData.orderId);
   const existingApplication = existingApplications.find(app => app.masterId === userId);
-  
+
   if (existingApplication) {
     return badRequest('You have already applied to this order');
   }
-  
+
   // Get master details for notification
   const master = await userRepo.findById(userId);
-  
+
   // Create application
   const application = await applicationRepo.create(userId, validatedData);
-  
+
   // Update order applications count
   await orderRepo.incrementApplicationsCount(validatedData.orderId);
-  
+
   // Send notification to client
   try {
     await notificationService.notifyApplicationCreated(order.clientId, {
@@ -83,14 +84,14 @@ async function createApplicationHandler(event: AuthenticatedEvent): Promise<APIG
     logger.error('Failed to send application created notification', error);
     // Don't fail the request if notification fails
   }
-  
+
   logger.info('Application created successfully', {
     userId,
     applicationId: application.id,
     orderId: validatedData.orderId,
   });
-  
-  return success(application, 201);
+
+  return success(formatApplicationObject(application), 201);
 }
 
 export const handler = withErrorHandler(withAuth(createApplicationHandler, { roles: ['MASTER'] }));

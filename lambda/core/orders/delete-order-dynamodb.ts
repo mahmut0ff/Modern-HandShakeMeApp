@@ -10,7 +10,7 @@ export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayPr
     }
 
     const decoded = verifyToken(token);
-    const orderId = event.pathParameters?.id;
+    const orderId = event.pathParameters?.orderId || event.pathParameters?.id;
     if (!orderId) {
       return { statusCode: 400, body: JSON.stringify({ error: 'Order ID required' }) };
     }

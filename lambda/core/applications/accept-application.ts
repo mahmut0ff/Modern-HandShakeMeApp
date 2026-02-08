@@ -1,9 +1,9 @@
-// Accept application and create project
+// Accept application and start order
 
 import type { APIGatewayProxyResult } from 'aws-lambda';
 import { ApplicationRepository } from '../shared/repositories/application.repository';
 import { OrderRepository } from '../shared/repositories/order.repository';
-import { ProjectRepository } from '../shared/repositories/project.repository';
+import { ChatRepository } from '../shared/repositories/chat.repository';
 import { UserRepository } from '../shared/repositories/user.repository';
 import { NotificationService } from '../shared/services/notification';
 import { success, forbidden, notFound, badRequest } from '../shared/utils/response';
@@ -29,7 +29,7 @@ async function acceptApplicationHandler(
   
   const applicationRepo = new ApplicationRepository();
   const orderRepo = new OrderRepository();
-  const projectRepo = new ProjectRepository();
+  const chatRepo = new ChatRepository();
   const userRepo = new UserRepository();
   const notificationService = new NotificationService();
   
@@ -76,18 +76,17 @@ async function acceptApplicationHandler(
   // Reject all other applications for this order
   await applicationRepo.rejectAllOtherApplications(orderId, applicationId);
   
-  // Update order status
-  await orderRepo.updateStatus(orderId, 'IN_PROGRESS');
-  
-  // Create project
-  const project = await projectRepo.create({
-    orderId: orderId,
-    masterId: application.masterId,
-    clientId: order.clientId,
-    applicationId: applicationId,
-    budget: application.proposedPrice,
-    deadline: order.deadline,
+  // Update order status and assign master
+  await orderRepo.update(orderId, {
     status: 'IN_PROGRESS',
+    masterId: application.masterId,
+    acceptedApplicationId: applicationId,
+  });
+  
+  // Create chat room between client and master
+  const chatRoom = await chatRepo.createRoom({
+    participants: [userId, application.masterId],
+    orderId: orderId,
   });
   
   // Send notifications
@@ -103,21 +102,7 @@ async function acceptApplicationHandler(
       orderId,
       orderTitle: order.title,
       clientName: client?.name || `${client?.firstName} ${client?.lastName}`.trim(),
-      projectId: project.id,
     });
-    
-    // Notify project creation to both parties
-    await notificationService.notifyProjectCreated(
-      application.masterId,
-      userId,
-      {
-        applicationId,
-        orderId,
-        orderTitle: order.title,
-        masterName: master?.name || `${master?.firstName} ${master?.lastName}`.trim(),
-        projectId: project.id,
-      }
-    );
     
     // Notify rejected masters
     if (otherPendingApplications.length > 0) {
@@ -133,15 +118,15 @@ async function acceptApplicationHandler(
     // Don't fail the request if notifications fail
   }
   
-  logger.info('Application accepted and project created', {
+  logger.info('Application accepted and chat created', {
     userId,
     applicationId,
-    projectId: project.id,
+    chatRoomId: chatRoom.id,
   });
   
   return success({
     application: acceptedApp,
-    project: project
+    chatRoom: chatRoom,
   });
 }
 

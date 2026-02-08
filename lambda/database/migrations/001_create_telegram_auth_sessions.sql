@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS telegram_auth_sessions (
     id SERIAL PRIMARY KEY,
     visitor_id VARCHAR(255) NOT NULL,
     code VARCHAR(4) NOT NULL,
-    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
     is_used BOOLEAN DEFAULT FALSE,
     expires_at TIMESTAMP NOT NULL,
     created_at TIMESTAMP DEFAULT NOW(),

@@ -4,13 +4,12 @@ import { success, error, forbidden, notFound, badRequest } from '../shared/utils
 import { withAuth, AuthenticatedEvent } from '../shared/middleware/auth';
 import { withErrorHandler, ValidationError } from '../shared/middleware/errorHandler';
 import { ReviewRepository } from '../shared/repositories/review.repository';
-import { ProjectRepository } from '../shared/repositories/project.repository';
+import { OrderRepository } from '../shared/repositories/order.repository';
 import { MasterProfileRepository } from '../shared/repositories/master-profile.repository';
 import { getCacheInvalidator } from '../shared/utils/cache-invalidation';
 import { logger } from '../shared/utils/logger';
 
 const createReviewSchema = z.object({
-  projectId: z.string().min(1, 'Project ID is required'),
   orderId: z.string().min(1, 'Order ID is required'),
   rating: z.number().int().min(1).max(5),
   comment: z.string().min(10).max(1000).trim(),
@@ -37,7 +36,7 @@ async function createReviewHandler(event: AuthenticatedEvent): Promise<APIGatewa
   
   const data = validationResult.data;
 
-  const projectRepo = new ProjectRepository();
+  const orderRepo = new OrderRepository();
   const reviewRepo = new ReviewRepository();
   const masterProfileRepo = new MasterProfileRepository();
 
@@ -50,17 +49,21 @@ async function createReviewHandler(event: AuthenticatedEvent): Promise<APIGatewa
     return error('Rate limit exceeded. Maximum 5 reviews per hour', 429);
   }
 
-  const project = await projectRepo.findById(data.projectId);
-  if (!project) {
-    return notFound('Project not found');
+  const order = await orderRepo.findById(data.orderId);
+  if (!order) {
+    return notFound('Order not found');
   }
 
-  if (project.clientId !== userId) {
-    return forbidden('Only the project client can create a review');
+  if (order.clientId !== userId) {
+    return forbidden('Only the order client can create a review');
   }
 
-  if (project.status !== 'COMPLETED') {
-    return badRequest('Project must be completed before creating a review');
+  if (order.status !== 'COMPLETED') {
+    return badRequest('Order must be completed before creating a review');
+  }
+  
+  if (!order.masterId) {
+    return badRequest('Order must have an assigned master');
   }
 
   const existingReview = await reviewRepo.findByOrder(data.orderId);
@@ -70,22 +73,22 @@ async function createReviewHandler(event: AuthenticatedEvent): Promise<APIGatewa
 
   const review = await reviewRepo.create({
     ...data,
-    masterId: project.masterId,
+    masterId: order.masterId,
     clientId: userId,
     isVerified: true,
   });
 
   // Recalculate master rating
-  const masterReviewsResult = await reviewRepo.findByMaster(project.masterId, { limit: 1000 });
+  const masterReviewsResult = await reviewRepo.findByMaster(order.masterId, { limit: 1000 });
   const masterReviews = masterReviewsResult.items;
   const avgRating = masterReviews.reduce((sum, r) => sum + r.rating, 0) / masterReviews.length;
   
-  await masterProfileRepo.updateRating(project.masterId, avgRating, masterReviews.length);
+  await masterProfileRepo.updateRating(order.masterId, avgRating, masterReviews.length);
 
   const cacheInvalidator = getCacheInvalidator();
-  await cacheInvalidator.invalidateReviewCache(project.masterId);
+  await cacheInvalidator.invalidateReviewCache(order.masterId);
 
-  logger.info('Review created', { userId, reviewId: review.id, masterId: project.masterId });
+  logger.info('Review created', { userId, reviewId: review.id, masterId: order.masterId });
 
   return success(review, 201);
 }

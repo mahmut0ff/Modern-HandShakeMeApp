@@ -18,11 +18,11 @@ export function formatPaginatedResponse<T>(
   return {
     results: items,
     count: total,
-    next: page && pageSize && (page * pageSize < total) 
-      ? `?page=${page + 1}` 
+    next: page && pageSize && (page * pageSize < total)
+      ? `?page=${page + 1}`
       : null,
-    previous: page && page > 1 
-      ? `?page=${page - 1}` 
+    previous: page && page > 1
+      ? `?page=${page - 1}`
       : null
   };
 }
@@ -58,11 +58,29 @@ export function formatOrderObject(order: any) {
     description: order.description,
     city: order.city,
     address: order.address,
+    hide_address: order.hideAddress ?? order.hide_address,
     budget_type: order.budgetType || order.budget_type,
     budget_min: order.budgetMin || order.budget_min,
     budget_max: order.budgetMax || order.budget_max,
     status: order.status,
     applications_count: order.applicationsCount || order.applications_count || 0,
+    views_count: order.viewsCount || order.views_count || 0,
+    is_urgent: order.isUrgent || order.is_urgent || false,
+
+    // Additional details
+    work_volume: order.workVolume || order.work_volume,
+    floor: order.floor,
+    has_elevator: order.hasElevator ?? order.has_elevator,
+    material_status: order.materialStatus || order.material_status,
+    has_electricity: order.hasElectricity ?? order.has_electricity,
+    has_water: order.hasWater ?? order.has_water,
+    can_store_tools: order.canStoreTools ?? order.can_store_tools,
+    has_parking: order.hasParking ?? order.has_parking,
+    required_experience: order.requiredExperience || order.required_experience,
+    need_team: order.needTeam ?? order.need_team,
+    additional_requirements: order.additionalRequirements || order.additional_requirements,
+    images: order.images || [],
+
     created_at: order.createdAt || order.created_at,
     updated_at: order.updatedAt || order.updated_at
   };
@@ -71,22 +89,25 @@ export function formatOrderObject(order: any) {
 export function formatApplicationObject(application: any) {
   return {
     id: application.applicationId || application.id,
-    order: application.orderId || application.order,
+    order_id: application.orderId || application.order,
     order_title: application.orderTitle || application.order_title,
+    master_id: application.masterId,
     master: application.master || {
       id: application.masterId,
       name: application.masterName,
       avatar: application.masterAvatar,
       rating: application.masterRating
     },
+    client_id: application.clientId,
     client: application.client || {
       id: application.clientId,
       name: application.clientName,
       avatar: application.clientAvatar,
       rating: application.clientRating
     },
+    cover_letter: application.coverLetter || application.cover_letter || application.message,
     proposed_price: application.proposedPrice || application.proposed_price,
-    message: application.message,
+    proposed_duration_days: application.proposedDurationDays || application.proposed_duration_days,
     status: application.status,
     created_at: application.createdAt || application.created_at,
     updated_at: application.updatedAt || application.updated_at
