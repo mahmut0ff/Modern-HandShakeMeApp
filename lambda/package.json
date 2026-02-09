@@ -6,6 +6,9 @@
   "scripts": {
     "build": "tsc --skipLibCheck || echo 'Build completed with warnings'",
     "build:force": "tsc --skipLibCheck --noEmitOnError false || true",
+    "dev": "node local-server.js",
+    "dev:ws": "node websocket-server.js",
+    "dev:all": "concurrently \"npm run dev\" \"npm run dev:ws\"",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
@@ -67,6 +70,7 @@
     "@typescript-eslint/eslint-plugin": "^8.54.0",
     "@typescript-eslint/parser": "^8.54.0",
     "archiver": "^6.0.1",
+    "concurrently": "^9.2.1",
     "cors": "^2.8.6",
     "eslint": "^9.39.2",
     "express": "^5.2.1",

@@ -31,9 +31,16 @@ export default function MasterCard({ master, onPress, onWrite, onCreateOrder }: 
                     style={styles.avatar}
                 />
                 <View style={styles.headerInfo}>
-                    <Text style={[styles.name, { color: theme.text }]}>
-                        {master.firstName} {master.lastName}
-                    </Text>
+                    <View style={styles.nameRow}>
+                        <Text style={[styles.name, { color: theme.text }]}>
+                            {master.firstName} {master.lastName}
+                        </Text>
+                        {master.isVerified && (
+                            <View style={styles.verifiedBadge}>
+                                <Ionicons name="checkmark-circle" size={18} color="#4CAF50" />
+                            </View>
+                        )}
+                    </View>
                     <Text style={[styles.specialization, { color: theme.text + '99' }]}>
                         Master Specialist
                     </Text>
@@ -114,9 +121,17 @@ const styles = StyleSheet.create({
     headerInfo: {
         flex: 1,
     },
+    nameRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
     name: {
         fontSize: 18,
         fontWeight: 'bold',
+    },
+    verifiedBadge: {
+        marginTop: 2,
     },
     specialization: {
         fontSize: 14,

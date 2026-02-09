@@ -8,6 +8,7 @@ import * as Linking from 'expo-linking';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Button, Card } from '@/components/ui';
 
 export default function VerifyScreen() {
     const { code, sessionId } = useLocalSearchParams<{ code: string; sessionId: string }>();

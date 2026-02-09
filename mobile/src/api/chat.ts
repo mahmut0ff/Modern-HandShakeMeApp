@@ -75,8 +75,8 @@ export interface MessagesResponse {
 export const chatApi = {
     // Room operations
     listRooms: async (params?: { page_size?: number }) => {
-        const response = await apiClient.get<ChatRoom[]>('/chat/rooms', { params });
-        return { data: response.data || [] };
+        const response = await apiClient.get<{ data: ChatRoom[]; pagination: any }>('/chat/rooms', { params });
+        return { data: response.data.data || [] };
     },
 
     createRoom: (data: CreateRoomRequest) =>

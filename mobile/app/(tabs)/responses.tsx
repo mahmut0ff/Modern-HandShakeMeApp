@@ -6,6 +6,7 @@ import { useAuth } from '@/src/context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Header, Card } from '@/components/ui';
 
 export default function ResponsesScreen() {
     const [applications, setApplications] = useState<Application[]>([]);
@@ -108,14 +109,26 @@ export default function ResponsesScreen() {
             </Text>
 
             <View style={styles.appFooter}>
-                <View style={styles.masterInfo}>
+                <TouchableOpacity 
+                    style={styles.masterInfo}
+                    onPress={() => {
+                        if (user?.role === 'CLIENT' && item.master_id) {
+                            router.push(`/masters/${item.master_id}` as any);
+                        }
+                    }}
+                    disabled={user?.role !== 'CLIENT'}
+                    activeOpacity={user?.role === 'CLIENT' ? 0.7 : 1}
+                >
                     <View style={[styles.avatarPlaceholder, { backgroundColor: theme.tint + '20' }]}>
                         <Ionicons name="person" size={14} color={theme.tint} />
                     </View>
                     <Text style={[styles.masterName, { color: theme.text + '99' }]}>
                         {user?.role === 'CLIENT' ? (item.master?.name || 'Master') : 'My Application'}
                     </Text>
-                </View>
+                    {user?.role === 'CLIENT' && (
+                        <Ionicons name="chevron-forward" size={16} color={theme.text + '66'} style={{ marginLeft: 4 }} />
+                    )}
+                </TouchableOpacity>
                 <View style={{ flex: 1, alignItems: 'flex-end', marginRight: 10 }}>
                     <Text style={[styles.priceText, { color: theme.tint }]}>${item.proposed_price}</Text>
                 </View>

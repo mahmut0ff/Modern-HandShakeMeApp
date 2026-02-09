@@ -7,6 +7,7 @@ import { useAuth } from '@/src/context/AuthContext';
 import { profileApi, ProfileStats } from '@/src/api/profile';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Header, Card, Button } from '@/components/ui';
 import MenuListItem from '@/components/MenuListItem';
 import StatCard from '@/components/StatCard';
 
@@ -19,6 +20,7 @@ export default function ProfileScreen() {
     const [stats, setStats] = useState<ProfileStats | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [masterProfile, setMasterProfile] = useState<any>(null);
 
     useEffect(() => {
         fetchStats();
@@ -26,6 +28,16 @@ export default function ProfileScreen() {
 
     const fetchStats = async () => {
         try {
+            // Fetch master profile if user is a master
+            if (user?.role === 'MASTER') {
+                try {
+                    const profileResponse = await profileApi.getMasterProfile();
+                    setMasterProfile(profileResponse.data);
+                } catch (error) {
+                    console.log('Could not fetch master profile');
+                }
+            }
+            
             const response = user?.role === 'MASTER'
                 ? await profileApi.getMasterStats()
                 : await profileApi.getClientStats();
@@ -108,38 +120,52 @@ export default function ProfileScreen() {
             refreshControl={
                 <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.tint} />
             }
+            showsVerticalScrollIndicator={false}
         >
-            {/* Header */}
-            <View style={[styles.header, { backgroundColor: theme.card }]}>
-                <TouchableOpacity
-                    style={styles.avatarContainer}
-                    onPress={() => router.push('/profile/edit' as any)}
-                >
-                    <Image
-                        source={user?.avatar || 'https://via.placeholder.com/100'}
-                        style={styles.avatar}
-                    />
-                    <View style={[styles.editBadge, { backgroundColor: theme.tint }]}>
-                        <Ionicons name="camera" size={16} color="white" />
-                    </View>
-                </TouchableOpacity>
-
-                <Text style={[styles.name, { color: theme.text }]}>
-                    {user?.firstName} {user?.lastName}
-                </Text>
-
-                <View style={[styles.roleBadge, { backgroundColor: theme.tint + '15' }]}>
-                    <Text style={[styles.roleText, { color: theme.tint }]}>
+            {/* Header with Avatar */}
+            <View style={[styles.profileHeader, { backgroundColor: theme.tint }]}>
+                <View style={styles.headerContent}>
+                    <Text style={styles.roleLabel}>
                         {user?.role === 'MASTER' ? '🔧 Master' : '👤 Client'}
                     </Text>
-                </View>
-
-                {user?.city && (
-                    <View style={styles.locationRow}>
-                        <Ionicons name="location-outline" size={16} color={theme.text + '66'} />
-                        <Text style={[styles.location, { color: theme.text + '66' }]}>{user.city}</Text>
+                    <View style={styles.userNameRow}>
+                        <Text style={styles.userName}>
+                            {user?.firstName} {user?.lastName}
+                        </Text>
+                        {user?.role === 'MASTER' && masterProfile?.isVerified && (
+                            <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+                        )}
                     </View>
-                )}
+                    {user?.city && (
+                        <View style={styles.locationRow}>
+                            <Ionicons name="location-outline" size={14} color="rgba(255,255,255,0.9)" />
+                            <Text style={styles.locationText}>{user.city}</Text>
+                        </View>
+                    )}
+                </View>
+                
+                {/* Avatar positioned to overlap */}
+                <View style={styles.avatarSection}>
+                    <TouchableOpacity
+                        style={styles.avatarContainer}
+                        onPress={() => router.push('/profile/edit' as any)}
+                    >
+                        {user?.avatar ? (
+                            <Image
+                                source={{ uri: user.avatar }}
+                                style={styles.avatar}
+                                contentFit="cover"
+                            />
+                        ) : (
+                            <View style={[styles.avatarPlaceholder, { backgroundColor: theme.card }]}>
+                                <Ionicons name="person" size={40} color={theme.tint} />
+                            </View>
+                        )}
+                        <View style={[styles.editBadge, { backgroundColor: theme.tint }]}>
+                            <Ionicons name="camera" size={16} color="white" />
+                        </View>
+                    </TouchableOpacity>
+                </View>
             </View>
 
             {/* Quick Stats */}
@@ -149,41 +175,49 @@ export default function ProfileScreen() {
                         icon="checkmark-circle-outline"
                         label="Completed"
                         value={stats.completedOrders || 0}
+                        variant="compact"
                     />
                     <StatCard
                         icon="star-outline"
                         label="Rating"
-                        value={stats.averageRating?.toFixed(1) || 'N/A'}
+                        value={stats.averageRating ? stats.averageRating.toFixed(1) : 'N/A'}
+                        variant="compact"
                     />
                     <StatCard
                         icon="time-outline"
                         label="Response"
                         value={stats.responseTime || 'N/A'}
+                        variant="compact"
                     />
                 </View>
             )}
 
             {/* Menu Items */}
-            <View style={[styles.menuSection, { backgroundColor: theme.card }]}>
-                {menuItems.map((item, index) => (
-                    <MenuListItem
-                        key={index}
-                        icon={item.icon}
-                        title={item.title}
-                        subtitle={item.subtitle}
-                        onPress={item.onPress}
-                    />
-                ))}
+            <View style={styles.menuContainer}>
+                <Card>
+                    {menuItems.map((item, index) => (
+                        <MenuListItem
+                            key={index}
+                            icon={item.icon}
+                            title={item.title}
+                            subtitle={item.subtitle}
+                            onPress={item.onPress}
+                        />
+                    ))}
+                </Card>
             </View>
 
             {/* Logout Button */}
-            <TouchableOpacity
-                style={[styles.logoutButton, { borderColor: '#ff3b30' }]}
-                onPress={signOut}
-            >
-                <Ionicons name="log-out-outline" size={20} color="#ff3b30" />
-                <Text style={styles.logoutText}>Sign Out</Text>
-            </TouchableOpacity>
+            <View style={styles.logoutContainer}>
+                <Button
+                    title="Sign Out"
+                    variant="outline"
+                    onPress={signOut}
+                    icon={<Ionicons name="log-out-outline" size={20} color="#ff3b30" />}
+                    textStyle={{ color: '#ff3b30' }}
+                    style={{ borderColor: '#ff3b30' }}
+                />
+            </View>
 
             <View style={{ height: 40 }} />
         </ScrollView>
@@ -199,20 +233,65 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    header: {
-        alignItems: 'center',
+    profileHeader: {
         paddingTop: 60,
-        paddingBottom: 24,
+        paddingBottom: 70,
         paddingHorizontal: 20,
+    },
+    headerContent: {
+        alignItems: 'center',
+    },
+    roleLabel: {
+        fontSize: 14,
+        color: 'rgba(255,255,255,0.9)',
+        fontWeight: '500',
+        marginBottom: 4,
+    },
+    userNameRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 4,
+    },
+    userName: {
+        fontSize: 24,
+        fontWeight: '700',
+        color: 'white',
+    },
+    locationRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+    },
+    locationText: {
+        fontSize: 14,
+        color: 'rgba(255,255,255,0.9)',
+    },
+    avatarSection: {
+        position: 'absolute',
+        bottom: -50,
+        left: 0,
+        right: 0,
+        alignItems: 'center',
     },
     avatarContainer: {
         position: 'relative',
-        marginBottom: 16,
     },
     avatar: {
         width: 100,
         height: 100,
         borderRadius: 50,
+        borderWidth: 4,
+        borderColor: 'white',
+    },
+    avatarPlaceholder: {
+        width: 100,
+        height: 100,
+        borderRadius: 50,
+        borderWidth: 4,
+        borderColor: 'white',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     editBadge: {
         position: 'absolute',
@@ -226,55 +305,18 @@ const styles = StyleSheet.create({
         borderWidth: 3,
         borderColor: 'white',
     },
-    name: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        marginBottom: 8,
-    },
-    roleBadge: {
-        paddingHorizontal: 16,
-        paddingVertical: 6,
-        borderRadius: 16,
-        marginBottom: 8,
-    },
-    roleText: {
-        fontSize: 14,
-        fontWeight: '600',
-    },
-    locationRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-    },
-    location: {
-        fontSize: 14,
-    },
     statsContainer: {
         flexDirection: 'row',
         paddingHorizontal: 16,
-        paddingVertical: 16,
+        paddingTop: 60,
+        paddingBottom: 16,
         gap: 8,
     },
-    menuSection: {
-        marginTop: 8,
-        borderRadius: 12,
-        marginHorizontal: 16,
-        overflow: 'hidden',
+    menuContainer: {
+        paddingHorizontal: 16,
     },
-    logoutButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 16,
-        borderWidth: 1,
-        borderRadius: 12,
-        marginHorizontal: 16,
+    logoutContainer: {
+        paddingHorizontal: 16,
         marginTop: 24,
-        gap: 8,
-    },
-    logoutText: {
-        color: '#ff3b30',
-        fontSize: 16,
-        fontWeight: '600',
     },
 });

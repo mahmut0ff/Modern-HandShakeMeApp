@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { applicationsApi } from '@/src/api/applications';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Header, Card, Input, Button } from '@/components/ui';
 
 export default function ApplyJobScreen() {
     const { id, title, budget } = useLocalSearchParams<{ id: string; title: string; budget: string }>();

@@ -8,6 +8,7 @@ import { chatApi } from '@/src/api/chat';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuth } from '@/src/context/AuthContext';
+import { Button, Card } from '@/components/ui';
 
 const { width } = Dimensions.get('window');
 
@@ -93,9 +94,16 @@ export default function MasterProfileScreen() {
 
             <View style={[styles.content, { backgroundColor: theme.background }]}>
                 <View style={styles.profileInfo}>
-                    <Text style={[styles.name, { color: theme.text }]}>
-                        {profile.firstName} {profile.lastName}
-                    </Text>
+                    <View style={styles.nameContainer}>
+                        <Text style={[styles.name, { color: theme.text }]}>
+                            {profile.firstName} {profile.lastName}
+                        </Text>
+                        {profile.isVerified && (
+                            <View style={styles.verifiedBadge}>
+                                <Ionicons name="checkmark-circle" size={24} color="#4CAF50" />
+                            </View>
+                        )}
+                    </View>
                     <Text style={[styles.specialization, { color: theme.text + '99' }]}>
                         Master Specialist
                     </Text>
@@ -130,20 +138,22 @@ export default function MasterProfileScreen() {
                         <Text style={[styles.sectionTitle, { color: theme.text }]}>Portfolio</Text>
                         <View style={styles.portfolioGrid}>
                             {profile.portfolio.map((item) => (
-                                <TouchableOpacity
+                                <View
                                     key={item.id}
                                     style={styles.portfolioItem}
-                                    onPress={() => router.push(`/masters/${id}/portfolio/${item.id}`)}
                                 >
                                     <Image
-                                        source={item.images[0]}
+                                        source={item.images[0] || 'https://via.placeholder.com/300'}
                                         style={styles.portfolioImage}
                                         contentFit="cover"
                                     />
                                     <View style={styles.portfolioOverlay}>
                                         <Text style={styles.portfolioTitle} numberOfLines={1}>{item.title}</Text>
+                                        {item.cost && (
+                                            <Text style={styles.portfolioCost}>${item.cost}</Text>
+                                        )}
                                     </View>
-                                </TouchableOpacity>
+                                </View>
                             ))}
                         </View>
                     </View>
@@ -243,9 +253,17 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: 30,
     },
+    nameContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
     name: {
         fontSize: 26,
         fontWeight: 'bold',
+    },
+    verifiedBadge: {
+        marginTop: 4,
     },
     specialization: {
         fontSize: 16,
@@ -314,6 +332,12 @@ const styles = StyleSheet.create({
         color: 'white',
         fontSize: 12,
         fontWeight: '600',
+    },
+    portfolioCost: {
+        color: 'white',
+        fontSize: 11,
+        marginTop: 2,
+        fontWeight: '500',
     },
     reviewItem: {
         paddingVertical: 16,

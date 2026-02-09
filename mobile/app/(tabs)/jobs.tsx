@@ -5,6 +5,8 @@ import { ordersApi, Order } from '@/src/api/orders';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Header, SearchBar, WorkCard } from '@/components/ui';
+import { formatDate } from '@/src/utils/date';
 
 export default function JobsScreen() {
     const [orders, setOrders] = useState<Order[]>([]);
@@ -14,7 +16,9 @@ export default function JobsScreen() {
     const [filters, setFilters] = useState({
         categoryId: '',
         budget_min: '',
+        budget_max: '',
         is_urgent: false,
+        city: '',
     });
     const [isFilterVisible, setIsFilterVisible] = useState(false);
 
@@ -28,6 +32,8 @@ export default function JobsScreen() {
             if (query) params.search = query;
             if (currentFilters?.categoryId) params.category = currentFilters.categoryId;
             if (currentFilters?.budget_min) params.budget_min = currentFilters.budget_min;
+            if (currentFilters?.budget_max) params.budget_max = currentFilters.budget_max;
+            if (currentFilters?.city) params.city = currentFilters.city;
             if (currentFilters?.is_urgent) params.is_urgent = true;
 
             const response = await ordersApi.listOrders(params);
@@ -60,100 +66,54 @@ export default function JobsScreen() {
     };
 
     const resetFilters = () => {
-        const reset = { categoryId: '', budget_min: '', is_urgent: false };
+        const reset = { categoryId: '', budget_min: '', budget_max: '', is_urgent: false, city: '' };
         setFilters(reset);
         setIsFilterVisible(false);
         fetchOrders(searchQuery, reset);
     };
 
     const renderOrderItem = ({ item }: { item: Order }) => {
-        const isNew = new Date().getTime() - new Date(item.createdAt).getTime() < 24 * 60 * 60 * 1000;
-        const hasPhotos = item.images && item.images.length > 0;
+            const priceDisplay = item.budgetType === 'NEGOTIABLE' 
+                ? 'Договорная' 
+                : item.budgetMin && item.budgetMax 
+                    ? `$${item.budgetMin} - $${item.budgetMax}`
+                    : item.budgetMin 
+                        ? `от $${item.budgetMin}`
+                        : 'Не указана';
 
-        return (
-            <TouchableOpacity
-                style={[styles.orderCard, { backgroundColor: theme.card }]}
-                onPress={() => router.push({ pathname: '/jobs/[id]', params: { id: item.id } })}
-            >
-                <View style={styles.orderHeader}>
-                    <View style={{ flex: 1 }}>
-                        <View style={styles.titleRow}>
-                            <Text style={[styles.orderTitle, { color: theme.text }]} numberOfLines={1}>{item.title}</Text>
-                            {isNew && (
-                                <View style={[styles.newBadge, { backgroundColor: theme.tint + '15' }]}>
-                                    <Text style={[styles.newBadgeText, { color: theme.tint }]}>NEW</Text>
-                                </View>
-                            )}
-                        </View>
-                        {item.subcategory && (
-                            <Text style={[styles.orderSubcat, { color: theme.tint }]}>{item.subcategory}</Text>
-                        )}
-                    </View>
-                    {item.isUrgent && (
-                        <View style={styles.urgentBadge}>
-                            <Text style={styles.urgentText}>URGENT</Text>
-                        </View>
-                    )}
-                </View>
-
-                <Text style={[styles.orderDescription, { color: theme.text + '99' }]} numberOfLines={2}>
-                    {item.description}
-                </Text>
-
-                <View style={styles.detailsRow}>
-                    {item.workVolume && (
-                        <View style={[styles.tag, { backgroundColor: theme.text + '05' }]}>
-                            <Ionicons name="cube-outline" size={14} color={theme.text + '66'} />
-                            <Text style={[styles.tagText, { color: theme.text + '66' }]}>{item.workVolume}</Text>
-                        </View>
-                    )}
-                    {hasPhotos && (
-                        <View style={[styles.tag, { backgroundColor: theme.text + '05' }]}>
-                            <Ionicons name="image-outline" size={14} color={theme.text + '66'} />
-                            <Text style={[styles.tagText, { color: theme.text + '66' }]}>Photos</Text>
-                        </View>
-                    )}
-                </View>
-
-                <View style={styles.orderFooter}>
-                    <View style={styles.footerItem}>
-                        <Ionicons name="location-outline" size={14} color={theme.text + '66'} />
-                        <Text style={[styles.footerText, { color: theme.text + '66' }]}>{item.city}</Text>
-                    </View>
-                    <View style={styles.footerItem}>
-                        <Ionicons name="people-outline" size={14} color={theme.text + '66'} />
-                        <Text style={[styles.footerText, { color: theme.text + '66' }]}>{item.applicationsCount || 0} responses</Text>
-                    </View>
-                    <Text style={[styles.orderBudget, { color: theme.tint }]}>
-                        {item.budgetType === 'NEGOTIABLE' ? 'Negotiable' : `$${item.budgetMin}`}
-                    </Text>
-                </View>
-            </TouchableOpacity>
-        );
-    };
+            return (
+                <WorkCard
+                    title={item.title || 'Без названия'}
+                    description={item.description}
+                    price={priceDisplay}
+                    location={item.city || 'Не указан'}
+                    date={formatDate(item.createdAt)}
+                    status={item.status}
+                    urgent={item.isUrgent}
+                    applicationsCount={item.applicationsCount || 0}
+                    onPress={() => router.push({ pathname: '/jobs/[id]', params: { id: item.id } })}
+                />
+            );
+        };
 
     return (
         <View style={[styles.container, { backgroundColor: theme.background }]}>
-            <View style={styles.header}>
-                <Text style={[styles.title, { color: theme.text }]}>Browse Jobs</Text>
-                <View style={styles.searchRow}>
-                    <View style={[styles.searchContainer, { backgroundColor: theme.text + '05' }]}>
-                        <Ionicons name="search" size={20} color={theme.text + '66'} />
-                        <TextInput
-                            style={[styles.searchInput, { color: theme.text }]}
-                            placeholder="Search jobs..."
-                            placeholderTextColor={theme.text + '66'}
-                            value={searchQuery}
-                            onChangeText={handleSearch}
-                        />
-                    </View>
-                    <TouchableOpacity
-                        style={[styles.filterBtn, { backgroundColor: filters.categoryId || filters.budget_min || filters.is_urgent ? theme.tint : theme.text + '05' }]}
-                        onPress={() => setIsFilterVisible(true)}
-                    >
-                        <Ionicons name="options-outline" size={24} color={filters.categoryId || filters.budget_min || filters.is_urgent ? '#fff' : theme.text} />
-                    </TouchableOpacity>
+            <Header title="Browse Jobs" />
+            
+            <View style={styles.searchContainer}>
+                <View style={{ flex: 1 }}>
+                    <SearchBar
+                        placeholder="Search jobs..."
+                        onSearch={handleSearch}
+                        value={searchQuery}
+                    />
                 </View>
+                <TouchableOpacity
+                    style={[styles.filterBtn, { backgroundColor: filters.categoryId || filters.budget_min || filters.is_urgent ? theme.tint : theme.text + '05' }]}
+                    onPress={() => setIsFilterVisible(true)}
+                >
+                    <Ionicons name="options-outline" size={24} color={filters.categoryId || filters.budget_min || filters.is_urgent ? '#fff' : theme.text} />
+                </TouchableOpacity>
             </View>
 
             {isLoading && !refreshing ? (
@@ -193,15 +153,34 @@ export default function JobsScreen() {
                             </TouchableOpacity>
                         </View>
 
-                        <Text style={[styles.filterLabel, { color: theme.text }]}>Min Budget ($)</Text>
+                        <Text style={[styles.filterLabel, { color: theme.text }]}>Город</Text>
                         <TextInput
                             style={[styles.filterInput, { color: theme.text, borderColor: theme.text + '10' }]}
-                            placeholder="e.g. 50"
+                            placeholder="Например: Бишкек"
                             placeholderTextColor={theme.text + '33'}
-                            keyboardType="numeric"
-                            value={filters.budget_min}
-                            onChangeText={text => setFilters({ ...filters, budget_min: text })}
+                            value={filters.city}
+                            onChangeText={text => setFilters({ ...filters, city: text })}
                         />
+
+                        <Text style={[styles.filterLabel, { color: theme.text }]}>Бюджет ($)</Text>
+                        <View style={{ flexDirection: 'row', gap: 10, marginBottom: 20 }}>
+                            <TextInput
+                                style={[styles.filterInput, { color: theme.text, borderColor: theme.text + '10', flex: 1, marginBottom: 0 }]}
+                                placeholder="От"
+                                placeholderTextColor={theme.text + '33'}
+                                keyboardType="numeric"
+                                value={filters.budget_min}
+                                onChangeText={text => setFilters({ ...filters, budget_min: text })}
+                            />
+                            <TextInput
+                                style={[styles.filterInput, { color: theme.text, borderColor: theme.text + '10', flex: 1, marginBottom: 0 }]}
+                                placeholder="До"
+                                placeholderTextColor={theme.text + '33'}
+                                keyboardType="numeric"
+                                value={filters.budget_max}
+                                onChangeText={text => setFilters({ ...filters, budget_max: text })}
+                            />
+                        </View>
 
                         <TouchableOpacity
                             style={styles.urgentFilterRow}
@@ -210,15 +189,15 @@ export default function JobsScreen() {
                             <View style={[styles.checkbox, filters.is_urgent && { backgroundColor: '#FF3B30', borderColor: '#FF3B30' }]}>
                                 {filters.is_urgent && <Ionicons name="checkmark" size={16} color="#fff" />}
                             </View>
-                            <Text style={[styles.filterLabel, { color: theme.text, marginBottom: 0 }]}>URGENT only</Text>
+                            <Text style={[styles.filterLabel, { color: theme.text, marginBottom: 0 }]}>Только срочные</Text>
                         </TouchableOpacity>
 
                         <View style={styles.modalFooter}>
                             <TouchableOpacity style={[styles.resetBtn, { borderColor: theme.text + '20' }]} onPress={resetFilters}>
-                                <Text style={[styles.resetBtnText, { color: theme.text }]}>Reset</Text>
+                                <Text style={[styles.resetBtnText, { color: theme.text }]}>Сбросить</Text>
                             </TouchableOpacity>
                             <TouchableOpacity style={[styles.applyBtn, { backgroundColor: theme.primary }]} onPress={applyFilters}>
-                                <Text style={styles.applyBtnText}>Apply Filters</Text>
+                                <Text style={styles.applyBtnText}>Применить</Text>
                             </TouchableOpacity>
                         </View>
                     </View>
@@ -237,123 +216,24 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    header: {
-        paddingTop: 60,
-        paddingHorizontal: 20,
-        paddingBottom: 15,
-    },
-    title: {
-        fontSize: 28,
-        fontWeight: 'bold',
-        marginBottom: 15,
-    },
     searchContainer: {
         flexDirection: 'row',
+        paddingHorizontal: 16,
+        paddingTop: 16,
+        paddingBottom: 16,
+        gap: 12,
         alignItems: 'center',
-        paddingHorizontal: 15,
-        height: 45,
-        borderRadius: 12,
     },
-    searchInput: {
-        flex: 1,
-        marginLeft: 10,
-        fontSize: 16,
+    filterBtn: {
+        width: 50,
+        height: 50,
+        borderRadius: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     listContent: {
-        padding: 20,
-        paddingBottom: 40,
-    },
-    orderCard: {
-        borderRadius: 16,
         padding: 16,
-        marginBottom: 16,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-        elevation: 2,
-    },
-    orderHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 8,
-    },
-    orderTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        flex: 1,
-    },
-    urgentBadge: {
-        backgroundColor: '#FF3B30',
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 6,
-    },
-    urgentText: {
-        color: '#fff',
-        fontSize: 10,
-        fontWeight: 'bold',
-    },
-    orderDescription: {
-        fontSize: 14,
-        lineHeight: 20,
-        marginBottom: 16,
-    },
-    orderFooter: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        borderTopWidth: StyleSheet.hairlineWidth,
-        borderTopColor: '#eee',
-        paddingTop: 12,
-    },
-    titleRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        flex: 1,
-    },
-    newBadge: {
-        paddingHorizontal: 6,
-        paddingVertical: 2,
-        borderRadius: 4,
-        marginLeft: 8,
-    },
-    newBadgeText: {
-        fontSize: 10,
-        fontWeight: 'bold',
-    },
-    detailsRow: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        marginBottom: 12,
-    },
-    tag: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 6,
-        marginRight: 8,
-        marginBottom: 4,
-    },
-    tagText: {
-        fontSize: 12,
-        marginLeft: 4,
-    },
-    footerItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginRight: 20,
-    },
-    footerText: {
-        fontSize: 12,
-        marginLeft: 4,
-    },
-    orderBudget: {
-        fontSize: 14,
-        fontWeight: 'bold',
-        flex: 1,
-        textAlign: 'right',
+        paddingBottom: 40,
     },
     emptyContainer: {
         alignItems: 'center',
@@ -362,37 +242,6 @@ const styles = StyleSheet.create({
     emptyText: {
         fontSize: 18,
         marginTop: 20,
-    },
-    searchRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    filterBtn: {
-        width: 45,
-        height: 45,
-        borderRadius: 12,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginLeft: 10,
-    },
-    orderSubcat: {
-        fontSize: 12,
-        fontWeight: '600',
-        marginTop: 2,
-    },
-    volumeRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 12,
-        backgroundColor: '#f8f8f8',
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 6,
-        alignSelf: 'flex-start',
-    },
-    volumeText: {
-        fontSize: 12,
-        marginLeft: 4,
     },
     modalOverlay: {
         flex: 1,

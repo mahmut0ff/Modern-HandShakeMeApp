@@ -6,6 +6,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { ordersApi, CreateOrderRequest } from '@/src/api/orders';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Header, Card, Input, Button, CategoryCard } from '@/components/ui';
 
 const CATEGORIES = [
     { id: '1', name: 'Renovation', icon: 'hammer-outline' },
@@ -421,7 +422,7 @@ const styles = StyleSheet.create({
     header: {
         paddingTop: 60,
         paddingHorizontal: 20,
-        paddingBottom: 15,
+        paddingBottom: 16,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -468,17 +469,17 @@ const styles = StyleSheet.create({
     input: {
         height: 50,
         borderWidth: 1,
-        borderRadius: 12,
-        paddingHorizontal: 15,
+        borderRadius: 16,
+        paddingHorizontal: 16,
         fontSize: 16,
         marginBottom: 20,
     },
     textArea: {
         minHeight: 120,
         borderWidth: 1,
-        borderRadius: 12,
-        paddingHorizontal: 15,
-        paddingTop: 15,
+        borderRadius: 16,
+        paddingHorizontal: 16,
+        paddingTop: 16,
         fontSize: 16,
         textAlignVertical: 'top',
         marginBottom: 20,
@@ -491,9 +492,9 @@ const styles = StyleSheet.create({
     categoryItem: {
         width: '30%',
         margin: '1.5%',
-        padding: 15,
-        borderRadius: 12,
-        borderWidth: 1,
+        padding: 16,
+        borderRadius: 16,
+        borderWidth: 1.5,
         alignItems: 'center',
         justifyContent: 'center',
     },
@@ -510,8 +511,8 @@ const styles = StyleSheet.create({
     },
     typeBtn: {
         flex: 1,
-        height: 45,
-        borderRadius: 10,
+        height: 48,
+        borderRadius: 12,
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: 10,
@@ -540,8 +541,8 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
     },
     summary: {
-        padding: 15,
-        borderRadius: 12,
+        padding: 16,
+        borderRadius: 16,
         marginTop: 10,
     },
     summaryTitle: {
@@ -559,11 +560,16 @@ const styles = StyleSheet.create({
         borderTopWidth: 1,
     },
     nextBtn: {
-        height: 55,
-        borderRadius: 16,
+        height: 56,
+        borderRadius: 20,
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 2,
     },
     nextBtnText: {
         color: '#fff',
@@ -579,9 +585,9 @@ const styles = StyleSheet.create({
     switchCard: {
         flexDirection: 'row',
         alignItems: 'center',
-        padding: 12,
-        borderRadius: 12,
-        borderWidth: 1,
+        padding: 14,
+        borderRadius: 16,
+        borderWidth: 1.5,
         borderColor: '#eee',
         marginBottom: 10,
         width: '100%',
@@ -602,8 +608,8 @@ const styles = StyleSheet.create({
         width: '30%',
         aspectRatio: 1,
         margin: '1.5%',
-        borderRadius: 12,
-        borderWidth: 1,
+        borderRadius: 16,
+        borderWidth: 1.5,
         borderStyle: 'dashed',
         justifyContent: 'center',
         alignItems: 'center',
@@ -617,7 +623,7 @@ const styles = StyleSheet.create({
         width: '30%',
         aspectRatio: 1,
         margin: '1.5%',
-        borderRadius: 12,
+        borderRadius: 16,
         overflow: 'hidden',
     },
     imagePlaceholder: {

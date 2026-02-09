@@ -15,6 +15,9 @@ apiClient.interceptors.request.use(
         const token = await SecureStore.getItemAsync('accessToken');
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
+            console.log('Request with token:', config.method?.toUpperCase(), config.url);
+        } else {
+            console.warn('No access token found for request:', config.method?.toUpperCase(), config.url);
         }
         return config;
     },

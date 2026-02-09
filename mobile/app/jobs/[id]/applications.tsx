@@ -7,6 +7,7 @@ import { ordersApi, Order } from '@/src/api/orders';
 import { useAuth } from '@/src/context/AuthContext';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Header, Card, Button } from '@/components/ui';
 
 export default function JobApplicationsScreen() {
     const { id } = useLocalSearchParams<{ id: string }>();
@@ -111,27 +112,33 @@ export default function JobApplicationsScreen() {
     const renderApplicationItem = ({ item }: { item: Application }) => (
         <View style={[styles.appCard, { backgroundColor: theme.card }]}>
             <View style={styles.appHeader}>
-                <View style={[styles.avatarPlaceholder, { backgroundColor: theme.tint + '20' }]}>
-                    <Ionicons name="person" size={24} color={theme.tint} />
-                </View>
-                <View style={styles.masterInfo}>
-                    <View style={styles.nameRow}>
-                        <Text style={[styles.masterName, { color: theme.text }]}>
-                            {item.master?.name || 'Specialist'}
-                        </Text>
-                        <TouchableOpacity onPress={() => handleToggleLike(item.id)}>
-                            <Ionicons
-                                name={item.is_favorite ? "heart" : "heart-outline"}
-                                size={22}
-                                color={item.is_favorite ? "#FF3B30" : theme.text + '33'}
-                            />
-                        </TouchableOpacity>
+                <TouchableOpacity 
+                    style={styles.masterInfoContainer}
+                    onPress={() => item.master_id && router.push(`/masters/${item.master_id}` as any)}
+                    activeOpacity={0.7}
+                >
+                    <View style={[styles.avatarPlaceholder, { backgroundColor: theme.tint + '20' }]}>
+                        <Ionicons name="person" size={24} color={theme.tint} />
                     </View>
-                    <Text style={[styles.appDate, { color: theme.text + '66' }]}>
-                        {new Date(item.created_at).toLocaleDateString()}
-                        {!item.viewed_at && <Text style={{ color: theme.tint, fontWeight: 'bold' }}> • NEW</Text>}
-                    </Text>
-                </View>
+                    <View style={styles.masterInfo}>
+                        <View style={styles.nameRow}>
+                            <Text style={[styles.masterName, { color: theme.text }]}>
+                                {item.master?.name || 'Specialist'}
+                            </Text>
+                        </View>
+                        <Text style={[styles.appDate, { color: theme.text + '66' }]}>
+                            {new Date(item.created_at).toLocaleDateString()}
+                            {!item.viewed_at && <Text style={{ color: theme.tint, fontWeight: 'bold' }}> • NEW</Text>}
+                        </Text>
+                    </View>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => handleToggleLike(item.id)} style={styles.likeButton}>
+                    <Ionicons
+                        name={item.is_favorite ? "heart" : "heart-outline"}
+                        size={22}
+                        color={item.is_favorite ? "#FF3B30" : theme.text + '33'}
+                    />
+                </TouchableOpacity>
                 <View style={[styles.statusBadge, {
                     backgroundColor: item.status === 'ACCEPTED' ? '#34C75920' :
                         item.status === 'REJECTED' ? '#FF3B3020' : theme.tint + '10'
@@ -158,6 +165,14 @@ export default function JobApplicationsScreen() {
             <Text style={[styles.appCover, { color: theme.text + '99' }]}>
                 {item.cover_letter}
             </Text>
+
+            <TouchableOpacity
+                style={[styles.viewProfileBtn, { backgroundColor: theme.tint + '10', borderColor: theme.tint + '30' }]}
+                onPress={() => item.master_id && router.push(`/masters/${item.master_id}` as any)}
+            >
+                <Ionicons name="person-outline" size={18} color={theme.tint} />
+                <Text style={[styles.viewProfileText, { color: theme.tint }]}>View Profile & Portfolio</Text>
+            </TouchableOpacity>
 
             {item.status === 'PENDING' && (
                 <View style={styles.actions}>
@@ -340,6 +355,11 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: 20,
     },
+    masterInfoContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flex: 1,
+    },
     avatarPlaceholder: {
         width: 48,
         height: 48,
@@ -357,8 +377,11 @@ const styles = StyleSheet.create({
     },
     nameRow: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'center',
+    },
+    likeButton: {
+        padding: 8,
+        marginRight: 8,
     },
     appDate: {
         fontSize: 12,
@@ -401,7 +424,22 @@ const styles = StyleSheet.create({
     appCover: {
         fontSize: 15,
         lineHeight: 22,
+        marginBottom: 16,
+    },
+    viewProfileBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        borderRadius: 12,
+        borderWidth: 1,
         marginBottom: 20,
+    },
+    viewProfileText: {
+        fontSize: 14,
+        fontWeight: '600',
+        marginLeft: 8,
     },
     actions: {
         flexDirection: 'row',

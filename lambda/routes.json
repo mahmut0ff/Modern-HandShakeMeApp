@@ -281,7 +281,7 @@
   ],
   [
     "POST",
-    "/applications/:applicationId/respond",
+    "/orders/:orderId/applications/:applicationId/respond",
     "core/applications/respond-to-application-dynamodb"
   ],
   [

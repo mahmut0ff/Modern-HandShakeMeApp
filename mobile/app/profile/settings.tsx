@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/src/context/AuthContext';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Header, Card, Button } from '@/components/ui';
 
 export default function SettingsScreen() {
     const { user, signOut, switchRole } = useAuth();

@@ -8,6 +8,8 @@ import { applicationsApi, Application } from '@/src/api/applications';
 import { useAuth } from '@/src/context/AuthContext';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Header, Card, Button } from '@/components/ui';
+import { formatDate } from '@/src/utils/date';
 
 export default function JobDetailsScreen() {
     const { id } = useLocalSearchParams<{ id: string }>();
@@ -161,19 +163,18 @@ export default function JobDetailsScreen() {
 
     return (
         <View style={[styles.container, { backgroundColor: theme.background }]}>
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-                    <Ionicons name="arrow-back" size={24} color={theme.text} />
-                </TouchableOpacity>
-                <Text style={[styles.headerTitle, { color: theme.text }]} numberOfLines={1}>Job Details</Text>
-                {isOwner ? (
-                    <TouchableOpacity onPress={handleDelete}>
-                        <Ionicons name="trash-outline" size={24} color="#FF3B30" />
-                    </TouchableOpacity>
-                ) : (
-                    <View style={{ width: 24 }} />
-                )}
-            </View>
+            <Header
+                title="Job Details"
+                showBack
+                onBackPress={() => router.back()}
+                rightAction={
+                    isOwner ? (
+                        <TouchableOpacity onPress={handleDelete}>
+                            <Ionicons name="trash-outline" size={24} color="#FF3B30" />
+                        </TouchableOpacity>
+                    ) : null
+                }
+            />
 
             <ScrollView
                 contentContainerStyle={styles.scrollContent}
@@ -195,7 +196,7 @@ export default function JobDetailsScreen() {
                         <View style={styles.metaItem}>
                             <Ionicons name="calendar-outline" size={16} color={theme.text + '66'} />
                             <Text style={[styles.metaText, { color: theme.text + '66' }]}>
-                                {new Date(order.createdAt).toLocaleDateString()}
+                                {formatDate(order.createdAt)}
                             </Text>
                         </View>
                     </View>
@@ -364,13 +365,25 @@ export default function JobDetailsScreen() {
                     )}
 
                     {order.status === 'IN_PROGRESS' && order.masterId === user?.id && (
-                        <TouchableOpacity
-                            style={[styles.applyBtn, { backgroundColor: '#34C759' }]}
-                            onPress={handleCompleteWork}
-                        >
-                            <Ionicons name="checkmark-done" size={20} color="#fff" />
-                            <Text style={[styles.applyBtnText, { color: '#fff' }]}>Finish Work</Text>
-                        </TouchableOpacity>
+                        <>
+                            <TouchableOpacity
+                                style={[styles.applyBtn, { backgroundColor: theme.tint, marginBottom: 12 }]}
+                                onPress={() => {
+                                    // Navigate to chat with client
+                                    router.push(`/chat/${order.chatRoomId || order.clientId}` as any);
+                                }}
+                            >
+                                <Ionicons name="chatbubble-outline" size={20} color="#fff" />
+                                <Text style={[styles.applyBtnText, { color: '#fff' }]}>Написать клиенту</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.applyBtn, { backgroundColor: '#34C759' }]}
+                                onPress={handleCompleteWork}
+                            >
+                                <Ionicons name="checkmark-done" size={20} color="#fff" />
+                                <Text style={[styles.applyBtnText, { color: '#fff' }]}>Завершить работу</Text>
+                            </TouchableOpacity>
+                        </>
                     )}
 
                     {order.status === 'READY_TO_CONFIRM' && order.masterId === user?.id && (

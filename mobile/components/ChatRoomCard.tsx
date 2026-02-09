@@ -1,7 +1,8 @@
 import React from 'react';
-import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, Platform } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { ChatRoom } from '@/src/api/chat';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -19,6 +20,11 @@ export default function ChatRoomCard({ room, currentUserId, onPress }: ChatRoomC
     // Get the other participant (not current user)
     const otherParticipant = room.participants.find(p => p.userId !== currentUserId);
     const unreadCount = room.participants.find(p => p.userId === currentUserId)?.unreadCount || 0;
+    
+    // Get participant name with fallback
+    const participantName = otherParticipant?.user 
+        ? `${otherParticipant.user.firstName || ''} ${otherParticipant.user.lastName || ''}`.trim() || 'Unknown User'
+        : 'Unknown User';
 
     // Format timestamp
     const formatTime = (timestamp: string) => {
@@ -39,19 +45,59 @@ export default function ChatRoomCard({ room, currentUserId, onPress }: ChatRoomC
 
     return (
         <TouchableOpacity
-            style={[styles.container, { backgroundColor: theme.card, borderBottomColor: theme.text + '10' }]}
+            style={[
+                styles.container, 
+                { 
+                    backgroundColor: theme.card,
+                    ...Platform.select({
+                        ios: {
+                            shadowColor: '#000',
+                            shadowOffset: { width: 0, height: 2 },
+                            shadowOpacity: 0.05,
+                            shadowRadius: 4,
+                        },
+                        android: {
+                            elevation: 2,
+                        },
+                    }),
+                }
+            ]}
             onPress={() => onPress(room.id)}
             activeOpacity={0.7}
         >
-            <Image
-                source={otherParticipant?.user.avatar || 'https://via.placeholder.com/50'}
-                style={styles.avatar}
-            />
+            <View style={styles.avatarContainer}>
+                {otherParticipant?.user?.avatar ? (
+                    <Image
+                        source={{ uri: otherParticipant.user.avatar }}
+                        style={styles.avatar}
+                        contentFit="cover"
+                    />
+                ) : (
+                    <LinearGradient
+                        colors={[theme.tint + '40', theme.tint + '20']}
+                        style={styles.avatar}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                    >
+                        <Ionicons name="person" size={24} color={theme.tint} />
+                    </LinearGradient>
+                )}
+                {otherParticipant?.user?.isOnline && (
+                    <View style={[styles.onlineIndicator, { borderColor: theme.card }]} />
+                )}
+            </View>
 
             <View style={styles.content}>
                 <View style={styles.header}>
-                    <Text style={[styles.name, { color: theme.text }]} numberOfLines={1}>
-                        {otherParticipant?.user.firstName} {otherParticipant?.user.lastName}
+                    <Text 
+                        style={[
+                            styles.name, 
+                            { color: theme.text },
+                            unreadCount > 0 && styles.nameUnread
+                        ]} 
+                        numberOfLines={1}
+                    >
+                        {participantName}
                     </Text>
                     <Text style={[styles.time, { color: theme.text + '66' }]}>
                         {formatTime(room.lastMessageAt)}
@@ -60,29 +106,36 @@ export default function ChatRoomCard({ room, currentUserId, onPress }: ChatRoomC
 
                 <View style={styles.messageRow}>
                     <Text
-                        style={[styles.lastMessage, { color: theme.text + '99' }]}
-                        numberOfLines={1}
+                        style={[
+                            styles.lastMessage, 
+                            { color: theme.text + (unreadCount > 0 ? '99' : '66') },
+                            unreadCount > 0 && styles.lastMessageUnread
+                        ]}
+                        numberOfLines={2}
                     >
                         {room.lastMessage || 'No messages yet'}
                     </Text>
                     {unreadCount > 0 && (
-                        <View style={[styles.badge, { backgroundColor: theme.tint }]}>
-                            <Text style={styles.badgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
-                        </View>
+                        <LinearGradient
+                            colors={[theme.tint, theme.tint + 'DD']}
+                            style={styles.badge}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                        >
+                            <Text style={styles.badgeText}>
+                                {unreadCount > 99 ? '99+' : unreadCount}
+                            </Text>
+                        </LinearGradient>
                     )}
                 </View>
 
                 {room.orderId && (
-                    <View style={styles.contextRow}>
-                        <Ionicons name="briefcase-outline" size={12} color={theme.text + '66'} />
-                        <Text style={[styles.contextText, { color: theme.text + '66' }]}>Order Chat</Text>
+                    <View style={[styles.contextRow, { backgroundColor: theme.tint + '10' }]}>
+                        <Ionicons name="briefcase-outline" size={12} color={theme.tint} />
+                        <Text style={[styles.contextText, { color: theme.tint }]}>Order Chat</Text>
                     </View>
                 )}
             </View>
-
-            {otherParticipant?.user.isOnline && (
-                <View style={styles.onlineIndicator} />
-            )}
         </TouchableOpacity>
     );
 }
@@ -91,13 +144,21 @@ const styles = StyleSheet.create({
     container: {
         flexDirection: 'row',
         padding: 16,
-        borderBottomWidth: 1,
+        marginHorizontal: 12,
+        marginVertical: 6,
+        borderRadius: 16,
+    },
+    avatarContainer: {
+        position: 'relative',
+        marginRight: 12,
     },
     avatar: {
-        width: 50,
-        height: 50,
-        borderRadius: 25,
-        marginRight: 12,
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        justifyContent: 'center',
+        alignItems: 'center',
+        overflow: 'hidden',
     },
     content: {
         flex: 1,
@@ -107,58 +168,70 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 4,
+        marginBottom: 6,
     },
     name: {
         fontSize: 16,
         fontWeight: '600',
         flex: 1,
     },
+    nameUnread: {
+        fontWeight: '700',
+    },
     time: {
         fontSize: 12,
         marginLeft: 8,
+        fontWeight: '500',
     },
     messageRow: {
         flexDirection: 'row',
-        alignItems: 'center',
+        alignItems: 'flex-start',
         justifyContent: 'space-between',
+        gap: 8,
     },
     lastMessage: {
         fontSize: 14,
         flex: 1,
+        lineHeight: 20,
+    },
+    lastMessageUnread: {
+        fontWeight: '500',
     },
     badge: {
-        minWidth: 20,
-        height: 20,
-        borderRadius: 10,
+        minWidth: 22,
+        height: 22,
+        borderRadius: 11,
         justifyContent: 'center',
         alignItems: 'center',
-        paddingHorizontal: 6,
-        marginLeft: 8,
+        paddingHorizontal: 7,
     },
     badgeText: {
         color: 'white',
         fontSize: 11,
-        fontWeight: 'bold',
+        fontWeight: '700',
     },
     contextRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginTop: 4,
+        marginTop: 6,
         gap: 4,
+        alignSelf: 'flex-start',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 8,
     },
     contextText: {
-        fontSize: 12,
+        fontSize: 11,
+        fontWeight: '600',
     },
     onlineIndicator: {
         position: 'absolute',
-        top: 20,
-        left: 54,
-        width: 12,
-        height: 12,
-        borderRadius: 6,
+        bottom: 2,
+        right: 2,
+        width: 14,
+        height: 14,
+        borderRadius: 7,
         backgroundColor: '#34C759',
-        borderWidth: 2,
-        borderColor: 'white',
+        borderWidth: 2.5,
     },
 });
