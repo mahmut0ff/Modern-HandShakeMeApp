@@ -1,5 +1,4 @@
 import apiClient from './client';
-import { User } from '../context/AuthContext';
 
 export interface PortfolioItem {
     id: string;
@@ -41,7 +40,7 @@ export interface MasterProfile {
     completedOrders: number;
     successRate: string;
     portfolioPreview?: string[];
-    user?: Partial<User>;
+    user?: any;
     portfolio?: PortfolioItem[];
     reviews?: any[]; // Detailed reviews for profile view
 }
@@ -66,7 +65,7 @@ export const mastersApi = {
         page_size?: number;
         with_portfolio?: boolean;
     }) =>
-        apiClient.get<MastersResponse>('/masters', { params }),
+        apiClient.get<MasterProfile[]>('/masters', { params }),
 
     getMasterProfile: (masterId: string) =>
         apiClient.get<MasterProfile>(`/masters/${masterId}`),

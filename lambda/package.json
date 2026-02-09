@@ -20,6 +20,7 @@
     "seed:translations:cache": "npx ts-node core/localization/seed-translations.ts --cache-only",
     "seed:translations:export": "npx ts-node core/localization/seed-translations.ts --export-only",
     "seed:categories": "npx ts-node scripts/seed-categories.ts",
+    "setup:dynamodb": "node scripts/setup-dynamodb.js",
     "deploy:check": "npm run test:pre-deploy && npm run lint",
     "package:lambdas": "node scripts/package-lambdas.js"
   },

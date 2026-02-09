@@ -1,187 +1,280 @@
-import React, { useState } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
-import { useAuth } from '@/src/context/AuthContext';
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
+import { useRouter } from 'expo-router';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '@/src/context/AuthContext';
+import { profileApi, ProfileStats } from '@/src/api/profile';
+import { Colors } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import MenuListItem from '@/components/MenuListItem';
+import StatCard from '@/components/StatCard';
 
 export default function ProfileScreen() {
-    const { user, signOut, switchRole } = useAuth();
-    const [isSwitching, setIsSwitching] = useState(false);
+    const { user, signOut } = useAuth();
+    const router = useRouter();
+    const colorScheme = useColorScheme() ?? 'light';
+    const theme = Colors[colorScheme];
 
-    const handleSwitchRole = async () => {
-        Alert.alert(
-            'Switch Role',
-            `Are you sure you want to switch to ${user?.role === 'MASTER' ? 'Client' : 'Master'} role?`,
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Switch',
-                    onPress: async () => {
-                        setIsSwitching(true);
-                        try {
-                            await switchRole();
-                        } catch (e) {
-                            Alert.alert('Error', 'Failed to switch role. Please try again.');
-                        } finally {
-                            setIsSwitching(false);
-                        }
-                    }
-                }
-            ]
-        );
+    const [stats, setStats] = useState<ProfileStats | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+
+    useEffect(() => {
+        fetchStats();
+    }, [user?.role]);
+
+    const fetchStats = async () => {
+        try {
+            const response = user?.role === 'MASTER'
+                ? await profileApi.getMasterStats()
+                : await profileApi.getClientStats();
+            setStats(response.data);
+        } catch (error) {
+            console.error('Failed to fetch stats', error);
+        } finally {
+            setIsLoading(false);
+            setRefreshing(false);
+        }
     };
 
+    const onRefresh = () => {
+        setRefreshing(true);
+        fetchStats();
+    };
+
+    const menuItems = [
+        {
+            icon: 'person-outline' as const,
+            title: 'My Profile',
+            subtitle: 'Edit your personal information',
+            onPress: () => router.push('/profile/edit' as any),
+        },
+        ...(user?.role === 'MASTER' ? [{
+            icon: 'briefcase-outline' as const,
+            title: 'Portfolio',
+            subtitle: 'Manage your work showcase',
+            onPress: () => router.push('/profile/portfolio' as any),
+        }] : []),
+        {
+            icon: 'document-text-outline' as const,
+            title: 'My Orders',
+            subtitle: user?.role === 'MASTER' ? 'View accepted jobs' : 'View your posted jobs',
+            onPress: () => router.push('/my-jobs' as any),
+        },
+        ...(user?.role === 'MASTER' ? [{
+            icon: 'paper-plane-outline' as const,
+            title: 'Responses',
+            subtitle: 'Your job applications',
+            onPress: () => router.push('/responses' as any),
+        }] : []),
+        {
+            icon: 'chatbubbles-outline' as const,
+            title: 'Chats',
+            subtitle: 'Your conversations',
+            onPress: () => router.push('/chat' as any),
+        },
+        {
+            icon: 'heart-outline' as const,
+            title: 'Favorites',
+            subtitle: 'Saved items',
+            onPress: () => router.push('/profile/favorites' as any),
+        },
+        {
+            icon: 'star-outline' as const,
+            title: 'Reviews',
+            subtitle: 'Reviews about you',
+            onPress: () => router.push('/profile/reviews' as any),
+        },
+        {
+            icon: 'settings-outline' as const,
+            title: 'Settings',
+            subtitle: 'Preferences and privacy',
+            onPress: () => router.push('/profile/settings' as any),
+        },
+    ];
+
+    if (isLoading) {
+        return (
+            <View style={[styles.centered, { backgroundColor: theme.background }]}>
+                <ActivityIndicator size="large" color={theme.tint} />
+            </View>
+        );
+    }
+
     return (
-        <View style={styles.container}>
-            <View style={styles.header}>
-                <View style={styles.avatarPlaceholder}>
-                    <Ionicons name="person" size={50} color="#ccc" />
-                </View>
-                <Text style={styles.name}>{user?.firstName} {user?.lastName}</Text>
-                <Text style={styles.role}>{user?.role}</Text>
-            </View>
-
-            <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Contact Information</Text>
-                <View style={styles.infoSection}>
-                    <View style={styles.infoRow}>
-                        <Ionicons name="call-outline" size={20} color="#666" />
-                        <Text style={styles.infoText}>{user?.phone || 'No phone'}</Text>
+        <ScrollView
+            style={[styles.container, { backgroundColor: theme.background }]}
+            refreshControl={
+                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.tint} />
+            }
+        >
+            {/* Header */}
+            <View style={[styles.header, { backgroundColor: theme.card }]}>
+                <TouchableOpacity
+                    style={styles.avatarContainer}
+                    onPress={() => router.push('/profile/edit' as any)}
+                >
+                    <Image
+                        source={user?.avatar || 'https://via.placeholder.com/100'}
+                        style={styles.avatar}
+                    />
+                    <View style={[styles.editBadge, { backgroundColor: theme.tint }]}>
+                        <Ionicons name="camera" size={16} color="white" />
                     </View>
-                    {user?.telegramUsername && (
-                        <View style={styles.infoRow}>
-                            <Ionicons name="paper-plane-outline" size={20} color="#666" />
-                            <Text style={styles.infoText}>@{user.telegramUsername}</Text>
-                        </View>
-                    )}
+                </TouchableOpacity>
+
+                <Text style={[styles.name, { color: theme.text }]}>
+                    {user?.firstName} {user?.lastName}
+                </Text>
+
+                <View style={[styles.roleBadge, { backgroundColor: theme.tint + '15' }]}>
+                    <Text style={[styles.roleText, { color: theme.tint }]}>
+                        {user?.role === 'MASTER' ? '🔧 Master' : '👤 Client'}
+                    </Text>
                 </View>
+
+                {user?.city && (
+                    <View style={styles.locationRow}>
+                        <Ionicons name="location-outline" size={16} color={theme.text + '66'} />
+                        <Text style={[styles.location, { color: theme.text + '66' }]}>{user.city}</Text>
+                    </View>
+                )}
             </View>
 
-            <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Account Settings</Text>
-                <View style={styles.menuSection}>
-                    <TouchableOpacity
-                        style={styles.menuItem}
-                        onPress={handleSwitchRole}
-                        disabled={isSwitching}
-                    >
-                        <View style={styles.menuItemLeft}>
-                            <Ionicons name="repeat-outline" size={22} color="#007AFF" />
-                            <Text style={styles.menuItemText}>
-                                Switch to {user?.role === 'MASTER' ? 'Client' : 'Master'} Role
-                            </Text>
-                        </View>
-                        {isSwitching ? (
-                            <ActivityIndicator size="small" color="#007AFF" />
-                        ) : (
-                            <Ionicons name="chevron-forward" size={20} color="#ccc" />
-                        )}
-                    </TouchableOpacity>
+            {/* Quick Stats */}
+            {stats && (
+                <View style={styles.statsContainer}>
+                    <StatCard
+                        icon="checkmark-circle-outline"
+                        label="Completed"
+                        value={stats.completedOrders || 0}
+                    />
+                    <StatCard
+                        icon="star-outline"
+                        label="Rating"
+                        value={stats.averageRating?.toFixed(1) || 'N/A'}
+                    />
+                    <StatCard
+                        icon="time-outline"
+                        label="Response"
+                        value={stats.responseTime || 'N/A'}
+                    />
                 </View>
+            )}
+
+            {/* Menu Items */}
+            <View style={[styles.menuSection, { backgroundColor: theme.card }]}>
+                {menuItems.map((item, index) => (
+                    <MenuListItem
+                        key={index}
+                        icon={item.icon}
+                        title={item.title}
+                        subtitle={item.subtitle}
+                        onPress={item.onPress}
+                    />
+                ))}
             </View>
 
-            <TouchableOpacity style={styles.signOutButton} onPress={signOut}>
+            {/* Logout Button */}
+            <TouchableOpacity
+                style={[styles.logoutButton, { borderColor: '#ff3b30' }]}
+                onPress={signOut}
+            >
                 <Ionicons name="log-out-outline" size={20} color="#ff3b30" />
-                <Text style={styles.signOutText}>Sign Out</Text>
+                <Text style={styles.logoutText}>Sign Out</Text>
             </TouchableOpacity>
-        </View>
+
+            <View style={{ height: 40 }} />
+        </ScrollView>
     );
 }
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        padding: 20,
-        backgroundColor: '#fff',
+    },
+    centered: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     header: {
         alignItems: 'center',
-        marginTop: 40,
-        marginBottom: 30,
+        paddingTop: 60,
+        paddingBottom: 24,
+        paddingHorizontal: 20,
     },
-    avatarPlaceholder: {
+    avatarContainer: {
+        position: 'relative',
+        marginBottom: 16,
+    },
+    avatar: {
         width: 100,
         height: 100,
         borderRadius: 50,
-        backgroundColor: '#f0f0f0',
+    },
+    editBadge: {
+        position: 'absolute',
+        bottom: 0,
+        right: 0,
+        width: 32,
+        height: 32,
+        borderRadius: 16,
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: 15,
+        borderWidth: 3,
+        borderColor: 'white',
     },
     name: {
         fontSize: 24,
         fontWeight: 'bold',
-        color: '#000',
+        marginBottom: 8,
     },
-    role: {
-        fontSize: 16,
-        color: '#666',
-        marginTop: 4,
-        textTransform: 'capitalize',
+    roleBadge: {
+        paddingHorizontal: 16,
+        paddingVertical: 6,
+        borderRadius: 16,
+        marginBottom: 8,
     },
-    section: {
-        marginBottom: 25,
-    },
-    sectionTitle: {
+    roleText: {
         fontSize: 14,
         fontWeight: '600',
-        color: '#999',
-        textTransform: 'uppercase',
-        marginBottom: 10,
-        marginLeft: 5,
     },
-    infoSection: {
-        backgroundColor: '#f9f9f9',
-        borderRadius: 12,
-        padding: 15,
+    locationRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+    },
+    location: {
+        fontSize: 14,
+    },
+    statsContainer: {
+        flexDirection: 'row',
+        paddingHorizontal: 16,
+        paddingVertical: 16,
+        gap: 8,
     },
     menuSection: {
-        backgroundColor: '#f9f9f9',
+        marginTop: 8,
         borderRadius: 12,
+        marginHorizontal: 16,
         overflow: 'hidden',
     },
-    infoRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 10,
-    },
-    infoText: {
-        fontSize: 16,
-        marginLeft: 10,
-        color: '#333',
-    },
-    menuItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: 15,
-        backgroundColor: '#f9f9f9',
-        borderBottomWidth: 1,
-        borderBottomColor: '#eee',
-    },
-    menuItemLeft: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    menuItemText: {
-        fontSize: 16,
-        color: '#000',
-        marginLeft: 12,
-    },
-    signOutButton: {
+    logoutButton: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: 15,
+        padding: 16,
         borderWidth: 1,
-        borderColor: '#ff3b30',
         borderRadius: 12,
-        marginTop: 'auto',
-        marginBottom: 20,
+        marginHorizontal: 16,
+        marginTop: 24,
+        gap: 8,
     },
-    signOutText: {
+    logoutText: {
         color: '#ff3b30',
         fontSize: 16,
         fontWeight: '600',
-        marginLeft: 8,
     },
 });

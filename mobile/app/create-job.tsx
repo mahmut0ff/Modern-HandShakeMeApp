@@ -54,7 +54,7 @@ export default function CreateJobScreen() {
 
     const pickImages = async () => {
         const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            mediaTypes: ['images'],
             allowsMultipleSelection: true,
             quality: 0.8,
         });
@@ -117,6 +117,12 @@ export default function CreateJobScreen() {
             ]);
         } catch (error) {
             console.error('Failed to save job', error);
+            // Log detailed error for debugging
+            if (error && typeof error === 'object' && 'response' in error) {
+                const axiosError = error as any;
+                console.error('Server response:', axiosError.response?.data);
+                console.error('Status code:', axiosError.response?.status);
+            }
             Alert.alert('Error', `Failed to ${isEditing ? 'update' : 'post'} job. Please try again.`);
         } finally {
             setIsLoading(false);

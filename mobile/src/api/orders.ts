@@ -92,8 +92,10 @@ export const ordersApi = {
     createOrder: (data: CreateOrderRequest) =>
         apiClient.post<Order>('/orders', data),
 
-    listOrders: (params?: { categoryId?: string; status?: string; limit?: number }) =>
-        apiClient.get<OrdersResponse>('/orders', { params }),
+    listOrders: async (params?: { categoryId?: string; status?: string; city?: string; limit?: number; page_size?: number }) => {
+        const response = await apiClient.get<Order[]>('/orders', { params });
+        return { data: response.data || [] };
+    },
 
     searchOrders: (query: string) =>
         apiClient.get<OrdersResponse>(`/orders/search?q=${query}`),

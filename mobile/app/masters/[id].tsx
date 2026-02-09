@@ -1,11 +1,13 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Dimensions } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Dimensions, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { mastersApi, MasterProfile } from '@/src/api/masters';
+import { chatApi } from '@/src/api/chat';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useAuth } from '@/src/context/AuthContext';
 
 const { width } = Dimensions.get('window');
 
@@ -14,6 +16,7 @@ export default function MasterProfileScreen() {
     const router = useRouter();
     const colorScheme = useColorScheme() ?? 'light';
     const theme = Colors[colorScheme];
+    const { user } = useAuth();
 
     const [profile, setProfile] = useState<MasterProfile | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -39,6 +42,21 @@ export default function MasterProfileScreen() {
     const onRefresh = () => {
         setRefreshing(true);
         fetchProfile();
+    };
+
+    const handleWrite = async () => {
+        if (!profile || !user) return;
+
+        try {
+            const response = await chatApi.createRoom({
+                participants: [user.id, profile.userId],
+            });
+
+            router.push(`/chat/${response.data.id}` as any);
+        } catch (error) {
+            console.error('Failed to create chat room', error);
+            Alert.alert('Error', 'Failed to start chat. Please try again.');
+        }
     };
 
     if (isLoading && !refreshing) {
@@ -161,7 +179,7 @@ export default function MasterProfileScreen() {
             <View style={[styles.actionBar, { backgroundColor: theme.card, borderTopColor: theme.text + '1A' }]}>
                 <TouchableOpacity
                     style={[styles.chatButton, { backgroundColor: theme.background }]}
-                    onPress={() => router.push(`/chat?recipientId=${profile.userId}`)}
+                    onPress={handleWrite}
                 >
                     <Ionicons name="chatbubble-outline" size={24} color={theme.tint} />
                 </TouchableOpacity>

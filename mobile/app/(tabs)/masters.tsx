@@ -21,9 +21,10 @@ export default function MastersScreen() {
                 with_portfolio: true,
                 page_size: 20
             });
-            setMasters(response.data.data);
+            setMasters(response.data || []);
         } catch (error) {
             console.error('Failed to fetch masters', error);
+            setMasters([]);
         } finally {
             setIsLoading(false);
             setRefreshing(false);
