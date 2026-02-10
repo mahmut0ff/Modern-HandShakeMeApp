@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { ApplicationRepository } from '../shared/repositories/application.repository';
 import { OrderRepository } from '../shared/repositories/order.repository';
 import { UserRepository } from '../shared/repositories/user.repository';
-import { NotificationService } from '../shared/services/notification';
+import { notificationService } from '../shared/services/notification.service';
 import { success, badRequest, notFound, forbidden } from '../shared/utils/response';
 import { withAuth, AuthenticatedEvent } from '../shared/middleware/auth';
 import { withErrorHandler, ValidationError } from '../shared/middleware/errorHandler';
@@ -42,7 +42,6 @@ async function createApplicationHandler(event: AuthenticatedEvent): Promise<APIG
   const orderRepo = new OrderRepository();
   const applicationRepo = new ApplicationRepository();
   const userRepo = new UserRepository();
-  const notificationService = new NotificationService();
 
   // Check if order exists and is active
   const order = await orderRepo.findById(validatedData.orderId);
@@ -78,13 +77,13 @@ async function createApplicationHandler(event: AuthenticatedEvent): Promise<APIG
 
   // Send notification to client
   try {
-    await notificationService.notifyApplicationCreated(order.clientId, {
-      applicationId: application.id,
-      orderId: validatedData.orderId,
-      orderTitle: order.title,
-      masterName: master?.name || `${master?.firstName} ${master?.lastName}`.trim(),
-      proposedPrice: validatedData.proposedPrice,
-    });
+    await notificationService.notifyApplicationCreated(
+      application.id,
+      validatedData.orderId,
+      order.clientId,
+      master?.firstName && master?.lastName ? `${master.firstName} ${master.lastName}` : 'Мастер',
+      order.title
+    );
   } catch (error) {
     logger.error('Failed to send application created notification', error);
     // Don't fail the request if notification fails

@@ -392,6 +392,16 @@ export default function JobDetailsScreen() {
                             <Text style={[styles.infoText, { color: theme.text }]}>Waiting for client to confirm completion</Text>
                         </View>
                     )}
+
+                    {order.status === 'COMPLETED' && order.masterId === user?.id && (
+                        <TouchableOpacity
+                            style={[styles.applyBtn, { backgroundColor: '#FFB800' }]}
+                            onPress={() => router.push(`/reviews/create?orderId=${order.id}` as any)}
+                        >
+                            <Ionicons name="star" size={20} color="#fff" />
+                            <Text style={[styles.applyBtnText, { color: '#fff' }]}>Оставить отзыв о клиенте</Text>
+                        </TouchableOpacity>
+                    )}
                 </View>
             )}
 
@@ -432,6 +442,15 @@ export default function JobDetailsScreen() {
                             >
                                 <Ionicons name="ribbon-outline" size={20} color="#fff" />
                                 <Text style={[styles.applyBtnText, { color: '#fff' }]}>Confirm & Rate</Text>
+                            </TouchableOpacity>
+                        )}
+                        {order.status === 'COMPLETED' && (
+                            <TouchableOpacity
+                                style={[styles.applyBtn, { backgroundColor: '#FFB800', flex: 1 }]}
+                                onPress={() => router.push(`/reviews/create?orderId=${order.id}` as any)}
+                            >
+                                <Ionicons name="star" size={20} color="#fff" />
+                                <Text style={[styles.applyBtnText, { color: '#fff' }]}>Оставить отзыв</Text>
                             </TouchableOpacity>
                         )}
                         {(order.status === 'ACTIVE' || order.status === 'PAUSED' || order.status === 'DRAFT') && (

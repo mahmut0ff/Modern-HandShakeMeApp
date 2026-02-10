@@ -5,7 +5,7 @@ import { ApplicationRepository } from '../shared/repositories/application.reposi
 import { OrderRepository } from '../shared/repositories/order.repository';
 import { ChatRepository } from '../shared/repositories/chat.repository';
 import { UserRepository } from '../shared/repositories/user.repository';
-import { NotificationService } from '../shared/services/notification';
+import { notificationService } from '../shared/services/notification.service';
 import { success, forbidden, notFound, badRequest } from '../shared/utils/response';
 import { withAuth, AuthenticatedEvent } from '../shared/middleware/auth';
 import { withErrorHandler } from '../shared/middleware/errorHandler';
@@ -31,7 +31,6 @@ async function acceptApplicationHandler(
   const orderRepo = new OrderRepository();
   const chatRepo = new ChatRepository();
   const userRepo = new UserRepository();
-  const notificationService = new NotificationService();
   
   // First, we need to find the application by checking all orders
   // Since we only have applicationId, we need to find which order it belongs to
@@ -91,27 +90,22 @@ async function acceptApplicationHandler(
   
   // Send notifications
   try {
-    const [master, client] = await Promise.all([
-      userRepo.findById(application.masterId),
-      userRepo.findById(userId),
-    ]);
-    
     // Notify accepted master
-    await notificationService.notifyApplicationAccepted(application.masterId, {
+    await notificationService.notifyApplicationAccepted(
       applicationId,
       orderId,
-      orderTitle: order.title,
-      clientName: client?.name || `${client?.firstName} ${client?.lastName}`.trim(),
-    });
+      application.masterId,
+      order.title
+    );
     
     // Notify rejected masters
-    if (otherPendingApplications.length > 0) {
-      const rejectedMasterIds = otherPendingApplications.map(app => app.masterId);
-      await notificationService.notifyMultipleApplicationsRejected(rejectedMasterIds, {
-        applicationId: '', // Not relevant for rejected applications
+    for (const rejectedApp of otherPendingApplications) {
+      await notificationService.notifyApplicationRejected(
+        rejectedApp.id,
         orderId,
-        orderTitle: order.title,
-      });
+        rejectedApp.masterId,
+        order.title
+      );
     }
   } catch (error) {
     logger.error('Failed to send application acceptance notifications', error);

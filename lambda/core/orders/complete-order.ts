@@ -2,7 +2,7 @@ import type { APIGatewayProxyResult } from 'aws-lambda';
 import { OrderRepository } from '../shared/repositories/order.repository';
 import { ReviewRepository } from '../shared/repositories/review.repository';
 import { UserRepository } from '../shared/repositories/user.repository';
-import { NotificationService } from '../shared/services/notification';
+import { notificationService } from '../shared/services/notification.service';
 import { success, forbidden, notFound, badRequest } from '../shared/utils/response';
 import { withAuth, AuthenticatedEvent } from '../shared/middleware/auth';
 import { withErrorHandler } from '../shared/middleware/errorHandler';
@@ -28,7 +28,6 @@ async function completeOrderHandler(
     }
 
     const userRepo = new UserRepository();
-    const notificationService = new NotificationService();
 
     if (action === 'COMPLETE_WORK') {
         // Master marks work as done
@@ -42,11 +41,16 @@ async function completeOrderHandler(
         const updatedOrder = await orderRepo.updateStatus(orderId, 'READY_TO_CONFIRM');
 
         // Notify client
-        await notificationService.notifyCustom(order.clientId, {
-            title: 'Work Completed',
-            body: `Master has marked the work on "${order.title}" as completed. Please confirm and leave a review.`,
-            type: 'ORDER_COMPLETED_PENDING'
-        });
+        try {
+            await notificationService.notifyOrderStatusChanged(
+                orderId,
+                order.clientId,
+                order.title,
+                'READY_TO_CONFIRM'
+            );
+        } catch (error) {
+            logger.error('Failed to send order completion notification', error);
+        }
 
         return success({ order: updatedOrder });
     }
@@ -91,12 +95,31 @@ async function completeOrderHandler(
             }
         }
 
-        // Notify master
-        await notificationService.notifyCustom(order.masterId!, {
-            title: 'Order Confirmed',
-            body: `Client has confirmed completion of "${order.title}" and left a ${rating}-star review.`,
-            type: 'ORDER_CONFIRMED'
-        });
+        // Notify master about completion and review
+        try {
+            if (order.masterId) {
+                await notificationService.notifyOrderCompleted(
+                    orderId,
+                    order.masterId,
+                    order.title
+                );
+                
+                // Also notify about the review
+                const client = await userRepo.findById(userId);
+                const clientName = client?.firstName && client?.lastName 
+                    ? `${client.firstName} ${client.lastName}` 
+                    : 'Клиент';
+                
+                await notificationService.notifyReviewReceived(
+                    review.id,
+                    order.masterId,
+                    clientName,
+                    rating
+                );
+            }
+        } catch (error) {
+            logger.error('Failed to send order confirmation notifications', error);
+        }
 
         return success({ order: updatedOrder, review });
     }

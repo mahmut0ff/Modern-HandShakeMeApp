@@ -12,8 +12,8 @@ export const handler = async (
 ): Promise<APIGatewayProxyResult> => {
   try {
     // Support both API Gateway authorizer formats
-    const userId = event.requestContext.authorizer?.claims?.sub 
-      || event.requestContext.authorizer?.userId;
+    const userId = event.requestContext.authorizer?.userId 
+      || event.requestContext.authorizer?.claims?.sub;
 
     if (!userId) {
       return {
@@ -22,9 +22,14 @@ export const handler = async (
           'Content-Type': 'application/json',
           'Access-Control-Allow-Origin': '*',
         },
-        body: JSON.stringify({ error: 'Unauthorized' }),
+        body: JSON.stringify({ 
+          success: false,
+          error: { message: 'Unauthorized - no user ID found' }
+        }),
       };
     }
+
+    console.log('Getting client dashboard stats for user:', userId);
 
     // Get active orders count
     const activeOrdersResult = await dynamodb.send(
@@ -103,7 +108,10 @@ export const handler = async (
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
       },
-      body: JSON.stringify(stats),
+      body: JSON.stringify({
+        success: true,
+        data: stats
+      }),
     };
   } catch (error) {
     console.error('Error getting client dashboard stats:', error);
@@ -114,8 +122,11 @@ export const handler = async (
         'Access-Control-Allow-Origin': '*',
       },
       body: JSON.stringify({
-        error: 'Failed to get dashboard stats',
-        message: error instanceof Error ? error.message : 'Unknown error',
+        success: false,
+        error: {
+          message: 'Failed to get dashboard stats',
+          details: error instanceof Error ? error.message : 'Unknown error',
+        }
       }),
     };
   }

@@ -13,14 +13,8 @@ async function getVerificationStatusHandler(
   event: AuthenticatedEvent
 ): Promise<APIGatewayProxyResult> {
   const userId = event.auth.userId;
-  const userRole = event.auth.role;
   
   logger.info('Get verification status request', { userId });
-  
-  // Check if user is a master
-  if (userRole !== 'MASTER') {
-    return forbidden('Only masters can access verification status');
-  }
   
   const userRepository = new UserRepository();
   const user = await userRepository.findById(userId);

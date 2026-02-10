@@ -99,6 +99,12 @@ export default function ProfileScreen() {
             onPress: () => router.push('/profile/reviews' as any),
         },
         {
+            icon: 'notifications-outline' as const,
+            title: 'Notifications',
+            subtitle: 'Manage notification settings',
+            onPress: () => router.push('/profile/notification-settings' as any),
+        },
+        {
             icon: 'settings-outline' as const,
             title: 'Settings',
             subtitle: 'Preferences and privacy',

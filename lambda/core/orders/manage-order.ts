@@ -1,5 +1,6 @@
 import type { APIGatewayProxyResult } from 'aws-lambda';
 import { OrderRepository } from '../shared/repositories/order.repository';
+import { notificationService } from '../shared/services/notification.service';
 import { success, forbidden, notFound, badRequest } from '../shared/utils/response';
 import { withAuth, AuthenticatedEvent } from '../shared/middleware/auth';
 import { withErrorHandler } from '../shared/middleware/errorHandler';
@@ -35,24 +36,49 @@ async function manageOrderHandler(
     }
 
     let updatedOrder;
+    let statusChanged = false;
+    let newStatus = '';
+    
     switch (action) {
         case 'PAUSE':
             if (order.status !== 'ACTIVE') {
                 return badRequest('Only active orders can be paused');
             }
             updatedOrder = await orderRepo.pause(orderId);
+            statusChanged = true;
+            newStatus = 'PAUSED';
             break;
         case 'RESUME':
             if (order.status !== 'PAUSED') {
                 return badRequest('Only paused orders can be resumed');
             }
             updatedOrder = await orderRepo.resume(orderId);
+            statusChanged = true;
+            newStatus = 'ACTIVE';
             break;
         case 'ARCHIVE':
             updatedOrder = await orderRepo.archive(orderId);
+            statusChanged = true;
+            newStatus = 'ARCHIVED';
             break;
         default:
             return badRequest('Unsupported action');
+    }
+
+    // Send notifications if status changed
+    if (statusChanged && order.masterId) {
+        try {
+            // Notify master about status change
+            await notificationService.notifyOrderStatusChanged(
+                orderId,
+                order.masterId,
+                order.title,
+                newStatus
+            );
+        } catch (error) {
+            logger.error('Failed to send order status change notification', error);
+            // Don't fail the request if notification fails
+        }
     }
 
     return success({ order: updatedOrder });

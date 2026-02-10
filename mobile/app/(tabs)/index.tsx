@@ -75,6 +75,9 @@ export default function HomeScreen() {
   const fetchClientDashboard = async () => {
     try {
       console.log('Fetching client dashboard stats...');
+      console.log('User role:', user?.role);
+      console.log('User ID:', user?.id);
+      
       // Fetch stats
       const statsResponse = await profileApi.getClientStats();
       console.log('Client stats response:', statsResponse.data);
@@ -91,17 +94,17 @@ export default function HomeScreen() {
       const ordersResponse = await ordersApi.getMyOrders('IN_PROGRESS');
       setActiveOrders(ordersResponse.data.results || []);
 
-      // Fetch new applications
-      const appsResponse = await applicationsApi.getMyApplications();
-      const newApps = (appsResponse.data.results || []).filter(
-        (app: any) => app.status === 'PENDING' && !app.viewed_at
-      ).slice(0, 3);
-      setNewApplications(newApps);
+      // For clients, we'll fetch applications count from their active orders
+      // This is more appropriate than calling /applications/my which is for masters
+      // TODO: Implement a proper endpoint to get application counts for client's orders
+      setNewApplications([]);
 
       // TODO: Fetch favorite masters when endpoint is ready
       setFavoriteMasters([]);
     } catch (error: any) {
       console.error('Failed to fetch client dashboard', error);
+      console.error('Error response:', error.response?.data);
+      console.error('Error status:', error.response?.status);
       console.error('Error details:', error.response?.data || error.message);
       // Set default values on error
       setStats({

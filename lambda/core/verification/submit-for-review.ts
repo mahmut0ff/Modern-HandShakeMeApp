@@ -45,20 +45,26 @@ async function submitVerificationHandler(
     
     // Check if has required documents
     if (!verification.documents || verification.documents.length === 0) {
-      return badRequest('Please upload verification documents first');
+      return badRequest('Please upload verification photos first');
     }
     
-    // Validate document requirements
-    const documentTypes = verification.documents.map(doc => doc.type);
-    const hasIdentityDoc = documentTypes.some(type => 
-      ['PASSPORT', 'ID_CARD', 'DRIVER_LICENSE'].includes(type)
-    );
+    // Validate document requirements (face photo and passport photo)
+    const hasFacePhoto = verification.documents.some(doc => doc.type === 'FACE_PHOTO');
+    const hasPassportPhoto = verification.documents.some(doc => doc.type === 'PASSPORT_PHOTO');
     
-    if (!hasIdentityDoc) {
-      return badRequest('At least one identity document (passport, ID card, or driver license) is required');
+    if (!hasFacePhoto) {
+      return badRequest('Face photo (selfie) is required');
+    }
+    
+    if (!hasPassportPhoto) {
+      return badRequest('Passport verification photo is required');
     }
     
     // Check current status
+    if (verification.status === 'PENDING') {
+      return badRequest('Verification is already submitted for review');
+    }
+    
     if (verification.status === 'IN_REVIEW') {
       return badRequest('Verification is already under review');
     }
@@ -88,7 +94,7 @@ async function submitVerificationHandler(
       userId,
       type: 'SYSTEM',
       title: 'Verification Submitted',
-      message: `Your verification has been submitted for review. Estimated review time: ${getEstimatedReviewTime(priority)}`,
+      message: 'Your verification has been submitted for review. You will be notified once the review is complete.',
       data: {
         verificationId: verification.id,
         priority,

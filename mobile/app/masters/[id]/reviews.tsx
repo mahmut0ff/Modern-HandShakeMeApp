@@ -1,43 +1,39 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, FlatList, ActivityIndicator, RefreshControl, Image } from 'react-native';
-import { useRouter } from 'expo-router';
+import { StyleSheet, View, Text, TouchableOpacity, FlatList, ActivityIndicator, Image } from 'react-native';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { reviewsApi, Review, ReviewStats } from '@/src/api/reviews';
-import { useAuth } from '@/src/context/AuthContext';
+import { reviewsApi, Review } from '@/src/api/reviews';
 
-export default function ReviewsScreen() {
+export default function MasterReviewsScreen() {
     const router = useRouter();
+    const params = useLocalSearchParams();
+    const masterId = params.id as string;
     const colorScheme = useColorScheme() ?? 'light';
     const theme = Colors[colorScheme];
-    const { user } = useAuth();
 
     const [reviews, setReviews] = useState<Review[]>([]);
-    const [stats, setStats] = useState<ReviewStats | null>(null);
     const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
     const [hasMore, setHasMore] = useState(false);
     const [lastKey, setLastKey] = useState<string | undefined>();
+    const [filter, setFilter] = useState<number | undefined>();
 
     useEffect(() => {
-        loadData();
-    }, []);
+        loadReviews();
+    }, [filter]);
 
-    const loadData = async () => {
-        if (!user?.id) return;
-
+    const loadReviews = async () => {
         try {
             setLoading(true);
-            const [reviewsRes, statsRes] = await Promise.all([
-                reviewsApi.listReviews(user.id, { limit: 20 }),
-                reviewsApi.getReviewStats(user.id),
-            ]);
+            const response = await reviewsApi.listReviews(masterId, {
+                limit: 20,
+                rating: filter,
+            });
 
-            setReviews(reviewsRes.data.data);
-            setStats(statsRes.data);
-            setHasMore(reviewsRes.data.pagination.hasMore);
-            setLastKey(reviewsRes.data.pagination.lastEvaluatedKey);
+            setReviews(response.data.data);
+            setHasMore(response.data.pagination.hasMore);
+            setLastKey(response.data.pagination.lastEvaluatedKey);
         } catch (error) {
             console.error('Failed to load reviews:', error);
         } finally {
@@ -45,18 +41,13 @@ export default function ReviewsScreen() {
         }
     };
 
-    const onRefresh = async () => {
-        setRefreshing(true);
-        await loadData();
-        setRefreshing(false);
-    };
-
     const loadMore = async () => {
-        if (!hasMore || !lastKey || !user?.id) return;
+        if (!hasMore || !lastKey) return;
 
         try {
-            const response = await reviewsApi.listReviews(user.id, {
+            const response = await reviewsApi.listReviews(masterId, {
                 limit: 20,
+                rating: filter,
                 lastEvaluatedKey: lastKey,
             });
 
@@ -68,60 +59,26 @@ export default function ReviewsScreen() {
         }
     };
 
-    const renderStatsHeader = () => {
-        if (!stats) return null;
-
+    const renderFilterButton = (rating: number | undefined, label: string) => {
+        const isActive = filter === rating;
         return (
-            <View style={[styles.statsCard, { backgroundColor: theme.card }]}>
-                <View style={styles.statsRow}>
-                    <View style={styles.statItem}>
-                        <Text style={[styles.statValue, { color: theme.text }]}>
-                            {stats.averageRating.toFixed(1)}
-                        </Text>
-                        <View style={styles.starsRow}>
-                            {[1, 2, 3, 4, 5].map((star) => (
-                                <Ionicons
-                                    key={star}
-                                    name={star <= Math.round(stats.averageRating) ? 'star' : 'star-outline'}
-                                    size={16}
-                                    color="#FFB800"
-                                />
-                            ))}
-                        </View>
-                        <Text style={[styles.statLabel, { color: theme.text + '80' }]}>
-                            {stats.totalReviews} отзывов
-                        </Text>
-                    </View>
-                </View>
-
-                <View style={[styles.divider, { backgroundColor: theme.text + '10' }]} />
-
-                <View style={styles.distributionContainer}>
-                    {[5, 4, 3, 2, 1].map((rating) => {
-                        const count = stats.ratingDistribution[rating as keyof typeof stats.ratingDistribution] || 0;
-                        const percentage = stats.totalReviews > 0 ? (count / stats.totalReviews) * 100 : 0;
-
-                        return (
-                            <View key={rating} style={styles.distributionRow}>
-                                <Text style={[styles.distributionLabel, { color: theme.text }]}>
-                                    {rating}★
-                                </Text>
-                                <View style={[styles.distributionBar, { backgroundColor: theme.text + '10' }]}>
-                                    <View
-                                        style={[
-                                            styles.distributionFill,
-                                            { width: `${percentage}%`, backgroundColor: '#FFB800' }
-                                        ]}
-                                    />
-                                </View>
-                                <Text style={[styles.distributionCount, { color: theme.text + '80' }]}>
-                                    {count}
-                                </Text>
-                            </View>
-                        );
-                    })}
-                </View>
-            </View>
+            <TouchableOpacity
+                style={[
+                    styles.filterButton,
+                    {
+                        backgroundColor: isActive ? '#007AFF' : theme.card,
+                        borderColor: isActive ? '#007AFF' : theme.text + '20',
+                    }
+                ]}
+                onPress={() => setFilter(rating)}
+            >
+                <Text style={[
+                    styles.filterButtonText,
+                    { color: isActive ? '#FFF' : theme.text }
+                ]}>
+                    {label}
+                </Text>
+            </TouchableOpacity>
         );
     };
 
@@ -202,54 +159,40 @@ export default function ReviewsScreen() {
                         </Text>
                     </View>
                 )}
-
-                {!item.response && user?.role === 'MASTER' && (
-                    <TouchableOpacity
-                        style={styles.respondButton}
-                        onPress={() => router.push(`/reviews/${item.id}/respond` as any)}
-                    >
-                        <Text style={styles.respondButtonText}>Ответить</Text>
-                    </TouchableOpacity>
-                )}
             </View>
         );
     };
 
-    if (loading) {
-        return (
-            <View style={[styles.container, { backgroundColor: theme.background }]}>
-                <View style={[styles.header, { backgroundColor: theme.card, borderBottomColor: theme.text + '10' }]}>
-                    <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                        <Ionicons name="arrow-back" size={24} color={theme.text} />
-                    </TouchableOpacity>
-                    <Text style={[styles.headerTitle, { color: theme.text }]}>Отзывы</Text>
-                    <View style={{ width: 40 }} />
-                </View>
-                <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color="#007AFF" />
-                </View>
-            </View>
-        );
-    }
-
     return (
         <View style={[styles.container, { backgroundColor: theme.background }]}>
+            {/* Header */}
             <View style={[styles.header, { backgroundColor: theme.card, borderBottomColor: theme.text + '10' }]}>
                 <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
                     <Ionicons name="arrow-back" size={24} color={theme.text} />
                 </TouchableOpacity>
-                <Text style={[styles.headerTitle, { color: theme.text }]}>Отзывы</Text>
+                <Text style={[styles.headerTitle, { color: theme.text }]}>Все отзывы</Text>
                 <View style={{ width: 40 }} />
             </View>
 
-            {reviews.length === 0 ? (
+            {/* Filters */}
+            <View style={styles.filtersContainer}>
+                {renderFilterButton(undefined, 'Все')}
+                {renderFilterButton(5, '5 ⭐')}
+                {renderFilterButton(4, '4 ⭐')}
+                {renderFilterButton(3, '3 ⭐')}
+                {renderFilterButton(2, '2 ⭐')}
+                {renderFilterButton(1, '1 ⭐')}
+            </View>
+
+            {loading ? (
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color="#007AFF" />
+                </View>
+            ) : reviews.length === 0 ? (
                 <View style={styles.emptyContainer}>
                     <Ionicons name="star-outline" size={64} color={theme.text + '40'} />
                     <Text style={[styles.emptyText, { color: theme.text + '66' }]}>
-                        Пока нет отзывов
-                    </Text>
-                    <Text style={[styles.emptySubtext, { color: theme.text + '40' }]}>
-                        Отзывы от клиентов появятся здесь
+                        Нет отзывов
                     </Text>
                 </View>
             ) : (
@@ -257,11 +200,7 @@ export default function ReviewsScreen() {
                     data={reviews}
                     renderItem={renderReview}
                     keyExtractor={(item) => item.id}
-                    ListHeaderComponent={renderStatsHeader}
                     contentContainerStyle={styles.listContent}
-                    refreshControl={
-                        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-                    }
                     onEndReached={loadMore}
                     onEndReachedThreshold={0.5}
                 />
@@ -292,6 +231,21 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontWeight: '600',
     },
+    filtersContainer: {
+        flexDirection: 'row',
+        padding: 16,
+        gap: 8,
+    },
+    filterButton: {
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 20,
+        borderWidth: 1,
+    },
+    filterButtonText: {
+        fontSize: 14,
+        fontWeight: '500',
+    },
     loadingContainer: {
         flex: 1,
         justifyContent: 'center',
@@ -309,68 +263,8 @@ const styles = StyleSheet.create({
         marginTop: 16,
         textAlign: 'center',
     },
-    emptySubtext: {
-        fontSize: 14,
-        marginTop: 8,
-        textAlign: 'center',
-    },
     listContent: {
         padding: 16,
-    },
-    statsCard: {
-        borderRadius: 12,
-        padding: 16,
-        marginBottom: 16,
-    },
-    statsRow: {
-        alignItems: 'center',
-    },
-    statItem: {
-        alignItems: 'center',
-    },
-    statValue: {
-        fontSize: 48,
-        fontWeight: '700',
-        marginBottom: 8,
-    },
-    starsRow: {
-        flexDirection: 'row',
-        gap: 4,
-        marginBottom: 8,
-    },
-    statLabel: {
-        fontSize: 14,
-    },
-    divider: {
-        height: 1,
-        marginVertical: 16,
-    },
-    distributionContainer: {
-        gap: 8,
-    },
-    distributionRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-    },
-    distributionLabel: {
-        fontSize: 14,
-        width: 30,
-    },
-    distributionBar: {
-        flex: 1,
-        height: 8,
-        borderRadius: 4,
-        overflow: 'hidden',
-    },
-    distributionFill: {
-        height: '100%',
-        borderRadius: 4,
-    },
-    distributionCount: {
-        fontSize: 14,
-        width: 30,
-        textAlign: 'right',
     },
     reviewCard: {
         borderRadius: 12,
@@ -416,6 +310,10 @@ const styles = StyleSheet.create({
         fontSize: 12,
         marginTop: 2,
     },
+    starsRow: {
+        flexDirection: 'row',
+        gap: 2,
+    },
     tagsRow: {
         flexDirection: 'row',
         flexWrap: 'wrap',
@@ -457,15 +355,5 @@ const styles = StyleSheet.create({
     },
     responseDate: {
         fontSize: 12,
-    },
-    respondButton: {
-        marginTop: 12,
-        paddingVertical: 8,
-        alignItems: 'center',
-    },
-    respondButtonText: {
-        color: '#007AFF',
-        fontSize: 15,
-        fontWeight: '600',
     },
 });

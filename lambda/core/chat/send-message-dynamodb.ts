@@ -3,6 +3,8 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { z } from 'zod';
 import { ChatRepository } from '../shared/repositories/chat.repository';
+import { UserRepository } from '../shared/repositories/user.repository';
+import { notificationService } from '../shared/services/notification.service';
 import { withAuth } from '../shared/middleware/auth';
 import { withErrorHandler } from '../shared/middleware/errorHandler';
 import { success, badRequest, notFound, forbidden } from '../shared/utils/response';
@@ -56,6 +58,29 @@ async function sendMessageHandler(event: APIGatewayProxyEvent): Promise<APIGatew
       lastMessageAt: message.createdAt,
       lastMessage: data.content,
     });
+
+    // Send notification to other participants
+    try {
+      const userRepo = new UserRepository();
+      const sender = await userRepo.findById(userId);
+      const senderName = sender?.firstName && sender?.lastName 
+        ? `${sender.firstName} ${sender.lastName}` 
+        : 'Пользователь';
+
+      // Get recipient (the other participant)
+      const recipientId = room.participants.find(p => p !== userId);
+      if (recipientId) {
+        await notificationService.notifyNewMessage(
+          data.roomId,
+          recipientId,
+          senderName,
+          data.content
+        );
+      }
+    } catch (error) {
+      logger.error('Failed to send message notification', error);
+      // Don't fail the request if notification fails
+    }
 
     logger.info('Message sent', { messageId: message.id, roomId: data.roomId, userId });
     return success(message, 201);

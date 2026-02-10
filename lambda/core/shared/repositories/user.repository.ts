@@ -36,6 +36,7 @@ export interface User {
   birthDate?: string;
   gender?: 'MALE' | 'FEMALE' | 'OTHER';
   isIdentityVerified: boolean; // Verified by passport/photo
+  isVerified?: boolean; // Alias for isIdentityVerified
   identityVerifiedAt?: string;
   registrationStep?: 'STARTED' | 'ROLE_SELECTED' | 'PROFILE_FILLED' | 'COMPLETED';
   registrationSource?: 'TELEGRAM' | 'APP' | 'WEB';

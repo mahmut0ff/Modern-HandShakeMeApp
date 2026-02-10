@@ -6,7 +6,7 @@ import { Keys } from '../db/dynamodb-keys';
 
 export interface VerificationDocument {
   id: string;
-  type: 'PASSPORT' | 'ID_CARD' | 'DRIVER_LICENSE' | 'CERTIFICATE' | 'DIPLOMA' | 'OTHER';
+  type: 'FACE_PHOTO' | 'PASSPORT_PHOTO' | 'PASSPORT' | 'ID_CARD' | 'DRIVER_LICENSE' | 'CERTIFICATE' | 'DIPLOMA' | 'OTHER';
   url: string;
   fileName: string;
   uploadedAt: string;
@@ -17,7 +17,7 @@ export interface VerificationDocument {
 export interface MasterVerification {
   id: string;
   userId: string;
-  status: 'PENDING' | 'IN_REVIEW' | 'APPROVED' | 'REJECTED' | 'SUSPENDED';
+  status: 'NOT_STARTED' | 'PENDING' | 'IN_REVIEW' | 'APPROVED' | 'REJECTED' | 'SUSPENDED';
   documents: VerificationDocument[];
   notes?: string;
   reviewedBy?: string;
@@ -33,7 +33,7 @@ export class VerificationRepository {
     const verification: MasterVerification = {
       id: uuidv4(),
       userId: data.userId!,
-      status: data.status || 'PENDING',
+      status: data.status || 'NOT_STARTED',
       documents: data.documents || [],
       notes: data.notes,
       reviewedBy: data.reviewedBy,
@@ -162,17 +162,16 @@ export class VerificationRepository {
       throw new Error('Verification not found');
     }
     
-    // Check if has required documents
-    const hasRequiredDocs = verification.documents.some(doc => 
-      ['PASSPORT', 'ID_CARD', 'DRIVER_LICENSE'].includes(doc.type)
-    );
+    // Check if has required documents (face photo and passport photo)
+    const hasFacePhoto = verification.documents.some(doc => doc.type === 'FACE_PHOTO');
+    const hasPassportPhoto = verification.documents.some(doc => doc.type === 'PASSPORT_PHOTO');
     
-    if (!hasRequiredDocs) {
-      throw new Error('At least one identity document is required');
+    if (!hasFacePhoto || !hasPassportPhoto) {
+      throw new Error('Both face photo and passport photo are required');
     }
     
     return this.update(verificationId, {
-      status: 'IN_REVIEW',
+      status: 'PENDING',
     });
   }
   
